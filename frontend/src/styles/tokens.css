@@ -1,0 +1,43 @@
+/**
+ * Design tokens — Perfil Cultural
+ * Importa este archivo una vez en tu main.ts (import './styles/tokens.css')
+ * y úsalo en todos los componentes vía var(--token).
+ */
+:root {
+  /* Superficies */
+  --color-bg: #0a0a0a;
+  --color-surface: #121212;
+  --color-surface-2: #1a1a1a;
+  --color-border: rgba(255, 255, 255, 0.08);
+
+  /* Texto */
+  --color-text: #f5f5f5;
+  --color-text-muted: #a3a3a3;
+  --color-text-subtle: #737373;
+
+  /* Acento (celeste, el color primario del diseño) */
+  --color-accent: #38bdf8;
+  --color-accent-hover: #7dd3fc;
+  --color-accent-bg: rgba(56, 189, 248, 0.12);
+  --color-accent-contrast: #04202b; /* texto sobre fondo de acento */
+
+  /* Estados / categorías (para dots de Favorites, Completed, etc.) */
+  --color-success: #4ade80;
+  --color-warning: #facc15;
+  --color-neutral: #737373;
+
+  /* Radios */
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-lg: 16px;
+
+  /* Espaciado */
+  --space-xs: 4px;
+  --space-sm: 8px;
+  --space-md: 16px;
+  --space-lg: 24px;
+  --space-xl: 32px;
+
+  /* Tipografía */
+  --font-sans: 'Inter', system-ui, -apple-system, sans-serif;
+}
