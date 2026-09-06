@@ -2,9 +2,12 @@
 /**
  * StatCard — tarjeta de estadística con ícono (usado en Profile:
  * "146 historias en el cine", "42 libros...", etc.)
+ * `icon` es un nombre de Bootstrap Icons (sin el prefijo `bi-`).
  * Uso:
- *   <StatCard icon="🎬" :value="146" label="historias en el cine" prefix="Has vivido" />
+ *   <StatCard icon="film" :value="146" label="historias en el cine" prefix="Has vivido" />
  */
+import BaseIcon from './BaseIcon.vue'
+
 defineProps<{
   icon: string
   value: number | string
@@ -15,7 +18,7 @@ defineProps<{
 
 <template>
   <div class="stat-card">
-    <div class="stat-card__icon">{{ icon }}</div>
+    <div class="stat-card__icon"><BaseIcon :name="icon" /></div>
     <p class="stat-card__text">
       <span v-if="prefix">{{ prefix }} </span>
       <strong class="stat-card__value">{{ value }}</strong>

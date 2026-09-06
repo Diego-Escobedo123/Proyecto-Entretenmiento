@@ -1,5 +1,5 @@
 /**
- * Base global — Perfil Cultural
+ * Base global — Mosaic
  * Los design tokens viven en ./styles/tokens.css (importado antes que este archivo).
  */
 *,
@@ -25,14 +25,21 @@ body {
   -moz-osx-font-smoothing: grayscale;
 }
 
+/* Títulos y UI -> Valley Sans (sans) */
 h1,
 h2,
 h3,
 h4,
 h5,
-h6,
+h6 {
+  margin: 0;
+  font-family: var(--font-sans);
+}
+
+/* Cuerpo de texto -> Merriweather (serif) */
 p {
   margin: 0;
+  font-family: var(--font-serif);
 }
 
 a {
@@ -41,7 +48,7 @@ a {
 }
 
 button {
-  font-family: inherit;
+  font-family: var(--font-sans);
 }
 
 img {

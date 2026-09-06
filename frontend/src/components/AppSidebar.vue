@@ -8,6 +8,8 @@ import { watch } from 'vue'
 import { useRoute } from 'vue-router'
 import { storeToRefs } from 'pinia'
 import BaseButton from './BaseButton.vue'
+import BaseIcon from './BaseIcon.vue'
+import figLogo from '../assets/fig-logo.png'
 import { NAV_ITEMS } from '../lib/navigation'
 import { useProfileStore } from '../stores/profile'
 import { useUiStore } from '../stores/ui'
@@ -32,8 +34,11 @@ watch(
 
   <aside class="app-sidebar" :class="{ 'app-sidebar--open': ui.mobileNavOpen }">
     <div class="app-sidebar__header">
-      <h1 class="app-sidebar__brand">Mosaic</h1>
-      <p class="app-sidebar__tagline">Tu identidad cultural</p>
+      <img class="app-sidebar__logo" :src="figLogo" alt="" aria-hidden="true" />
+      <div class="app-sidebar__brand-text">
+        <h1 class="app-sidebar__brand">Mosaic</h1>
+        <p class="app-sidebar__tagline">Every piece shapes your identity</p>
+      </div>
     </div>
 
     <nav class="app-sidebar__nav">
@@ -44,7 +49,7 @@ watch(
         class="app-sidebar__link"
         :class="{ 'app-sidebar__link--active': item.to === route.path }"
       >
-        <span class="app-sidebar__icon" aria-hidden="true">{{ item.icon }}</span>
+        <span class="app-sidebar__icon"><BaseIcon :name="item.icon" /></span>
         {{ item.label }}
       </RouterLink>
     </nav>
@@ -73,7 +78,7 @@ watch(
 
 <style scoped>
 .app-sidebar {
-  width: 260px;
+  width: 320px;
   flex-shrink: 0;
   height: 100vh;
   position: sticky;
@@ -86,17 +91,45 @@ watch(
   box-sizing: border-box;
 }
 
+.app-sidebar__header {
+  display: flex;
+  align-items: center;
+  flex-wrap: nowrap;
+  gap: 2px;
+  margin-left: calc(-1 * var(--space-md)); /* corre el bloque un poco a la izquierda */
+  margin-bottom: var(--space-xl);
+}
+
+.app-sidebar__logo {
+  width: 88px;
+  height: 88px;
+  flex-shrink: 0;
+  object-fit: contain;
+}
+
+.app-sidebar__brand-text {
+  display: flex;
+  flex-direction: column;
+  width: min-content; /* se ajusta al ancho de MOSAIC; el eslogan envuelve debajo */
+  margin-left: -12px; /* acerca el nombre al logo (compensa el aire del PNG) */
+}
+
 .app-sidebar__brand {
-  color: var(--color-accent);
-  font-size: 1.375rem;
+  color: var(--fig-stem-green);
+  font-size: 2.5rem;
   font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  line-height: 1.1;
+  white-space: nowrap;
   margin: 0;
 }
 
 .app-sidebar__tagline {
   color: var(--color-text-subtle);
   font-size: 0.8125rem;
-  margin: 2px 0 var(--space-xl) 0;
+  text-align: center;
+  margin: 2px 0 0 0;
 }
 
 .app-sidebar__nav {
@@ -119,9 +152,10 @@ watch(
   transition: background 0.15s ease, color 0.15s ease;
 }
 
-.app-sidebar__link:hover {
-  background: var(--color-surface);
-  color: var(--color-text);
+.app-sidebar__link:hover,
+.app-sidebar__link:active {
+  background: var(--color-accent-hover-bg);
+  color: var(--color-accent-hover-contrast);
 }
 
 .app-sidebar__link--active {
@@ -154,7 +188,7 @@ watch(
 }
 
 .app-sidebar__user:hover {
-  background: var(--color-surface);
+  background: var(--color-accent-hover-bg);
 }
 
 .app-sidebar__avatar {

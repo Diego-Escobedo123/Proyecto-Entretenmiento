@@ -12,6 +12,7 @@
  *   </BaseModal>
  */
 import { onBeforeUnmount, onMounted, ref } from 'vue'
+import BaseIcon from './BaseIcon.vue'
 
 withDefaults(defineProps<{ title: string; size?: 'md' | 'lg' }>(), {
   size: 'md',
@@ -53,7 +54,9 @@ onBeforeUnmount(() => {
     >
       <header class="modal__header">
         <h2 class="modal__title">{{ title }}</h2>
-        <button class="modal__close" type="button" aria-label="Cerrar" @click="emit('close')">✕</button>
+        <button class="modal__close" type="button" aria-label="Cerrar" @click="emit('close')">
+          <BaseIcon name="x-lg" />
+        </button>
       </header>
 
       <div class="modal__body">
@@ -125,9 +128,10 @@ onBeforeUnmount(() => {
   border-radius: var(--radius-sm);
   line-height: 1;
 }
-.modal__close:hover {
-  color: var(--color-text);
-  background: var(--color-surface-2);
+.modal__close:hover,
+.modal__close:active {
+  color: var(--color-accent-hover-contrast);
+  background: var(--color-accent-hover-bg);
 }
 
 .modal__body {

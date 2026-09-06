@@ -39,8 +39,9 @@ const emit = defineEmits<{ confirm: []; cancel: [] }>()
 }
 
 .confirm-dialog__danger {
-  --color-accent: #ef4444;
-  --color-accent-hover: #f87171;
-  --color-accent-contrast: #fff;
+  --color-accent: var(--color-danger);
+  --color-accent-hover: #c23b34; /* Burnt Copper aclarado */
+  --color-accent-contrast: var(--fig-cream);
+  --color-accent-hover-contrast: var(--fig-cream); /* legible sobre el cobre */
 }
 </style>

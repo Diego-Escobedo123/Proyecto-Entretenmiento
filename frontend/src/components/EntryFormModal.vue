@@ -141,7 +141,7 @@ async function submit() {
         <AppField v-slot="{ id }" label="Tipo">
           <select :id="id" v-model="form.type" class="app-select">
             <option v-for="t in MEDIA_TYPES" :key="t.value" :value="t.value">
-              {{ t.icon }} {{ t.label }}
+              {{ t.label }}
             </option>
           </select>
         </AppField>

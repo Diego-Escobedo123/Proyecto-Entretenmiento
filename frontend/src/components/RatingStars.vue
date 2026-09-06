@@ -6,6 +6,7 @@
  *                 (click en una estrella activa; click en la misma la limpia a 0)
  */
 import { computed } from 'vue'
+import BaseIcon from './BaseIcon.vue'
 
 const props = withDefaults(
   defineProps<{ value: number; max?: number; editable?: boolean }>(),
@@ -44,7 +45,7 @@ function pick(index: number) {
       :class="{ 'rating-stars__star--filled': filled }"
       :aria-label="editable ? `${i + 1} estrella(s)` : undefined"
       @click="pick(i)"
-    >★</component>
+    ><BaseIcon :name="filled ? 'star-fill' : 'star'" /></component>
   </span>
 </template>
 

@@ -4,7 +4,7 @@ import ComingSoon from '../components/ComingSoon.vue'
 
 <template>
   <ComingSoon
-    icon="🧭"
+    icon="compass"
     title="Explorar"
     text="Recomendaciones basadas en tu perfil, descubrimiento de obras y tendencias de la comunidad."
   />

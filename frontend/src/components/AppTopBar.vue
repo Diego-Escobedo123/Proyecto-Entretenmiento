@@ -4,6 +4,7 @@
  * (enlazada a `useUiStore().searchQuery`) y acceso a ajustes.
  */
 import { storeToRefs } from 'pinia'
+import BaseIcon from './BaseIcon.vue'
 import { useUiStore } from '../stores/ui'
 import { useProfileStore } from '../stores/profile'
 
@@ -24,11 +25,11 @@ const { profile } = storeToRefs(useProfileStore())
       aria-label="Abrir navegación"
       @click="ui.toggleMobileNav()"
     >
-      ☰
+      <BaseIcon name="list" />
     </button>
 
     <div class="app-topbar__search">
-      <span class="app-topbar__search-icon" aria-hidden="true">🔍</span>
+      <span class="app-topbar__search-icon"><BaseIcon name="search" /></span>
       <input
         v-model="searchQuery"
         type="search"
@@ -45,7 +46,7 @@ const { profile } = storeToRefs(useProfileStore())
         aria-label="Ajustes"
         @click="ui.openSettings()"
       >
-        ⚙️
+        <BaseIcon name="gear" />
       </button>
       <button
         class="app-topbar__avatar"

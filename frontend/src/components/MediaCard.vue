@@ -8,6 +8,7 @@
  */
 import { onBeforeUnmount, onMounted, ref } from 'vue'
 import BaseBadge from './BaseBadge.vue'
+import BaseIcon from './BaseIcon.vue'
 import RatingStars from './RatingStars.vue'
 import ProgressBar from './ProgressBar.vue'
 import { statusMeta, typeMeta } from '../lib/catalog'
@@ -38,7 +39,7 @@ function choose(action: 'edit' | 'delete') {
     <div class="media-card__cover">
       <img v-if="entry.cover" :src="entry.cover" :alt="entry.title" loading="lazy" />
       <div v-else class="media-card__cover-placeholder" aria-hidden="true">
-        {{ typeMeta(entry.type).icon }}
+        <BaseIcon :name="typeMeta(entry.type).icon" />
       </div>
 
       <button
@@ -49,7 +50,7 @@ function choose(action: 'edit' | 'delete') {
         :aria-label="entry.favorite ? 'Quitar de favoritos' : 'Añadir a favoritos'"
         @click="emit('toggle-favorite')"
       >
-        ♥
+        <BaseIcon :name="entry.favorite ? 'heart-fill' : 'heart'" />
       </button>
     </div>
 
@@ -80,7 +81,7 @@ function choose(action: 'edit' | 'delete') {
             aria-label="Más acciones"
             @click="menuOpen = !menuOpen"
           >
-            ⋮
+            <BaseIcon name="three-dots-vertical" />
           </button>
           <div v-if="menuOpen" class="media-card__dropdown" role="menu">
             <button type="button" role="menuitem" @click="choose('edit')">Editar</button>
@@ -137,7 +138,7 @@ function choose(action: 'edit' | 'delete') {
   border-radius: 50%;
   border: none;
   background: rgba(0, 0, 0, 0.5);
-  color: var(--color-text-muted);
+  color: var(--fig-cream);
   cursor: pointer;
   display: flex;
   align-items: center;
@@ -145,7 +146,7 @@ function choose(action: 'edit' | 'delete') {
 }
 
 .media-card__favorite--active {
-  color: var(--color-accent);
+  color: var(--color-warning); /* Golden Fig */
 }
 
 .media-card__body {
@@ -201,9 +202,10 @@ function choose(action: 'edit' | 'delete') {
   border-radius: var(--radius-sm);
 }
 
-.media-card__action:hover {
-  color: var(--color-text);
-  background: var(--color-surface-2);
+.media-card__action:hover,
+.media-card__action:active {
+  color: var(--color-accent-hover-contrast);
+  background: var(--color-accent-hover-bg);
 }
 
 .media-card__dropdown {
@@ -232,11 +234,13 @@ function choose(action: 'edit' | 'delete') {
   cursor: pointer;
 }
 
-.media-card__dropdown button:hover {
-  background: var(--color-surface);
+.media-card__dropdown button:hover,
+.media-card__dropdown button:active {
+  background: var(--color-accent-hover-bg);
+  color: var(--color-accent-hover-contrast);
 }
 
 .media-card__danger {
-  color: #f87171;
+  color: var(--color-danger);
 }
 </style>

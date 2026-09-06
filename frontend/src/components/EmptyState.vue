@@ -2,16 +2,19 @@
 /**
  * EmptyState — bloque centrado para cuando una lista/sección no tiene datos.
  * Uso:
- *   <EmptyState icon="🗂️" title="Tu colección está vacía" text="Agrega tu primera obra.">
+ *   <EmptyState icon="collection" title="Tu colección está vacía" text="Agrega tu primera obra.">
  *     <BaseButton @click="add">Agregar obra</BaseButton>
  *   </EmptyState>
+ * `icon` es un nombre de Bootstrap Icons (sin el prefijo `bi-`).
  */
+import BaseIcon from './BaseIcon.vue'
+
 defineProps<{ icon?: string; title: string; text?: string; compact?: boolean }>()
 </script>
 
 <template>
   <div class="empty-state" :class="{ 'empty-state--compact': compact }">
-    <div v-if="icon" class="empty-state__icon" aria-hidden="true">{{ icon }}</div>
+    <div v-if="icon" class="empty-state__icon"><BaseIcon :name="icon" /></div>
     <h3 class="empty-state__title">{{ title }}</h3>
     <p v-if="text" class="empty-state__text">{{ text }}</p>
     <div v-if="$slots.default" class="empty-state__action">

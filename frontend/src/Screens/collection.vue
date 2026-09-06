@@ -7,6 +7,7 @@ import { computed, ref } from 'vue'
 import { storeToRefs } from 'pinia'
 import MediaCard from '../components/MediaCard.vue'
 import BaseTag from '../components/BaseTag.vue'
+import BaseIcon from '../components/BaseIcon.vue'
 import BaseButton from '../components/BaseButton.vue'
 import EmptyState from '../components/EmptyState.vue'
 import ConfirmDialog from '../components/ConfirmDialog.vue'
@@ -92,7 +93,7 @@ async function confirmDelete() {
 
   <EmptyState
     v-else-if="isEmpty"
-    icon="🗂️"
+    icon="collection"
     title="Tu colección está vacía"
     text="Registra tu primera película, libro, juego o álbum para empezar."
   >
@@ -109,7 +110,7 @@ async function confirmDelete() {
           :active="typeFilter === t.value"
           @click="typeFilter = t.value"
         >
-          {{ t.icon }} {{ t.plural }}
+          <BaseIcon :name="t.icon" /> {{ t.plural }}
         </BaseTag>
       </div>
 
@@ -144,7 +145,7 @@ async function confirmDelete() {
     <EmptyState
       v-else
       compact
-      icon="🔍"
+      icon="search"
       title="Nada coincide con estos filtros"
       text="Ajusta los filtros o la búsqueda para ver más resultados."
     >
@@ -217,8 +218,9 @@ async function confirmDelete() {
   color: var(--color-text);
 }
 
-.collection__sort:hover {
-  border-color: var(--color-accent);
+.collection__sort:hover,
+.collection__sort:active {
+  border-color: var(--color-accent-hover);
 }
 
 .collection__grid {
