@@ -1,7 +1,12 @@
 <script setup lang="ts">
-import HelloWorld from './components/HelloWorld.vue'
+/**
+ * App — raíz: monta el layout de la aplicación y la vista activa del router.
+ */
+import DefaultLayout from './layouts/DefaultLayout.vue'
 </script>
 
 <template>
-  <HelloWorld />
+  <DefaultLayout>
+    <RouterView />
+  </DefaultLayout>
 </template>
