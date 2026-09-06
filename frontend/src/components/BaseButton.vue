@@ -55,8 +55,10 @@ defineEmits<{ click: [MouseEvent] }>()
   background: var(--color-accent);
   color: var(--color-accent-contrast);
 }
-.base-button--primary:hover:not(:disabled) {
+.base-button--primary:hover:not(:disabled),
+.base-button--primary:active:not(:disabled) {
   background: var(--color-accent-hover);
+  color: var(--color-accent-hover-contrast);
 }
 
 .base-button--outline {
@@ -64,15 +66,20 @@ defineEmits<{ click: [MouseEvent] }>()
   border-color: var(--color-accent);
   color: var(--color-accent);
 }
-.base-button--outline:hover:not(:disabled) {
-  background: var(--color-accent-bg);
+.base-button--outline:hover:not(:disabled),
+.base-button--outline:active:not(:disabled) {
+  background: var(--color-accent-hover);
+  border-color: var(--color-accent-hover);
+  color: var(--color-accent-hover-contrast);
 }
 
 .base-button--ghost {
   background: transparent;
   color: var(--color-text-muted);
 }
-.base-button--ghost:hover:not(:disabled) {
-  color: var(--color-text);
+.base-button--ghost:hover:not(:disabled),
+.base-button--ghost:active:not(:disabled) {
+  background: var(--color-accent-hover-bg);
+  color: var(--color-accent-hover-contrast);
 }
 </style>

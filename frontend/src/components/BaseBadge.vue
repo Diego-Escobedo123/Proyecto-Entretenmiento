@@ -26,7 +26,7 @@ withDefaults(defineProps<{
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.02em;
-  background: rgba(255, 255, 255, 0.08);
+  background: rgba(243, 231, 216, 0.1);
   color: var(--color-text);
 }
 

@@ -4,7 +4,7 @@ import ComingSoon from '../components/ComingSoon.vue'
 
 <template>
   <ComingSoon
-    icon="📋"
+    icon="card-list"
     title="Listas"
     text="Colecciones temáticas creadas por ti: “Ver en vacaciones”, “Esenciales de sci-fi”, y más."
   />

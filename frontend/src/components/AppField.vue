@@ -44,7 +44,7 @@ const id = useId()
 
 .app-field__error {
   font-size: 0.75rem;
-  color: #f87171;
+  color: var(--color-danger);
   margin: 0;
 }
 

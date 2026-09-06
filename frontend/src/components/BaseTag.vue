@@ -52,9 +52,11 @@ defineEmits<{ click: [] }>()
   cursor: pointer;
 }
 
-.base-tag--clickable:hover {
-  border-color: var(--color-accent);
-  color: var(--color-text);
+.base-tag--clickable:hover,
+.base-tag--clickable:active {
+  background: var(--color-accent-hover-bg);
+  border-color: var(--color-accent-hover);
+  color: var(--color-accent-hover-contrast);
 }
 
 .base-tag--active {

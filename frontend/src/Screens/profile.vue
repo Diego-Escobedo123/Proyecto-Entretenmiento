@@ -8,6 +8,7 @@ import { computed, ref } from 'vue'
 import { storeToRefs } from 'pinia'
 import SectionHeader from '../components/SectionHeader.vue'
 import StatCard from '../components/StatCard.vue'
+import BaseIcon from '../components/BaseIcon.vue'
 import RatingStars from '../components/RatingStars.vue'
 import BaseButton from '../components/BaseButton.vue'
 import EmptyState from '../components/EmptyState.vue'
@@ -97,7 +98,7 @@ const memberLabel = computed(() =>
 
   <EmptyState
     v-else-if="isEmpty"
-    icon="👤"
+    icon="person-circle"
     title="Tu perfil cultural se construye con tus obras"
     text="Todavía no hay datos que analizar. Registra algunas películas, libros, juegos o álbumes y aquí verás tus géneros, tu evolución y tus obras esenciales."
   >
@@ -160,7 +161,7 @@ const memberLabel = computed(() =>
       <div class="card">
         <div class="card__header">
           <h2 class="card__title">ADN cultural</h2>
-          <span class="card__header-label" aria-hidden="true">🧬</span>
+          <span class="card__header-label"><BaseIcon name="diagram-3" /></span>
         </div>
         <div class="dna">
           <div class="dna__field">
@@ -254,14 +255,14 @@ const memberLabel = computed(() =>
       </div>
 
       <div class="card">
-        <h2 class="card__title"><span aria-hidden="true">🏆</span> Logros</h2>
+        <h2 class="card__title"><BaseIcon name="trophy" /> Logros</h2>
         <ul class="achievements">
           <li v-for="a in unlockedAchievements" :key="a.label">
-            <span class="achievements__check" aria-hidden="true">✓</span>
+            <span class="achievements__check"><BaseIcon name="check-lg" /></span>
             {{ a.label }}
           </li>
           <li v-if="nextAchievement" class="achievements__next">
-            <span class="achievements__check achievements__check--locked" aria-hidden="true">○</span>
+            <span class="achievements__check achievements__check--locked"><BaseIcon name="circle" /></span>
             Próximo: {{ nextAchievement.label }}
           </li>
         </ul>

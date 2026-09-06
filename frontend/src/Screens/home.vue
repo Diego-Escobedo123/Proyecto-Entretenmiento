@@ -56,7 +56,7 @@ async function confirmDelete() {
 
   <EmptyState
     v-else-if="isEmpty"
-    icon="🎬"
+    icon="collection-play"
     title="Aún no has registrado ninguna obra"
     text="Empieza a construir tu perfil cultural: agrega la última película, libro, juego o álbum que disfrutaste."
   >
@@ -74,8 +74,8 @@ async function confirmDelete() {
           :value="card.value"
           :label="card.label"
         />
-        <StatCard icon="⭐" :value="favorites.length" label="marcadas como favoritas" />
-        <StatCard icon="✅" :value="completedCount" label="completadas" />
+        <StatCard icon="star-fill" :value="favorites.length" label="marcadas como favoritas" />
+        <StatCard icon="check-circle-fill" :value="completedCount" label="completadas" />
       </div>
     </section>
 

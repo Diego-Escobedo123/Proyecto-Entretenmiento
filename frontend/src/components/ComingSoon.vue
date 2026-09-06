@@ -1,15 +1,18 @@
 <script setup lang="ts">
 /**
  * ComingSoon — pantalla para secciones que dependen del backend (aún pendiente).
- * Uso: <ComingSoon title="Explorar" text="Recomendaciones y descubrimiento." />
+ * Uso: <ComingSoon title="Explorar" text="Recomendaciones y descubrimiento." icon="compass" />
+ * `icon` es un nombre de Bootstrap Icons (sin el prefijo `bi-`).
  */
+import BaseIcon from './BaseIcon.vue'
+
 defineProps<{ title: string; text: string; icon?: string }>()
 </script>
 
 <template>
   <div class="coming-soon">
     <p class="coming-soon__eyebrow">Próximamente</p>
-    <div v-if="icon" class="coming-soon__icon" aria-hidden="true">{{ icon }}</div>
+    <div v-if="icon" class="coming-soon__icon"><BaseIcon :name="icon" /></div>
     <h1 class="coming-soon__title">{{ title }}</h1>
     <p class="coming-soon__text">{{ text }}</p>
     <p class="coming-soon__note">Esta sección se activará cuando el backend esté disponible.</p>

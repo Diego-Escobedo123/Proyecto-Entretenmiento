@@ -9,6 +9,7 @@ export interface MediaTypeMeta {
   label: string
   /** Sustantivo en plural para títulos ("42 Libros"). */
   plural: string
+  /** Nombre de Bootstrap Icons (sin el prefijo `bi-`). */
   icon: string
   /** Cómo se llama a quien la crea, para el label del formulario. */
   creatorLabel: string
@@ -17,10 +18,10 @@ export interface MediaTypeMeta {
 }
 
 export const MEDIA_TYPES: readonly MediaTypeMeta[] = [
-  { value: 'movie', label: 'Película', plural: 'Películas', icon: '🎬', creatorLabel: 'Dirección', gender: 'f' },
-  { value: 'book', label: 'Libro', plural: 'Libros', icon: '📖', creatorLabel: 'Autor/a', gender: 'm' },
-  { value: 'game', label: 'Juego', plural: 'Juegos', icon: '🎮', creatorLabel: 'Estudio', gender: 'm' },
-  { value: 'music', label: 'Álbum', plural: 'Álbumes', icon: '💿', creatorLabel: 'Artista', gender: 'm' },
+  { value: 'movie', label: 'Película', plural: 'Películas', icon: 'film', creatorLabel: 'Dirección', gender: 'f' },
+  { value: 'book', label: 'Libro', plural: 'Libros', icon: 'book', creatorLabel: 'Autor/a', gender: 'm' },
+  { value: 'game', label: 'Juego', plural: 'Juegos', icon: 'controller', creatorLabel: 'Estudio', gender: 'm' },
+  { value: 'music', label: 'Álbum', plural: 'Álbumes', icon: 'disc', creatorLabel: 'Artista', gender: 'm' },
 ] as const
 
 export interface MediaStatusMeta {
