@@ -7,8 +7,14 @@
  * useMediaStore, con CRUD real (crear, renombrar, agregar/quitar obras,
  * cambiar visibilidad).
  */
+import { computed } from 'vue'
+import { storeToRefs } from 'pinia'
 import SectionHeader from '../components/SectionHeader.vue'
 import ListCard from '../components/lists/ListCard.vue'
+import EmptyState from '../components/EmptyState.vue'
+import { useUiStore } from '../stores/ui'
+
+const { searchQuery } = storeToRefs(useUiStore())
 
 const lists = [
   {
@@ -46,6 +52,12 @@ const lists = [
   },
 ]
 
+const filteredLists = computed(() => {
+  const q = searchQuery.value.trim().toLowerCase()
+  if (!q) return lists
+  return lists.filter((list) => list.title.toLowerCase().includes(q))
+})
+
 function onCreateList() {
   // TODO(backend): abrir modal de nueva lista y llamar a listsStore.create(...)
 }
@@ -59,8 +71,15 @@ function onOpenList(_title: string) {
   <div class="lists-screen">
     <SectionHeader title="Tus listas" link-text="+ Crear lista" @link-click="onCreateList" />
 
-    <div class="lists-screen__grid">
-      <ListCard v-for="list in lists" :key="list.title" v-bind="list" @open="onOpenList(list.title)" />
+    <EmptyState
+      v-if="!filteredLists.length"
+      icon="search"
+      title="Sin resultados"
+      text="No encontramos ninguna lista que coincida con tu búsqueda."
+    />
+
+    <div v-else class="lists-screen__grid">
+      <ListCard v-for="list in filteredLists" :key="list.title" v-bind="list" @open="onOpenList(list.title)" />
     </div>
   </div>
 </template>
