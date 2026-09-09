@@ -9,11 +9,16 @@
  *   - awardWinners -> GET /discover/award-winners
  *   - filtros -> GET /discover?era=&genre=&minRating= con los valores del panel
  */
-import { ref } from 'vue'
+import { computed, ref } from 'vue'
+import { storeToRefs } from 'pinia'
 import BaseTag from '../components/BaseTag.vue'
 import HiddenGemCard from '../components/explore/HiddenGemCard.vue'
 import AwardCard from '../components/explore/AwardCard.vue'
 import RefineDiscoveryPanel from '../components/explore/RefineDiscoveryPanel.vue'
+import EmptyState from '../components/EmptyState.vue'
+import { useUiStore } from '../stores/ui'
+
+const { searchQuery } = storeToRefs(useUiStore())
 
 const mediaTabs = ['Todo', 'Cine', 'Literatura', 'Música', 'Artes Visuales']
 const activeTab = ref('Todo')
@@ -49,6 +54,20 @@ const awardWinners = [
   { title: 'Blue Period Revi...', award: "Curator's Choice", cover: 'https://picsum.photos/seed/mosaic-award4/300/300' },
 ]
 
+const filteredGems = computed(() => {
+  const q = searchQuery.value.trim().toLowerCase()
+  if (!q) return hiddenGems
+  return hiddenGems.filter((g) => g.title.toLowerCase().includes(q) || g.kind.toLowerCase().includes(q))
+})
+
+const filteredAwards = computed(() => {
+  const q = searchQuery.value.trim().toLowerCase()
+  if (!q) return awardWinners
+  return awardWinners.filter((a) => a.title.toLowerCase().includes(q))
+})
+
+const hasResults = computed(() => filteredGems.value.length > 0 || filteredAwards.value.length > 0)
+
 const availableGenres = ['Film Noir', 'Surrealismo', 'Jazz', 'Filosofía']
 const activeGenres = ref<string[]>(['Surrealismo'])
 const minRating = ref(4)
@@ -74,25 +93,34 @@ function applyFilters() {
 
     <div class="explore__layout">
       <div class="explore__content">
-        <section>
-          <h2 class="explore__section-title">💎 Joyas escondidas</h2>
-          <div class="explore__gems">
-            <HiddenGemCard v-bind="hiddenGems[0]" class="explore__gems-main" />
-            <div class="explore__gems-side">
-              <HiddenGemCard v-for="gem in hiddenGems.slice(1)" :key="gem.title" v-bind="gem" />
-            </div>
-          </div>
-        </section>
+        <EmptyState
+          v-if="!hasResults"
+          icon="search"
+          title="Sin resultados"
+          text="No encontramos nada que coincida con tu búsqueda."
+        />
 
-        <section>
-          <div class="explore__section-header">
-            <h2 class="explore__section-title">Ganadores de premios</h2>
-            <button class="explore__view-all" type="button">Ver todo</button>
-          </div>
-          <div class="explore__awards">
-            <AwardCard v-for="item in awardWinners" :key="item.title" v-bind="item" />
-          </div>
-        </section>
+        <template v-else>
+          <section v-if="filteredGems.length">
+            <h2 class="explore__section-title">💎 Joyas escondidas</h2>
+            <div class="explore__gems">
+              <HiddenGemCard v-bind="filteredGems[0]" class="explore__gems-main" />
+              <div class="explore__gems-side">
+                <HiddenGemCard v-for="gem in filteredGems.slice(1)" :key="gem.title" v-bind="gem" />
+              </div>
+            </div>
+          </section>
+
+          <section v-if="filteredAwards.length">
+            <div class="explore__section-header">
+              <h2 class="explore__section-title">Ganadores de premios</h2>
+              <button class="explore__view-all" type="button">Ver todo</button>
+            </div>
+            <div class="explore__awards">
+              <AwardCard v-for="item in filteredAwards" :key="item.title" v-bind="item" />
+            </div>
+          </section>
+        </template>
       </div>
 
       <RefineDiscoveryPanel
