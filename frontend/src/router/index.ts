@@ -1,23 +1,32 @@
 import { createRouter, createWebHistory } from 'vue-router'
 import { useAuthStore } from '../stores/auth'
+import LoginScreen from '../Screens/login.vue'
+import RegisterScreen from '../Screens/register.vue'
+import HomeScreen from '../Screens/home.vue'
+import ExploreScreen from '../Screens/explore.vue'
+import CollectionScreen from '../Screens/collection.vue'
+import ListsScreen from '../Screens/lists.vue'
+import ProfileScreen from '../Screens/profile.vue'
+import NotFoundScreen from '../Screens/not-found.vue'
 
 /**
- * Rutas de la app. Las screens se cargan de forma diferida (code-splitting).
+ * Rutas de la app. Importaciones normales (no lazy) a propósito: mezclar
+ * componentes asíncronos con <Transition mode="out-in"> en App.vue causaba
+ * un placeholder intermedio que Vue no puede animar y se quedaba trabado.
  * El chrome (sidebar/topbar) lo aporta DefaultLayout desde App.vue para las
- * rutas normales; las rutas con `meta.public` usan AuthLayout en su lugar
- * (ver App.vue). Las screens sólo definen su contenido.
+ * rutas normales; las rutas con `meta.public` usan AuthLayout en su lugar.
  */
 export const router = createRouter({
   history: createWebHistory(),
   routes: [
-    { path: '/login', name: 'login', component: () => import('../Screens/login.vue'), meta: { public: true } },
-    { path: '/register', name: 'register', component: () => import('../Screens/register.vue'), meta: { public: true } },
-    { path: '/', name: 'home', component: () => import('../Screens/home.vue') },
-    { path: '/explore', name: 'explore', component: () => import('../Screens/explore.vue') },
-    { path: '/collection', name: 'collection', component: () => import('../Screens/collection.vue') },
-    { path: '/lists', name: 'lists', component: () => import('../Screens/lists.vue') },
-    { path: '/profile', name: 'profile', component: () => import('../Screens/profile.vue') },
-    { path: '/:pathMatch(.*)*', name: 'not-found', component: () => import('../Screens/not-found.vue') },
+    { path: '/login', name: 'login', component: LoginScreen, meta: { public: true } },
+    { path: '/register', name: 'register', component: RegisterScreen, meta: { public: true } },
+    { path: '/', name: 'home', component: HomeScreen },
+    { path: '/explore', name: 'explore', component: ExploreScreen },
+    { path: '/collection', name: 'collection', component: CollectionScreen },
+    { path: '/lists', name: 'lists', component: ListsScreen },
+    { path: '/profile', name: 'profile', component: ProfileScreen },
+    { path: '/:pathMatch(.*)*', name: 'not-found', component: NotFoundScreen },
   ],
   scrollBehavior: () => ({ top: 0 }),
 })

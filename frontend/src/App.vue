@@ -2,7 +2,8 @@
 /**
  * App — raíz: elige el layout según la ruta (AuthLayout para login/register,
  * DefaultLayout para el resto) y envuelve la vista activa en una transición
- * de página.
+ * de página simple (crossfade, sin mode="out-in" para evitar que la
+ * transición se quede esperando indefinidamente).
  */
 import { computed } from 'vue'
 import { useRoute } from 'vue-router'
@@ -16,7 +17,7 @@ const layout = computed(() => (route.meta.public ? AuthLayout : DefaultLayout))
 <template>
   <component :is="layout">
     <RouterView v-slot="{ Component, route: activeRoute }">
-      <transition name="page" mode="out-in">
+      <transition name="page">
         <component :is="Component" :key="activeRoute.path" />
       </transition>
     </RouterView>
@@ -26,16 +27,16 @@ const layout = computed(() => (route.meta.public ? AuthLayout : DefaultLayout))
 <style>
 .page-enter-active,
 .page-leave-active {
-  transition: opacity 0.18s ease, transform 0.18s ease;
+  transition: opacity 0.15s ease;
 }
 
-.page-enter-from {
-  opacity: 0;
-  transform: translateY(8px);
-}
-
+.page-enter-from,
 .page-leave-to {
   opacity: 0;
-  transform: translateY(-8px);
+}
+
+.page-leave-active {
+  position: absolute;
+  width: 100%;
 }
 </style>
