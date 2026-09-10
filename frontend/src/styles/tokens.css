@@ -1,0 +1,68 @@
+/**
+ * Design tokens — Mosaic
+ * Paleta y tipografía según "Mosaic — Guía de marca" (Proyecto SIRIO, inspirado en el higo).
+ * Tema: la piel/pulpa del higo (Fig Purple) domina como fondo; el dorado de las
+ * semillas (Golden Fig) es la acción principal; crema y rosa para el texto.
+ * Importa este archivo una vez en tu main.ts (import './styles/tokens.css')
+ * y úsalo en todos los componentes vía var(--token).
+ */
+:root {
+  /* --- Colores de marca (crudos, referencia de la guía) --- */
+  --fig-purple: #3b1f3a; /* Primario / marca — piel del higo */
+  --deep-raspberry: #862c4d; /* Secundario — pulpa */
+  --burnt-copper: #9d2d27; /* Acento cálido / errores */
+  --golden-fig: #d3bf46; /* Acción principal / highlight — semillas */
+  --fig-stem-green: #556a07; /* Éxito / acento tallo */
+  --fig-cream: #f3e7d8; /* Texto claro */
+  --rose: #d8adaa; /* Texto secundario / dots */
+  --millstone-grey: #444d4c; /* Neutro */
+
+  /* Superficies (tema higo: morado profundo) */
+  --color-bg: var(--fig-purple);
+  --color-surface: #472941; /* morado levemente elevado: tarjetas, paneles */
+  --color-surface-2: #54324d; /* morado más elevado: chips, tracks, anidados */
+  --color-border: rgba(243, 231, 216, 0.14); /* crema translúcida */
+
+  /* Texto */
+  --color-text: var(--fig-cream);
+  --color-text-muted: var(--rose);
+  --color-text-subtle: #a98884; /* rosa apagado para texto terciario */
+
+  /* Acento (Golden Fig en reposo; Deep Raspberry en hover / click) */
+  --color-accent: var(--golden-fig);
+  --color-accent-contrast: var(--fig-purple); /* texto oscuro sobre el dorado */
+  --color-accent-bg: rgba(211, 191, 70, 0.14); /* relleno tenue dorado (reposo) */
+
+  /* Interacción: hover y :active -> Deep Raspberry */
+  --color-accent-hover: var(--deep-raspberry); /* #862c4d — relleno sólido */
+  --color-accent-hover-contrast: var(--golden-fig); /* texto dorado sobre raspberry */
+  --color-accent-hover-bg: rgba(134, 44, 77, 0.16); /* relleno tenue raspberry */
+
+  /* Links */
+  --color-link: var(--rose);
+  --color-link-hover: var(--golden-fig); /* texto dorado en interacción */
+
+  /* Estados / categorías (dots de Favorites, Completed, etc.) */
+  --color-success: #8aa63c; /* Fig Stem Green aclarado para contraste sobre morado */
+  --color-warning: var(--golden-fig);
+  --color-danger: #c0453c; /* Burnt Copper aclarado */
+  --color-neutral: var(--rose);
+
+  /* Radios */
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-lg: 16px;
+
+  /* Espaciado */
+  --space-xs: 4px;
+  --space-sm: 8px;
+  --space-md: 16px;
+  --space-lg: 24px;
+  --space-xl: 32px;
+
+  /* Tipografía (ambas desde Google Fonts, ver index.html)
+   * Valley Sans  -> logotipo, títulos, navegación, botones (UI)
+   * Merriweather -> descripciones, bios, contenido editorial largo (lectura) */
+  --font-sans: 'Valley Sans', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --font-serif: 'Merriweather', Georgia, 'Times New Roman', serif;
+}
