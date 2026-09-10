@@ -2,11 +2,12 @@
  * Capa de acceso a datos de obras.
  *
  * Los componentes y stores hablan SÓLO con la interfaz `MediaService`, nunca con
- * localStorage ni con fetch directamente. Hoy la implementación es local; cuando
- * exista el backend basta con crear un `HttpMediaService` que implemente la misma
- * interfaz y cambiar la línea del export de abajo.
+ * `fetch` ni con localStorage directamente. La implementación activa es
+ * `HttpMediaService` (backend real); `LocalMediaService` queda como referencia y
+ * fallback offline. Para cambiar, se toca sólo la línea del `export` de abajo.
  */
 import type { MediaEntry, MediaEntryInput } from '../types/media'
+import { apiFetch, ApiError } from '../lib/api'
 import { delay, makeId, readJson, writeJson } from './storage'
 
 export interface MediaService {
@@ -17,8 +18,37 @@ export interface MediaService {
   remove(id: string): Promise<void>
 }
 
+/** Implementación HTTP contra el backend (`/media`). */
+class HttpMediaService implements MediaService {
+  list(): Promise<MediaEntry[]> {
+    return apiFetch<MediaEntry[]>('/media')
+  }
+
+  async get(id: string): Promise<MediaEntry | null> {
+    try {
+      return await apiFetch<MediaEntry>(`/media/${id}`)
+    } catch (e) {
+      if (e instanceof ApiError && e.status === 404) return null
+      throw e
+    }
+  }
+
+  create(input: MediaEntryInput): Promise<MediaEntry> {
+    return apiFetch<MediaEntry>('/media', { method: 'POST', body: input })
+  }
+
+  update(id: string, patch: Partial<MediaEntryInput>): Promise<MediaEntry> {
+    return apiFetch<MediaEntry>(`/media/${id}`, { method: 'PATCH', body: patch })
+  }
+
+  remove(id: string): Promise<void> {
+    return apiFetch<void>(`/media/${id}`, { method: 'DELETE' })
+  }
+}
+
 const STORAGE_KEY = 'mosaic.entries.v1'
 
+/** Implementación local sobre localStorage. Sin backend. */
 class LocalMediaService implements MediaService {
   private load(): MediaEntry[] {
     return readJson<MediaEntry[]>(STORAGE_KEY, [])
@@ -69,4 +99,6 @@ class LocalMediaService implements MediaService {
   }
 }
 
-export const mediaService: MediaService = new LocalMediaService()
+export const mediaService: MediaService = new HttpMediaService()
+
+export { HttpMediaService, LocalMediaService }

@@ -1,16 +1,16 @@
 /**
  * Acceso a datos del perfil del usuario. Misma idea que `mediaService`:
- * la app depende de la interfaz, no de dónde vive el dato.
+ * la app depende de la interfaz, no de dónde vive el dato. Implementación
+ * activa: `HttpProfileService` (backend `/profile`).
  */
 import type { UserProfile } from '../types/media'
+import { apiFetch } from '../lib/api'
 import { delay, readJson, writeJson } from './storage'
 
 export interface ProfileService {
   get(): Promise<UserProfile>
   update(patch: Partial<UserProfile>): Promise<UserProfile>
 }
-
-const STORAGE_KEY = 'mosaic.profile.v1'
 
 export const DEFAULT_PROFILE: UserProfile = {
   name: 'Tu perfil',
@@ -21,6 +21,20 @@ export const DEFAULT_PROFILE: UserProfile = {
   memberSince: null,
 }
 
+/** Implementación HTTP contra el backend (`/profile`). */
+class HttpProfileService implements ProfileService {
+  get(): Promise<UserProfile> {
+    return apiFetch<UserProfile>('/profile')
+  }
+
+  update(patch: Partial<UserProfile>): Promise<UserProfile> {
+    return apiFetch<UserProfile>('/profile', { method: 'PATCH', body: patch })
+  }
+}
+
+const STORAGE_KEY = 'mosaic.profile.v1'
+
+/** Implementación local sobre localStorage. Sin backend. */
 class LocalProfileService implements ProfileService {
   async get(): Promise<UserProfile> {
     await delay(80)
@@ -35,4 +49,6 @@ class LocalProfileService implements ProfileService {
   }
 }
 
-export const profileService: ProfileService = new LocalProfileService()
+export const profileService: ProfileService = new HttpProfileService()
+
+export { HttpProfileService, LocalProfileService }
