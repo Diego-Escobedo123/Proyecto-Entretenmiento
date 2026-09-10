@@ -1,0 +1,56 @@
+// Esquema de la base de datos. Docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id           String       @id @default(cuid())
+  email        String       @unique
+  name         String
+  passwordHash String
+  profile      Profile?
+  entries      MediaEntry[]
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
+}
+
+/// Datos editables del perfil. 1:1 con User (el frontend lo trata como entidad aparte).
+model Profile {
+  id          String   @id @default(cuid())
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId      String   @unique
+  handle      String   @default("")
+  avatar      String?
+  tagline     String   @default("Tu identidad cultural")
+  quote       String   @default("Cada obra cuenta una historia. Juntas cuentan la tuya.")
+  memberSince Int?
+  updatedAt   DateTime @updatedAt
+}
+
+/// Una "obra" registrada por el usuario (película, libro, juego, álbum).
+model MediaEntry {
+  id        String   @id @default(cuid())
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId    String
+  type      String // 'movie' | 'book' | 'game' | 'music'
+  title     String
+  creator   String   @default("")
+  status    String   @default("want") // 'want' | 'in-progress' | 'completed'
+  year      Int?
+  rating    Float?
+  progress  Int?
+  favorite  Boolean  @default(false)
+  genres    String[] @default([]) // array nativo de Postgres
+  notes     String   @default("")
+  cover     String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId])
+}
