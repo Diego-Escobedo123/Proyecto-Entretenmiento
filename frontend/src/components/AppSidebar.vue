@@ -5,7 +5,7 @@
  * La ruta activa se detecta con vue-router. El perfil sale del store.
  */
 import { watch } from 'vue'
-import { useRoute } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import { storeToRefs } from 'pinia'
 import BaseButton from './BaseButton.vue'
 import BaseIcon from './BaseIcon.vue'
@@ -13,10 +13,18 @@ import figLogo from '../assets/fig-logo.png'
 import { NAV_ITEMS } from '../lib/navigation'
 import { useProfileStore } from '../stores/profile'
 import { useUiStore } from '../stores/ui'
+import { useAuthStore } from '../stores/auth'
 
 const route = useRoute()
+const router = useRouter()
 const ui = useUiStore()
+const auth = useAuthStore()
 const { profile } = storeToRefs(useProfileStore())
+
+function onLogout() {
+  auth.logout()
+  router.push('/login')
+}
 
 // Cierra el drawer al navegar.
 watch(
@@ -72,6 +80,11 @@ watch(
           <span v-if="profile.handle" class="app-sidebar__user-handle">@{{ profile.handle }}</span>
         </span>
       </button>
+
+      <button class="app-sidebar__logout" type="button" @click="onLogout">
+        <BaseIcon name="box-arrow-right" />
+        Cerrar sesión
+      </button>
     </div>
   </aside>
 </template>
@@ -96,7 +109,7 @@ watch(
   align-items: center;
   flex-wrap: nowrap;
   gap: 2px;
-  margin-left: calc(-1 * var(--space-md)); /* corre el bloque un poco a la izquierda */
+  margin-left: calc(-1 * var(--space-md));
   margin-bottom: var(--space-xl);
 }
 
@@ -110,8 +123,8 @@ watch(
 .app-sidebar__brand-text {
   display: flex;
   flex-direction: column;
-  width: min-content; /* se ajusta al ancho de MOSAIC; el eslogan envuelve debajo */
-  margin-left: -12px; /* acerca el nombre al logo (compensa el aire del PNG) */
+  width: min-content;
+  margin-left: -12px;
 }
 
 .app-sidebar__brand {
@@ -223,6 +236,27 @@ watch(
 .app-sidebar__user-handle {
   color: var(--color-text-subtle);
   font-size: 0.8125rem;
+}
+
+.app-sidebar__logout {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  background: none;
+  border: 1px solid var(--color-border);
+  padding: var(--space-sm);
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  font: inherit;
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: var(--color-text-muted);
+}
+
+.app-sidebar__logout:hover {
+  background: var(--color-accent-hover-bg);
+  color: var(--color-accent-hover-contrast);
+  border-color: var(--color-accent-hover);
 }
 
 .app-sidebar__scrim {
