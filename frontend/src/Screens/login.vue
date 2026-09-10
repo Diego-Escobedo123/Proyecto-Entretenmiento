@@ -54,10 +54,17 @@ async function onSubmit() {
 }
 
 async function onGoogleLogin() {
+  formError.value = ''
   googleLoading.value = true
-  await auth.loginWithGoogle()
+  const result = await auth.loginWithGoogle()
   googleLoading.value = false
-  router.push('/')
+
+  if (result.ok) {
+    router.push('/')
+  } else {
+    formError.value = result.message
+    triggerShake()
+  }
 }
 </script>
 

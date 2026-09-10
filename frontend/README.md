@@ -16,20 +16,24 @@ bun run build    # type-check (vue-tsc) + build de producción
 bun run preview  # sirve el build
 ```
 
+Necesita el backend corriendo (ver `../backend`). La URL se configura con
+`VITE_API_URL` (default en `.env`: `http://localhost:3000`).
+
 ## Arquitectura
 
-Flujo de datos en una sola dirección: **screen → store → service → persistencia**.
-Ningún componente toca `localStorage` ni `fetch` directamente.
+Flujo de datos en una sola dirección: **screen → store → service → backend**.
+Ningún componente toca `fetch` ni `localStorage` directamente.
 
 ```
 src/
 ├─ types/media.ts          Modelo de dominio (MediaEntry, UserProfile, …)
 ├─ lib/
+│  ├─ api.ts               Cliente HTTP: base URL, token JWT, manejo de errores
 │  ├─ catalog.ts           Metadatos de tipos y estados (labels, íconos, colores)
 │  └─ navigation.ts        Ítems del menú lateral
 ├─ services/               Capa de acceso a datos (intercambiable)
 │  ├─ storage.ts           Wrapper tipado sobre localStorage + helpers
-│  ├─ mediaService.ts      MediaService: CRUD de obras (hoy local, mañana HTTP)
+│  ├─ mediaService.ts      MediaService: CRUD de obras (HTTP; Local* como fallback)
 │  └─ profileService.ts    ProfileService: perfil del usuario
 ├─ stores/                 Estado global (Pinia)
 │  ├─ media.ts             Colección + getters derivados + acciones CRUD
@@ -42,19 +46,18 @@ src/
 └─ Screens/                Vistas de ruta (home, collection, profile, …)
 ```
 
-### Cambiar a un backend real
+### Persistencia
 
-Cuando exista la API, crear `HttpMediaService implements MediaService` (mismo
-contrato que `LocalMediaService`) y cambiar el `export` al final de
-`services/mediaService.ts`. Stores, composables y componentes no cambian.
+Los datos viven en el backend (PostgreSQL vía Prisma). Cada usuario ve sólo sus
+obras. El token JWT se guarda en `localStorage` (`mosaic:token`) y `lib/api.ts`
+lo manda en cada request; `stores/auth.ts` lo revalida contra `/auth/me` al
+arrancar. `LocalMediaService` / `LocalProfileService` quedan en el código como
+fallback offline: cambiando la línea del `export` al final de cada service se
+vuelve a modo `localStorage`.
 
-## Persistencia actual
+## Pendiente (requiere más backend)
 
-`localStorage`, claves `mosaic.entries.v1` y `mosaic.profile.v1`. La app arranca
-vacía; los datos se crean desde el botón **+ Agregar obra**.
-
-## Pendiente (requiere backend)
-
-- Autenticación y perfil multiusuario.
-- Secciones **Explorar** (recomendaciones) y **Listas** (colecciones propias).
+- **Explorar** (recomendaciones) y **Listas** propias: siguen hardcodeadas, no
+  hay endpoints todavía.
+- Inicio con Google (OAuth).
 - Comunidad / social.
