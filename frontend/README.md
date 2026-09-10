@@ -7,11 +7,13 @@ Vue 3 (`<script setup>`) + TypeScript + Vite + vue-router + Pinia.
 
 ## Scripts
 
+Este proyecto usa [bun](https://bun.sh). `bun.lock` es el único lockfile versionado.
+
 ```bash
-npm install
-npm run dev      # servidor de desarrollo
-npm run build    # type-check (vue-tsc) + build de producción
-npm run preview  # sirve el build
+bun install
+bun run dev      # servidor de desarrollo
+bun run build    # type-check (vue-tsc) + build de producción
+bun run preview  # sirve el build
 ```
 
 ## Arquitectura

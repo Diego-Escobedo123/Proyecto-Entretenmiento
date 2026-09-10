@@ -12,6 +12,11 @@ dist
 dist-ssr
 *.local
 
+# Este proyecto usa bun. bun.lock es el único lockfile versionado.
+package-lock.json
+yarn.lock
+pnpm-lock.yaml
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json
