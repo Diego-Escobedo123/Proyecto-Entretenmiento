@@ -17,6 +17,11 @@ import type { MediaEntryInput, MediaStatus, MediaType } from '../types/media'
 const ui = useUiStore()
 const media = useMediaStore()
 
+const modalRef = ref<InstanceType<typeof BaseModal> | null>(null)
+function closeAnimated() {
+  modalRef.value?.requestClose()
+}
+
 const editing = computed(() =>
   ui.editingEntryId ? media.getById(ui.editingEntryId) ?? null : null,
 )
@@ -121,7 +126,7 @@ async function submit() {
     } else {
       await media.addEntry(toInput())
     }
-    ui.closeModal()
+    closeAnimated()
   } catch (e) {
     errors.title = e instanceof Error ? e.message : 'No se pudo guardar.'
   } finally {
@@ -132,6 +137,7 @@ async function submit() {
 
 <template>
   <BaseModal
+     ref="modalRef"
     :title="editing ? 'Editar obra' : 'Nueva obra'"
     size="lg"
     @close="ui.closeModal()"
@@ -213,7 +219,7 @@ async function submit() {
     </form>
 
     <template #footer>
-      <BaseButton variant="ghost" @click="ui.closeModal()">Cancelar</BaseButton>
+      <BaseButton variant="ghost" @click="closeAnimated">Cancelar</BaseButton>
       <BaseButton :disabled="submitting" @click="submit">
         {{ submitting ? 'Guardando…' : editing ? 'Guardar cambios' : 'Agregar obra' }}
       </BaseButton>
