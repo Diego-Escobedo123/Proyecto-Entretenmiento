@@ -1,0 +1,10 @@
+# Dependencias
+node_modules
+
+# Variables de entorno (usar .env.example como plantilla)
+.env
+.env.local
+
+# Build / logs
+dist
+*.log
