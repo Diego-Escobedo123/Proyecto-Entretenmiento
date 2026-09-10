@@ -13,6 +13,11 @@ import { useUiStore } from '../stores/ui'
 const ui = useUiStore()
 const profileStore = useProfileStore()
 
+const modalRef = ref<InstanceType<typeof BaseModal> | null>(null)
+function closeAnimated() {
+  modalRef.value?.requestClose()
+}
+
 const form = reactive({ name: '', handle: '', tagline: '', quote: '', avatar: '' })
 const submitting = ref(false)
 
@@ -38,7 +43,7 @@ async function save() {
       quote: form.quote.trim(),
       avatar: form.avatar.trim() || null,
     })
-    ui.closeModal()
+    closeAnimated()
   } finally {
     submitting.value = false
   }
@@ -46,7 +51,7 @@ async function save() {
 </script>
 
 <template>
-  <BaseModal title="Ajustes del perfil" @close="ui.closeModal()">
+    <BaseModal ref="modalRef" title="Ajustes del perfil" @close="ui.closeModal()">
     <form class="settings-form" @submit.prevent="save">
       <AppField v-slot="{ id }" label="Nombre">
         <input :id="id" v-model="form.name" class="app-input" autocomplete="off" />
@@ -66,7 +71,7 @@ async function save() {
     </form>
 
     <template #footer>
-      <BaseButton variant="ghost" @click="ui.closeModal()">Cancelar</BaseButton>
+      <BaseButton variant="ghost" @click="closeAnimated">Cancelar</BaseButton>
       <BaseButton :disabled="submitting" @click="save">
         {{ submitting ? 'Guardando…' : 'Guardar' }}
       </BaseButton>

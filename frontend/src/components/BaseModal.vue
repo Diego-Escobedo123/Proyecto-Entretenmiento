@@ -4,6 +4,9 @@
  * - Cierra con ESC o clic en el backdrop.
  * - Bloquea el scroll del body mientras está abierto.
  * - Mueve el foco al panel al abrir y lo restituye al cerrar.
+ * - Entra/sale con una transición (fade del fondo + pop del panel). El cierre
+ *   real (emit('close')) se dispara DESPUÉS de que termina la animación de
+ *   salida (@after-leave), para que el padre no lo desmonte de golpe.
  *
  * Uso:
  *   <BaseModal v-if="open" title="Nueva obra" @close="open = false">
@@ -21,11 +24,22 @@ withDefaults(defineProps<{ title: string; size?: 'md' | 'lg' }>(), {
 const emit = defineEmits<{ close: [] }>()
 
 const panel = ref<HTMLElement | null>(null)
+const visible = ref(true)
 let previouslyFocused: HTMLElement | null = null
 
-function onKeydown(e: KeyboardEvent) {
-  if (e.key === 'Escape') emit('close')
+function requestClose() {
+  visible.value = false
 }
+
+function onAfterLeave() {
+  emit('close')
+}
+
+function onKeydown(e: KeyboardEvent) {
+  if (e.key === 'Escape') requestClose()
+}
+
+defineExpose({ requestClose })
 
 onMounted(() => {
   previouslyFocused = document.activeElement as HTMLElement | null
@@ -42,32 +56,34 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <div class="modal" @click.self="emit('close')">
-    <div
-      ref="panel"
-      class="modal__panel"
-      :class="`modal__panel--${size}`"
-      role="dialog"
-      aria-modal="true"
-      :aria-label="title"
-      tabindex="-1"
-    >
-      <header class="modal__header">
-        <h2 class="modal__title">{{ title }}</h2>
-        <button class="modal__close" type="button" aria-label="Cerrar" @click="emit('close')">
-          <BaseIcon name="x-lg" />
-        </button>
-      </header>
+  <Transition name="modal" appear @after-leave="onAfterLeave">
+    <div v-if="visible" class="modal" @click.self="requestClose">
+      <div
+        ref="panel"
+        class="modal__panel"
+        :class="`modal__panel--${size}`"
+        role="dialog"
+        aria-modal="true"
+        :aria-label="title"
+        tabindex="-1"
+      >
+        <header class="modal__header">
+          <h2 class="modal__title">{{ title }}</h2>
+          <button class="modal__close" type="button" aria-label="Cerrar" @click="requestClose">
+            <BaseIcon name="x-lg" />
+          </button>
+        </header>
 
-      <div class="modal__body">
-        <slot />
+        <div class="modal__body">
+          <slot />
+        </div>
+
+        <footer v-if="$slots.footer" class="modal__footer">
+          <slot name="footer" />
+        </footer>
       </div>
-
-      <footer v-if="$slots.footer" class="modal__footer">
-        <slot name="footer" />
-      </footer>
     </div>
-  </div>
+  </Transition>
 </template>
 
 <style scoped>
@@ -145,5 +161,34 @@ onBeforeUnmount(() => {
   gap: var(--space-sm);
   padding: var(--space-md) var(--space-lg) var(--space-lg);
   border-top: 1px solid var(--color-border);
+}
+
+/* Transición: fondo con fade, panel entra deslizándose hacia abajo (desde
+   arriba) y sale deslizándose hacia arriba. Más lenta a propósito para que
+   se note. */
+.modal-enter-active {
+  transition: opacity 0.5s ease;
+}
+.modal-leave-active {
+  transition: opacity 0.45s ease;
+}
+.modal-enter-from,
+.modal-leave-to {
+  opacity: 0;
+}
+
+.modal-enter-active .modal__panel {
+  transition: transform 0.6s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.5s ease;
+}
+.modal-leave-active .modal__panel {
+  transition: transform 0.45s cubic-bezier(0.4, 0, 1, 1), opacity 0.45s ease;
+}
+.modal-enter-from .modal__panel {
+  transform: translateY(-56px);
+  opacity: 0;
+}
+.modal-leave-to .modal__panel {
+  transform: translateY(-56px);
+  opacity: 0;
 }
 </style>
