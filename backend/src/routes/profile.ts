@@ -12,6 +12,7 @@ type ProfileRow = {
   tagline: string
   quote: string
   memberSince: number | null
+  isPublic: boolean
 }
 
 /** Shape que espera el frontend (`UserProfile`): el `name` vive en User. */
@@ -23,10 +24,11 @@ function toProfileDTO(p: ProfileRow, name: string) {
     tagline: p.tagline,
     quote: p.quote,
     memberSince: p.memberSince,
+    isPublic: p.isPublic,
   }
 }
 
-const WRITABLE = ['handle', 'avatar', 'tagline', 'quote', 'memberSince'] as const
+const WRITABLE = ['handle', 'avatar', 'tagline', 'quote', 'memberSince', 'isPublic'] as const
 
 function pickProfileFields(body: Record<string, unknown>) {
   const data: Record<string, unknown> = {}

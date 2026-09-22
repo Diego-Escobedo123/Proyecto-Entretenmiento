@@ -30,6 +30,9 @@ model Profile {
   tagline     String   @default("Tu identidad cultural")
   quote       String   @default("Cada obra cuenta una historia. Juntas cuentan la tuya.")
   memberSince Int?
+  /// Preferencia de visibilidad. Hoy solo se guarda: todavía no existe una
+  /// vista de perfil pública sin login que la respete.
+  isPublic    Boolean  @default(false)
   updatedAt   DateTime @updatedAt
 }
 

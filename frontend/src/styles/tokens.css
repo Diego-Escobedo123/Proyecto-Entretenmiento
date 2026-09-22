@@ -66,3 +66,31 @@
   --font-sans: 'Valley Sans', system-ui, -apple-system, 'Segoe UI', sans-serif;
   --font-serif: 'Merriweather', Georgia, 'Times New Roman', serif;
 }
+
+/**
+ * Tema claro — misma marca (higo/dorado), pero con la crema como base y el
+ * higo como texto en vez de al revés. Activado con [data-theme="light"] en
+ * <html> (ver src/composables/useTheme.ts). El acento (dorado) y sus estados
+ * de hover se mantienen iguales en ambos temas: son color de marca, no de
+ * superficie.
+ */
+:root[data-theme='light'] {
+  --color-bg: var(--fig-cream);
+  --color-surface: #ffffff;
+  --color-surface-2: #f3e7d8;
+  --color-border: rgba(59, 31, 58, 0.14);
+
+  --color-text: var(--fig-purple);
+  --color-text-muted: var(--deep-raspberry);
+  --color-text-subtle: #8a5c6e;
+
+  --color-accent-bg: rgba(211, 191, 70, 0.18);
+  --color-accent-hover-bg: rgba(134, 44, 77, 0.12);
+
+  --color-link: var(--deep-raspberry);
+  --color-link-hover: var(--fig-purple);
+
+  --color-success: var(--fig-stem-green);
+  --color-danger: var(--burnt-copper);
+  --color-neutral: var(--millstone-grey);
+}

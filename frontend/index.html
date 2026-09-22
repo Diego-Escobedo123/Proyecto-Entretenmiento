@@ -16,6 +16,18 @@
       rel="stylesheet"
     />
     <title>Mosaic</title>
+    <script>
+      // Aplica el tema guardado ANTES del primer render para evitar el
+      // parpadeo del tema incorrecto (ver src/composables/useTheme.ts).
+      (function () {
+        try {
+          var saved = localStorage.getItem('mosaic:theme')
+          document.documentElement.dataset.theme = saved === 'light' ? 'light' : 'dark'
+        } catch (e) {
+          document.documentElement.dataset.theme = 'dark'
+        }
+      })()
+    </script>
   </head>
   <body>
     <div id="app"></div>

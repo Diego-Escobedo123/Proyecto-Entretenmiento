@@ -41,4 +41,6 @@ export interface UserProfile {
   quote: string
   /** Año en que empezó a registrar obras. `null` hasta que exista la primera. */
   memberSince: number | null
+  /** Preferencia de visibilidad. Se guarda, pero hoy no hay vista pública que la respete. */
+  isPublic: boolean
 }

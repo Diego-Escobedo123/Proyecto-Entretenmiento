@@ -19,6 +19,7 @@ export const DEFAULT_PROFILE: UserProfile = {
   tagline: 'Tu identidad cultural',
   quote: 'Cada obra cuenta una historia. Juntas cuentan la tuya.',
   memberSince: null,
+  isPublic: false,
 }
 
 /** Implementación HTTP contra el backend (`/profile`). */
