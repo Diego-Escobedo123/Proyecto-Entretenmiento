@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import { storeToRefs } from 'pinia'
 import BaseTag from '../components/BaseTag.vue'
 import HiddenGemCard from '../components/explore/HiddenGemCard.vue'
@@ -9,39 +9,20 @@ import EmptyState from '../components/EmptyState.vue'
 import BaseSpinner from '../components/BaseSpinner.vue'
 import { useUiStore } from '../stores/ui'
 import { useDebouncedSearch } from '../composables/useDebouncedSearch'
+import { discoverService } from '../services/discoverService'
+import type { AwardWinner, HiddenGem } from '../types/discover'
 
 const { searchQuery } = storeToRefs(useUiStore())
-const { debouncedQuery, isSearching } = useDebouncedSearch(searchQuery)
+const { debouncedQuery, isSearching: isDebouncing } = useDebouncedSearch(searchQuery)
+const isLoading = ref(false)
+const isSearching = computed(() => isDebouncing.value || isLoading.value)
 
 const mediaTabs = ['Todo', 'Cine', 'Literatura', 'Música', 'Artes Visuales']
 const activeTab = ref('Todo')
 
-const hiddenGems = [
-  { kind: 'Cine', year: 1973, title: 'The Melancholy of Space', description: 'Una obra maestra olvidada del sci-fi soviético, que explora el pavor existencial a través de paisajes glaciales.', cover: 'https://picsum.photos/seed/mosaic-melancholy/500/600', size: 'lg' as const },
-  { kind: 'Literatura', title: 'Fragments of Time', cover: 'https://picsum.photos/seed/mosaic-fragments/300/300', size: 'sm' as const },
-  { kind: 'Música', title: 'Midnight Sessions', cover: 'https://picsum.photos/seed/mosaic-midnight/300/300', size: 'sm' as const },
-]
-
-const awardWinners = [
-  { title: 'The Architecture...', award: "Palme d'Or · 2023", cover: 'https://picsum.photos/seed/mosaic-award1/300/300' },
-  { title: 'Concrete Brutali...', award: 'Best Doc · 2022', cover: 'https://picsum.photos/seed/mosaic-award2/300/300' },
-  { title: 'Echoes of Dali', award: 'Visual Arts Prize', cover: 'https://picsum.photos/seed/mosaic-award3/300/300' },
-  { title: 'Blue Period Revi...', award: "Curator's Choice", cover: 'https://picsum.photos/seed/mosaic-award4/300/300' },
-]
-
-const filteredGems = computed(() => {
-  const q = debouncedQuery.value.trim().toLowerCase()
-  if (!q) return hiddenGems
-  return hiddenGems.filter((g) => g.title.toLowerCase().includes(q) || g.kind.toLowerCase().includes(q))
-})
-
-const filteredAwards = computed(() => {
-  const q = debouncedQuery.value.trim().toLowerCase()
-  if (!q) return awardWinners
-  return awardWinners.filter((a) => a.title.toLowerCase().includes(q))
-})
-
-const hasResults = computed(() => filteredGems.value.length > 0 || filteredAwards.value.length > 0)
+const gems = ref<HiddenGem[]>([])
+const awards = ref<AwardWinner[]>([])
+const hasResults = ref(true)
 
 const availableGenres = ['Film Noir', 'Surrealismo', 'Jazz', 'Filosofía']
 const activeGenres = ref<string[]>(['Surrealismo'])
@@ -53,9 +34,37 @@ function toggleGenre(genre: string) {
     : [...activeGenres.value, genre]
 }
 
-function applyFilters() {
-  // TODO(backend): disparar GET /discover con activeGenres.value y minRating.value
+// Los filtros de género/rating sólo se mandan al backend después de que el
+// usuario los aplique explícitamente (botón "Aplicar filtros"); si no, el
+// estado inicial del panel (p. ej. "Surrealismo" preseleccionado) ocultaría
+// la mayor parte del catálogo desde el primer render.
+const filtersApplied = ref(false)
+
+async function loadDiscoverContent() {
+  isLoading.value = true
+  try {
+    const result = await discoverService.get({
+      q: debouncedQuery.value,
+      ...(filtersApplied.value ? { genres: activeGenres.value, minRating: minRating.value } : {}),
+    })
+    gems.value = result.hiddenGems
+    awards.value = result.awardWinners
+    hasResults.value = result.hiddenGems.length > 0 || result.awardWinners.length > 0
+  } finally {
+    isLoading.value = false
+  }
 }
+
+function applyFilters() {
+  filtersApplied.value = true
+  void loadDiscoverContent()
+}
+
+watch(debouncedQuery, () => {
+  void loadDiscoverContent()
+})
+
+onMounted(loadDiscoverContent)
 </script>
 
 <template>
@@ -73,23 +82,23 @@ function applyFilters() {
         <EmptyState v-else-if="!hasResults" icon="search" title="Sin resultados" text="No encontramos nada que coincida con tu búsqueda." />
 
         <template v-else>
-          <section v-if="filteredGems.length">
+          <section v-if="gems.length">
             <h2 class="explore__section-title">💎 Joyas escondidas</h2>
             <div class="explore__gems">
-              <HiddenGemCard v-bind="filteredGems[0]" class="explore__gems-main" />
+              <HiddenGemCard v-bind="gems[0]" class="explore__gems-main" />
               <div class="explore__gems-side">
-                <HiddenGemCard v-for="gem in filteredGems.slice(1)" :key="gem.title" v-bind="gem" />
+                <HiddenGemCard v-for="gem in gems.slice(1)" :key="gem.id" v-bind="gem" />
               </div>
             </div>
           </section>
 
-          <section v-if="filteredAwards.length">
+          <section v-if="awards.length">
             <div class="explore__section-header">
               <h2 class="explore__section-title">Ganadores de premios</h2>
               <button class="explore__view-all" type="button">Ver todo</button>
             </div>
             <div class="explore__awards">
-              <AwardCard v-for="item in filteredAwards" :key="item.title" v-bind="item" />
+              <AwardCard v-for="item in awards" :key="item.id" v-bind="item" />
             </div>
           </section>
         </template>
