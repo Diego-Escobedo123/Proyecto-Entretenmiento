@@ -3,7 +3,7 @@
  *
  * TODO(backend): reemplazar login()/register() por POST /auth/login y
  * POST /auth/register reales (con bcrypt, JWT, etc. según el SOW). La forma
- * de la función pública (login/register/logout, isAuthenticated, user)
+ * de la función pública (login/register/logout, isAuthenticated, currentUser)
  * se mantiene igual para que las pantallas no cambien cuando eso pase —
  * solo cambia lo que hay adentro de cada función.
  */
@@ -15,21 +15,10 @@ const STORAGE_KEY = 'mosaic:auth'
 interface AuthUser {
   name: string
   email: string
-  avatarUrl?: string
 }
 
 interface StoredAuth {
   user: AuthUser
-}
-
-type AuthResult = { ok: true } | { ok: false; message: string }
-
-/** Datos que vienen dentro del ID token de Google. */
-interface GoogleIdTokenPayload {
-  sub: string
-  email: string
-  name?: string
-  picture?: string
 }
 
 function loadStoredAuth(): StoredAuth | null {
@@ -51,31 +40,13 @@ function fakeNetworkDelay(ms = 700): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms))
 }
 
-/**
- * Decodifica el payload del JWT de Google (base64url + UTF-8).
- * OJO: NO verifica la firma. Solo sirve mientras no haya backend.
- */
-function decodeGoogleIdToken(token: string): GoogleIdTokenPayload {
-  const part = token.split('.')[1]
-  if (!part) throw new Error('Token de Google inválido')
-  const base64 = part.replace(/-/g, '+').replace(/_/g, '/')
-  const padded = base64.padEnd(base64.length + ((4 - (base64.length % 4)) % 4), '=')
-  const json = decodeURIComponent(
-    atob(padded)
-      .split('')
-      .map((c) => '%' + c.charCodeAt(0).toString(16).padStart(2, '0'))
-      .join(''),
-  )
-  return JSON.parse(json) as GoogleIdTokenPayload
-}
-
 export const useAuthStore = defineStore('auth', () => {
   const stored = loadStoredAuth()
   const user = ref<AuthUser | null>(stored?.user ?? null)
 
   const isAuthenticated = computed(() => user.value !== null)
 
-  async function login(email: string, password: string): Promise<AuthResult> {
+  async function login(email: string, password: string): Promise<{ ok: true } | { ok: false; message: string }> {
     await fakeNetworkDelay()
 
     // TODO(backend): validación real de credenciales contra la base de datos.
@@ -88,11 +59,7 @@ export const useAuthStore = defineStore('auth', () => {
     return { ok: true }
   }
 
-  /**
-   * Versión simulada (sin Google real). Se deja por si alguna pantalla,
-   * como register.vue, todavía la usa.
-   */
-  async function loginWithGoogle(): Promise<AuthResult> {
+  async function loginWithGoogle(): Promise<{ ok: true } | { ok: false; message: string }> {
     await fakeNetworkDelay(500)
     // TODO(backend): flujo OAuth real contra Google, intercambio de token en el backend.
     user.value = { name: 'Usuario de Google', email: 'usuario@gmail.com' }
@@ -100,31 +67,11 @@ export const useAuthStore = defineStore('auth', () => {
     return { ok: true }
   }
 
-  /**
-   * Login real con Google Identity Services: recibe el ID token que
-   * devuelve el botón de Google y arma la sesión con sus datos.
-   */
-  async function loginWithGoogleCredential(idToken: string): Promise<AuthResult> {
-    // TODO(backend): mandar idToken a POST /auth/google. El backend debe
-    // verificar la firma con las llaves públicas de Google y devolver
-    // nuestra propia sesión. Nunca confiar en este payload para nada sensible.
-    try {
-      const payload = decodeGoogleIdToken(idToken)
-      if (!payload.email) return { ok: false, message: 'Google no devolvió un correo.' }
-
-      user.value = {
-        name: payload.name ?? payload.email.split('@')[0],
-        email: payload.email,
-        avatarUrl: payload.picture,
-      }
-      persistAuth({ user: user.value })
-      return { ok: true }
-    } catch {
-      return { ok: false, message: 'No se pudo iniciar sesión con Google. Intenta de nuevo.' }
-    }
-  }
-
-  async function register(name: string, email: string, password: string): Promise<AuthResult> {
+  async function register(
+    name: string,
+    email: string,
+    password: string,
+  ): Promise<{ ok: true } | { ok: false; message: string }> {
     await fakeNetworkDelay()
 
     // TODO(backend): hash con bcrypt, chequeo de correo duplicado, envío de
@@ -141,9 +88,7 @@ export const useAuthStore = defineStore('auth', () => {
   function logout(): void {
     user.value = null
     persistAuth(null)
-    // Evita que Google vuelva a iniciar sesión solo en la próxima visita.
-    window.google?.accounts.id.disableAutoSelect()
   }
 
-  return { user, isAuthenticated, login, loginWithGoogle, loginWithGoogleCredential, register, logout }
+  return { user, isAuthenticated, login, loginWithGoogle, register, logout }
 })
