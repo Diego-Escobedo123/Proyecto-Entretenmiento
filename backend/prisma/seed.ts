@@ -51,6 +51,71 @@ async function main() {
   })
 
   console.log(`Seed listo. Usuario demo: ${user.email} / demo123`)
+
+  await prisma.discoverItem.deleteMany()
+  await prisma.discoverItem.createMany({
+    data: [
+      {
+        type: 'movie',
+        title: 'The Melancholy of Space',
+        description:
+          'Una obra maestra olvidada del sci-fi soviético, que explora el pavor existencial a través de paisajes glaciales.',
+        cover: 'https://picsum.photos/seed/mosaic-melancholy/500/600',
+        year: 1973,
+        rating: 4.5,
+        genres: ['ciencia ficción', 'Surrealismo'],
+        featured: true,
+      },
+      {
+        type: 'book',
+        title: 'Fragments of Time',
+        cover: 'https://picsum.photos/seed/mosaic-fragments/300/300',
+        rating: 4,
+        genres: ['Filosofía'],
+      },
+      {
+        type: 'music',
+        title: 'Midnight Sessions',
+        cover: 'https://picsum.photos/seed/mosaic-midnight/300/300',
+        rating: 4,
+        genres: ['Jazz'],
+      },
+      {
+        type: 'movie',
+        title: 'The Architecture...',
+        cover: 'https://picsum.photos/seed/mosaic-award1/300/300',
+        award: "Palme d'Or · 2023",
+        rating: 4.5,
+        genres: ['Film Noir'],
+      },
+      {
+        type: 'movie',
+        title: 'Concrete Brutali...',
+        cover: 'https://picsum.photos/seed/mosaic-award2/300/300',
+        award: 'Best Doc · 2022',
+        rating: 4,
+        genres: [],
+      },
+      {
+        type: 'movie',
+        title: 'Echoes of Dali',
+        cover: 'https://picsum.photos/seed/mosaic-award3/300/300',
+        award: 'Visual Arts Prize',
+        rating: 4.5,
+        genres: ['Surrealismo'],
+      },
+      {
+        type: 'book',
+        title: 'Blue Period Revi...',
+        cover: 'https://picsum.photos/seed/mosaic-award4/300/300',
+        award: "Curator's Choice",
+        rating: 4,
+        genres: [],
+      },
+    ],
+  })
+
+  console.log('Seed listo. Catálogo de descubrimiento cargado.')
 }
 
 main()

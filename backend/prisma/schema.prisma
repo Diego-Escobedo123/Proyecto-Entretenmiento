@@ -57,3 +57,24 @@ model MediaEntry {
 
   @@index([userId])
 }
+
+/// Contenido curado para la pantalla de descubrimiento (joyas escondidas y
+/// ganadores de premios). No pertenece a ningún usuario: es catálogo global.
+model DiscoverItem {
+  id          String   @id @default(cuid())
+  type        String // 'movie' | 'book' | 'game' | 'music'
+  title       String
+  cover       String
+  description String   @default("")
+  year        Int?
+  rating      Float?
+  genres      String[] @default([])
+  /// Nombre del premio. `null` => candidato a "joya escondida"; no nulo => ganador de premio.
+  award       String?
+  /// Marca la joya escondida destacada (tarjeta grande) de la sección.
+  featured    Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([award])
+}
