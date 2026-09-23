@@ -1,10 +1,13 @@
 <script setup lang="ts">
 /**
- * Login — correo/contraseña + botón de Google. Autenticación simulada
- * (ver stores/auth.ts): valida formato en el cliente y "llama" a un backend
- * falso con delay para que el loading se sienta real.
+ * Login — correo/contraseña + botón de Google.
+ *
+ * - Correo/contraseña: autenticación simulada (ver stores/auth.ts).
+ * - Google: si existe VITE_GOOGLE_CLIENT_ID en .env, se muestra el botón
+ *   REAL de Google Identity Services. Si no existe (o el script de Google
+ *   no carga), se muestra el botón simulado de antes para no romper nada.
  */
-import { reactive, ref } from 'vue'
+import { onBeforeUnmount, onMounted, reactive, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import AppField from '../components/AppField.vue'
 import BaseButton from '../components/BaseButton.vue'
@@ -20,6 +23,11 @@ const formError = ref('')
 const submitting = ref(false)
 const googleLoading = ref(false)
 const shake = ref(false)
+
+// --- Google Identity Services ---
+const googleButtonEl = ref<HTMLDivElement | null>(null)
+const googleStatus = ref<'loading' | 'ready' | 'unavailable'>('loading')
+let googleWaitTimer: number | undefined
 
 function triggerShake() {
   shake.value = false
@@ -53,12 +61,76 @@ async function onSubmit() {
   }
 }
 
+/** Botón simulado (solo se usa si Google real no está disponible). */
 async function onGoogleLogin() {
   googleLoading.value = true
   await auth.loginWithGoogle()
   googleLoading.value = false
   router.push('/')
 }
+
+/** Callback del botón real de Google: recibe el ID token. */
+async function onGoogleCredential(response: GoogleCredentialResponse) {
+  formError.value = ''
+  const result = await auth.loginWithGoogleCredential(response.credential)
+
+  if (result.ok) {
+    router.push('/')
+  } else {
+    formError.value = result.message
+    triggerShake()
+  }
+}
+
+function setupGoogleButton(clientId: string): boolean {
+  if (!window.google || !googleButtonEl.value) return false
+
+  window.google.accounts.id.initialize({
+    client_id: clientId,
+    callback: onGoogleCredential,
+  })
+
+  // Google acepta un ancho fijo en px (máximo 400).
+  const width = Math.min(googleButtonEl.value.offsetWidth || 320, 400)
+
+  window.google.accounts.id.renderButton(googleButtonEl.value, {
+    theme: 'outline',
+    size: 'large',
+    text: 'continue_with',
+    shape: 'rectangular',
+    width,
+    locale: 'es',
+  })
+
+  googleStatus.value = 'ready'
+  return true
+}
+
+onMounted(() => {
+  const clientId = import.meta.env.VITE_GOOGLE_CLIENT_ID
+  if (!clientId) {
+    googleStatus.value = 'unavailable'
+    return
+  }
+
+  if (setupGoogleButton(clientId)) return
+
+  // El script de Google carga async: esperamos hasta 5 s a que exista.
+  let attempts = 0
+  googleWaitTimer = window.setInterval(() => {
+    attempts++
+    if (setupGoogleButton(clientId)) {
+      window.clearInterval(googleWaitTimer)
+    } else if (attempts >= 50) {
+      window.clearInterval(googleWaitTimer)
+      googleStatus.value = 'unavailable'
+    }
+  }, 100)
+})
+
+onBeforeUnmount(() => {
+  window.clearInterval(googleWaitTimer)
+})
 </script>
 
 <template>
@@ -85,11 +157,27 @@ async function onGoogleLogin() {
 
     <div class="login__divider"><span>o</span></div>
 
-    <button class="login__google" type="button" :disabled="googleLoading" @click="onGoogleLogin">
-      <BaseSpinner v-if="googleLoading" size="sm" />
-      <span v-else>🅶</span>
-      {{ googleLoading ? 'Conectando…' : 'Continuar con Google' }}
-    </button>
+    <div class="login__google-wrap">
+      <!-- Aquí Google dibuja su botón real -->
+      <div
+        v-show="googleStatus !== 'unavailable'"
+        ref="googleButtonEl"
+        class="login__google-gis"
+      ></div>
+
+      <!-- Respaldo: botón simulado si no hay Client ID o Google no cargó -->
+      <button
+        v-if="googleStatus === 'unavailable'"
+        class="login__google"
+        type="button"
+        :disabled="googleLoading"
+        @click="onGoogleLogin"
+      >
+        <BaseSpinner v-if="googleLoading" size="sm" />
+        <span v-else>🅶</span>
+        {{ googleLoading ? 'Conectando…' : 'Continuar con Google' }}
+      </button>
+    </div>
 
     <p class="login__footer">
       ¿No tienes cuenta? <RouterLink to="/register" class="login__link">Regístrate</RouterLink>
@@ -143,6 +231,18 @@ async function onGoogleLogin() {
   flex: 1;
   height: 1px;
   background: var(--color-border);
+}
+
+.login__google-wrap {
+  width: 100%;
+}
+
+/* Reserva espacio mientras Google dibuja el botón (evita saltos). */
+.login__google-gis {
+  width: 100%;
+  min-height: 44px;
+  display: flex;
+  justify-content: center;
 }
 
 .login__google {
