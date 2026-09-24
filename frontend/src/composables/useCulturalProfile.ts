@@ -21,13 +21,19 @@ export function useCulturalProfile() {
 
   const worksLogged = computed(() => entries.value.length)
 
-  const statsByType = computed(() =>
-    MEDIA_TYPES.map((meta) => ({
+  const statsByType = computed(() => {
+    const now = new Date()
+    return MEDIA_TYPES.map((meta) => ({
       icon: meta.icon,
-      label: meta.plural.toLowerCase(),
+      label: meta.plural,
       value: countByType.value[meta.value],
-    })),
-  )
+      delta: entries.value.filter((e) => {
+        if (e.type !== meta.value) return false
+        const d = new Date(e.createdAt)
+        return d.getFullYear() === now.getFullYear() && d.getMonth() === now.getMonth()
+      }).length,
+    }))
+  })
 
   const topGenres = computed(() => {
     const tally = new Map<string, number>()
@@ -88,6 +94,7 @@ export function useCulturalProfile() {
         date: relativeDate(e.updatedAt),
         title: `${diaryVerb(e)} ${e.title}`,
         note: e.notes.trim() || `${typeMeta(e.type).label} · ${e.creator || 'sin autor'}`,
+        typeLabel: typeMeta(e.type).label,
         rating: e.rating,
         current: isToday(e.updatedAt),
       })),
@@ -152,6 +159,33 @@ export function useCulturalProfile() {
     }
   })
 
+  /** Actividad diaria (últimos ~53 semanas, alineado a domingo) para el heatmap tipo GitHub. */
+  const activityHeatmap = computed(() => {
+    const countByDay = new Map<string, number>()
+    for (const e of entries.value) {
+      const key = new Date(e.createdAt).toISOString().slice(0, 10)
+      countByDay.set(key, (countByDay.get(key) ?? 0) + 1)
+    }
+
+    const today = new Date()
+    today.setHours(0, 0, 0, 0)
+    const start = new Date(today)
+    start.setDate(start.getDate() - 370)
+    start.setDate(start.getDate() - start.getDay()) // retrocede al domingo
+
+    const days: { date: string; count: number; label: string }[] = []
+    for (const cursor = new Date(start); cursor <= today; cursor.setDate(cursor.getDate() + 1)) {
+      const key = cursor.toISOString().slice(0, 10)
+      days.push({
+        date: key,
+        count: countByDay.get(key) ?? 0,
+        label: cursor.toLocaleDateString('es', { day: 'numeric', month: 'short', year: 'numeric' }),
+      })
+    }
+    const max = Math.max(1, ...days.map((d) => d.count))
+    return days.map((d) => ({ ...d, level: d.count === 0 ? 0 : Math.min(4, Math.ceil((d.count / max) * 4)) }))
+  })
+
   return {
     worksLogged,
     statsByType,
@@ -160,6 +194,7 @@ export function useCulturalProfile() {
     favoriteDecade,
     completionRate,
     identitySentence,
+    activityHeatmap,
     diary,
     essentialWorks,
     unlockedAchievements,

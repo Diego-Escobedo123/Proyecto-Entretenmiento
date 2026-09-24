@@ -63,10 +63,17 @@ async function onSubmit() {
 
 /** Botón simulado (solo se usa si Google real no está disponible). */
 async function onGoogleLogin() {
+  formError.value = ''
   googleLoading.value = true
-  await auth.loginWithGoogle()
+  const result = await auth.loginWithGoogle()
   googleLoading.value = false
-  router.push('/')
+
+  if (result.ok) {
+    router.push('/')
+  } else {
+    formError.value = result.message
+    triggerShake()
+  }
 }
 
 /** Callback del botón real de Google: recibe el ID token. */

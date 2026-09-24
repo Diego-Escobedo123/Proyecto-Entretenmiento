@@ -18,7 +18,7 @@ function closeAnimated() {
   modalRef.value?.requestClose()
 }
 
-const form = reactive({ name: '', handle: '', tagline: '', quote: '', avatar: '' })
+const form = reactive({ name: '', handle: '', tagline: '', quote: '', avatar: '', isPublic: false })
 const submitting = ref(false)
 
 watchEffect(() => {
@@ -29,6 +29,7 @@ watchEffect(() => {
     tagline: p.tagline,
     quote: p.quote,
     avatar: p.avatar ?? '',
+    isPublic: p.isPublic,
   })
 })
 
@@ -42,6 +43,7 @@ async function save() {
       tagline: form.tagline.trim(),
       quote: form.quote.trim(),
       avatar: form.avatar.trim() || null,
+      isPublic: form.isPublic,
     })
     closeAnimated()
   } finally {
@@ -68,6 +70,24 @@ async function save() {
       <AppField v-slot="{ id }" label="Avatar (URL)" hint="Opcional">
         <input :id="id" v-model="form.avatar" class="app-input" placeholder="https://..." autocomplete="off" />
       </AppField>
+
+      <div class="settings-visibility">
+        <div class="settings-visibility__text">
+          <span class="settings-visibility__label">Perfil público</span>
+          <span class="settings-visibility__hint">
+            Guarda tu preferencia. Por ahora no existe una vista pública que otros puedan ver.
+          </span>
+        </div>
+        <button
+          type="button"
+          class="settings-visibility__switch"
+          role="switch"
+          :aria-checked="form.isPublic"
+          @click="form.isPublic = !form.isPublic"
+        >
+          <span class="settings-visibility__switch-thumb" />
+        </button>
+      </div>
     </form>
 
     <template #footer>
@@ -84,5 +104,64 @@ async function save() {
   display: flex;
   flex-direction: column;
   gap: var(--space-md);
+}
+
+.settings-visibility {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-md);
+}
+
+.settings-visibility__text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.settings-visibility__label {
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: var(--color-text-muted);
+}
+
+.settings-visibility__hint {
+  font-size: 0.75rem;
+  color: var(--color-text-subtle);
+  line-height: 1.4;
+}
+
+.settings-visibility__switch {
+  flex-shrink: 0;
+  width: 40px;
+  height: 22px;
+  padding: 0;
+  border-radius: 999px;
+  border: 1px solid var(--color-border);
+  background: var(--color-surface-2);
+  position: relative;
+  cursor: pointer;
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+
+.settings-visibility__switch[aria-checked='true'] {
+  background: var(--color-accent);
+  border-color: var(--color-accent);
+}
+
+.settings-visibility__switch-thumb {
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: var(--color-surface);
+  transition: transform 0.15s ease;
+}
+
+.settings-visibility__switch[aria-checked='true'] .settings-visibility__switch-thumb {
+  transform: translateX(18px);
+  background: var(--color-accent-contrast);
 }
 </style>

@@ -1,0 +1,80 @@
+// Esquema de la base de datos. Docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id           String       @id @default(cuid())
+  email        String       @unique
+  name         String
+  passwordHash String
+  profile      Profile?
+  entries      MediaEntry[]
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
+}
+
+/// Datos editables del perfil. 1:1 con User (el frontend lo trata como entidad aparte).
+model Profile {
+  id          String   @id @default(cuid())
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId      String   @unique
+  handle      String   @default("")
+  avatar      String?
+  tagline     String   @default("Tu identidad cultural")
+  quote       String   @default("Cada obra cuenta una historia. Juntas cuentan la tuya.")
+  memberSince Int?
+  /// Preferencia de visibilidad. Hoy solo se guarda: todavía no existe una
+  /// vista de perfil pública sin login que la respete.
+  isPublic    Boolean  @default(false)
+  updatedAt   DateTime @updatedAt
+}
+
+/// Una "obra" registrada por el usuario (película, libro, juego, álbum).
+model MediaEntry {
+  id        String   @id @default(cuid())
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId    String
+  type      String // 'movie' | 'book' | 'game' | 'music'
+  title     String
+  creator   String   @default("")
+  status    String   @default("want") // 'want' | 'in-progress' | 'completed'
+  year      Int?
+  rating    Float?
+  progress  Int?
+  favorite  Boolean  @default(false)
+  genres    String[] @default([]) // array nativo de Postgres
+  notes     String   @default("")
+  cover     String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId])
+}
+
+/// Contenido curado para la pantalla de descubrimiento (joyas escondidas y
+/// ganadores de premios). No pertenece a ningún usuario: es catálogo global.
+model DiscoverItem {
+  id          String   @id @default(cuid())
+  type        String // 'movie' | 'book' | 'game' | 'music'
+  title       String
+  cover       String
+  description String   @default("")
+  year        Int?
+  rating      Float?
+  genres      String[] @default([])
+  /// Nombre del premio. `null` => candidato a "joya escondida"; no nulo => ganador de premio.
+  award       String?
+  /// Marca la joya escondida destacada (tarjeta grande) de la sección.
+  featured    Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([award])
+}

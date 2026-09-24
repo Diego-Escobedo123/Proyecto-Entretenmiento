@@ -5,5 +5,11 @@ import './styles/tokens.css'
 import './style.css'
 import App from './App.vue'
 import { router } from './router'
+import { useAuthStore } from './stores/auth'
 
-createApp(App).use(createPinia()).use(router).mount('#app')
+const app = createApp(App).use(createPinia()).use(router)
+
+// Revalida la sesión guardada contra el backend (no bloquea el arranque).
+useAuthStore().restore()
+
+app.mount('#app')
