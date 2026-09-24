@@ -73,13 +73,19 @@ watch(
   />
 
   <aside class="app-sidebar" :class="{ 'app-sidebar--open': ui.mobileNavOpen }">
-    <div class="app-sidebar__header">
+    <!-- Logo + nombre: vuelve a Inicio (y cierra el drawer si ya estabas ahí). -->
+    <RouterLink
+      to="/"
+      class="app-sidebar__header"
+      aria-label="Mosaic — ir al inicio"
+      @click="ui.toggleMobileNav(false)"
+    >
       <img class="app-sidebar__logo" :src="figLogo" alt="" aria-hidden="true" />
       <div class="app-sidebar__brand-text">
         <h1 class="app-sidebar__brand">Mosaic</h1>
         <p class="app-sidebar__tagline">Every piece shapes your identity</p>
       </div>
-    </div>
+    </RouterLink>
 
     <nav class="app-sidebar__nav">
       <RouterLink
@@ -162,6 +168,18 @@ watch(
   gap: 2px;
   margin-left: calc(-1 * var(--space-md));
   margin-bottom: var(--space-xl);
+  text-decoration: none;
+  border-radius: var(--radius-md);
+  transition: opacity 0.15s ease;
+}
+
+.app-sidebar__header:hover {
+  opacity: 0.85;
+}
+
+.app-sidebar__header:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
 }
 
 .app-sidebar__logo {
