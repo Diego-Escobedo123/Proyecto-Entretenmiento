@@ -7,6 +7,7 @@
 import { onMounted } from 'vue'
 import AppSidebar from '../components/AppSidebar.vue'
 import AppTopBar from '../components/AppTopBar.vue'
+import WorkDetailModal from '../components/WorkDetailModal.vue'
 import EntryFormModal from '../components/EntryFormModal.vue'
 import SettingsModal from '../components/SettingsModal.vue'
 import { useMediaStore } from '../stores/media'
@@ -34,6 +35,9 @@ onMounted(() => {
       </main>
     </div>
 
+    <!-- La ficha va antes que el formulario: al pasar de una a otro, la ficha se
+         desmonta primero y no desbloquea el scroll que el formulario acaba de bloquear. -->
+    <WorkDetailModal v-if="ui.detailWork" />
     <EntryFormModal v-if="ui.isEntryFormOpen" />
     <SettingsModal v-if="ui.isSettingsOpen" />
   </div>

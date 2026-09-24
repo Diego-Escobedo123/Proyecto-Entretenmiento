@@ -85,8 +85,15 @@ export const useMediaStore = defineStore('media', () => {
     return entries.value.find((e) => e.id === id)
   }
 
-  /** Obra ya registrada con ese tipo y título (sin distinguir mayúsculas). */
-  function findByTitle(type: MediaType, title: string): MediaEntry | undefined {
+  /**
+   * Obra ya registrada: por id de catálogo si se conoce, si no por tipo +
+   * título (sin distinguir mayúsculas).
+   */
+  function findByTitle(type: MediaType, title: string, externalId?: string | null): MediaEntry | undefined {
+    if (externalId) {
+      const byId = entries.value.find((e) => e.type === type && e.externalId === externalId)
+      if (byId) return byId
+    }
     const t = title.trim().toLowerCase()
     return entries.value.find((e) => e.type === type && e.title.trim().toLowerCase() === t)
   }

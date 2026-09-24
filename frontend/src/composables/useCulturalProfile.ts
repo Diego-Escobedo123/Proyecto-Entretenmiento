@@ -94,6 +94,9 @@ export function useCulturalProfile() {
         date: relativeDate(e.updatedAt),
         title: `${diaryVerb(e)} ${e.title}`,
         note: e.notes.trim() || `${typeMeta(e.type).label} · ${e.creator || 'sin autor'}`,
+        /** Visibilidad de la nota; `null` si no hay nota (se muestra el texto de relleno). */
+        noteVisibility: e.notes.trim() ? (e.notesPublic ? 'public' : 'private') : null,
+        review: e.review.trim(),
         typeLabel: typeMeta(e.type).label,
         rating: e.rating,
         current: isToday(e.updatedAt),

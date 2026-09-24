@@ -226,7 +226,12 @@ const donutGradient = computed(() => {
         <span class="profile-header__dot">•</span>
         <span>{{ worksLogged }} obras registradas</span>
       </p>
-      <BaseButton variant="outline" @click="ui.openSettings()">Editar perfil</BaseButton>
+      <div class="profile-header__actions">
+        <BaseButton variant="outline" @click="ui.openSettings()">Editar perfil</BaseButton>
+        <RouterLink to="/users/me" class="profile-header__public-link">
+          <BaseIcon name="eye" /> Ver como lo ven los demás
+        </RouterLink>
+      </div>
     </section>
 
     <section class="card">
@@ -258,7 +263,17 @@ const donutGradient = computed(() => {
               <p class="diary__date">{{ entry.date }}</p>
               <h3 class="diary__title">{{ entry.title }}</h3>
               <span class="diary__tag">{{ entry.typeLabel }}</span>
-              <p class="diary__quote">{{ entry.note }}</p>
+              <p v-if="entry.review" class="diary__review">{{ entry.review }}</p>
+              <p class="diary__quote">
+                <span
+                  v-if="entry.noteVisibility"
+                  class="diary__visibility"
+                  :title="entry.noteVisibility === 'public' ? 'Nota pública: visible en tu perfil' : 'Nota privada: sólo tú la ves'"
+                >
+                  <BaseIcon :name="entry.noteVisibility === 'public' ? 'globe2' : 'lock-fill'" />
+                </span>
+                {{ entry.note }}
+              </p>
             </div>
             <RatingStars v-if="entry.rating != null" :value="entry.rating" />
           </li>
@@ -618,6 +633,41 @@ const donutGradient = computed(() => {
   color: var(--color-text-muted);
   font-style: italic;
   margin: var(--space-xs) 0 0 0;
+}
+
+.diary__review {
+  color: var(--color-text);
+  font-size: 0.875rem;
+  margin: var(--space-xs) 0 0 0;
+}
+
+.diary__visibility {
+  font-style: normal;
+  font-size: 0.75rem;
+  color: var(--color-text-subtle);
+  margin-right: 4px;
+}
+
+.profile-header__actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-md);
+}
+
+.profile-header__public-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--color-accent);
+  font-size: 0.875rem;
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.profile-header__public-link:hover {
+  text-decoration: underline;
 }
 
 .diary__tag {

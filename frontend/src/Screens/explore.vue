@@ -92,20 +92,34 @@ function fetchCatalogResults() {
   return searchCatalogs(types, catalogQuery.value)
 }
 
-function addToCollection(type: MediaType, r: ExternalSearchResult) {
-  ui.openCreateEntry({
+function toWork(type: MediaType, r: ExternalSearchResult) {
+  return {
     type,
     title: r.title,
     creator: r.creator,
     year: r.year,
     genres: r.genres,
     cover: r.cover,
-  })
+    externalId: r.externalId,
+  }
+}
+
+function findOwned(type: MediaType, r: ExternalSearchResult) {
+  return media.findByTitle(type, r.title, r.externalId)
+}
+
+function addToCollection(type: MediaType, r: ExternalSearchResult) {
+  ui.openCreateEntry(toWork(type, r))
 }
 
 function openOwned(type: MediaType, r: ExternalSearchResult) {
-  const entry = media.findByTitle(type, r.title)
+  const entry = findOwned(type, r)
   if (entry) ui.openEditEntry(entry.id)
+}
+
+/** Ficha de la obra con las reseñas de la comunidad. */
+function openDetails(type: MediaType, r: ExternalSearchResult) {
+  ui.openWorkDetail(toWork(type, r))
 }
 
 // --- Carga según el modo; ignora respuestas viejas si el usuario cambió algo ---
@@ -182,9 +196,10 @@ onMounted(() => {
               :key="r.externalId"
               :result="r"
               :type="group.type"
-              :owned="!!media.findByTitle(group.type, r.title)"
+              :owned="!!findOwned(group.type, r)"
               @add="addToCollection(group.type, r)"
               @open="openOwned(group.type, r)"
+              @details="openDetails(group.type, r)"
             />
           </div>
         </section>

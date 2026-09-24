@@ -7,6 +7,7 @@ import ExploreScreen from '../Screens/explore.vue'
 import CollectionScreen from '../Screens/collection.vue'
 import ListsScreen from '../Screens/lists.vue'
 import ProfileScreen from '../Screens/profile.vue'
+import PublicProfileScreen from '../Screens/public-profile.vue'
 import NotFoundScreen from '../Screens/not-found.vue'
 
 /**
@@ -26,6 +27,7 @@ export const router = createRouter({
     { path: '/collection', name: 'collection', component: CollectionScreen },
     { path: '/lists', name: 'lists', component: ListsScreen },
     { path: '/profile', name: 'profile', component: ProfileScreen },
+    { path: '/users/:id', name: 'public-profile', component: PublicProfileScreen },
     { path: '/:pathMatch(.*)*', name: 'not-found', component: NotFoundScreen },
   ],
   scrollBehavior: () => ({ top: 0 }),

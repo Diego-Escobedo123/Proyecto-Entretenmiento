@@ -3,6 +3,7 @@
  * CatalogResultCard — resultado de un catálogo externo (TMDB, Google Books,
  * RAWG, iTunes) en Explorar. Si la obra ya está en la colección muestra
  * "En tu colección" (abre la edición); si no, "+ Agregar" (alta precargada).
+ * Clic en la portada o el título abre la ficha con reseñas (`details`).
  */
 import BaseIcon from '../BaseIcon.vue'
 import { typeMeta } from '../../lib/catalog'
@@ -12,24 +13,29 @@ import type { ExternalSearchResult } from '../../types/search'
 withDefaults(defineProps<{ result: ExternalSearchResult; type: MediaType; owned?: boolean }>(), {
   owned: false,
 })
-defineEmits<{ add: []; open: [] }>()
+defineEmits<{ add: []; open: []; details: [] }>()
 </script>
 
 <template>
   <article class="catalog-card">
-    <div class="catalog-card__cover-wrap">
+    <button
+      type="button"
+      class="catalog-card__details"
+      :aria-label="`Ver ficha y reseñas de ${result.title}`"
+      @click="$emit('details')"
+    >
       <img v-if="result.cover" :src="result.cover" :alt="result.title" class="catalog-card__cover" loading="lazy" />
-      <div v-else class="catalog-card__cover catalog-card__cover--empty">
+      <span v-else class="catalog-card__cover catalog-card__cover--empty">
         <BaseIcon :name="typeMeta(type).icon" />
-      </div>
-    </div>
+      </span>
 
-    <div class="catalog-card__body">
-      <h3 class="catalog-card__title" :title="result.title">{{ result.title }}</h3>
-      <p class="catalog-card__meta">
-        {{ [result.creator, result.year].filter(Boolean).join(' · ') || ' ' }}
-      </p>
-    </div>
+      <span class="catalog-card__body">
+        <span class="catalog-card__title" :title="result.title">{{ result.title }}</span>
+        <span class="catalog-card__meta">
+          {{ [result.creator, result.year].filter(Boolean).join(' · ') || ' ' }}
+        </span>
+      </span>
+    </button>
 
     <button
       v-if="owned"
@@ -70,11 +76,34 @@ defineEmits<{ add: []; open: [] }>()
   color: var(--color-text-subtle);
 }
 
+.catalog-card__details {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+  padding: 0;
+  border: none;
+  background: none;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.catalog-card__details:hover .catalog-card__cover {
+  opacity: 0.85;
+}
+
+.catalog-card__details:hover .catalog-card__title {
+  color: var(--color-accent);
+}
+
 .catalog-card__body {
+  display: flex;
+  flex-direction: column;
   min-width: 0;
 }
 
 .catalog-card__title {
+  display: block;
   margin: 0;
   font-size: 0.9375rem;
   font-weight: 700;
@@ -85,6 +114,7 @@ defineEmits<{ add: []; open: [] }>()
 }
 
 .catalog-card__meta {
+  display: block;
   margin: 2px 0 0;
   font-size: 0.8125rem;
   color: var(--color-text-muted);

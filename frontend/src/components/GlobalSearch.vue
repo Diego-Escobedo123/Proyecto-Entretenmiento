@@ -7,8 +7,8 @@
  *   Explorar) sólo actúa como filtro de esa pantalla: no abre desplegable,
  *   para no duplicar lo que ya se ve en la página.
  * - En el resto (Inicio, Perfil) abre un desplegable con coincidencias en la
- *   colección (abrir = editar) y en los catálogos externos (abrir = alta
- *   precargada).
+ *   colección (abrir = editar) y en los catálogos externos (abrir = ficha
+ *   de la obra con reseñas de la comunidad).
  */
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { storeToRefs } from 'pinia'
@@ -86,7 +86,7 @@ async function runExternalSearch(q: string) {
   externalGroups.value = groups
     .map((g) => ({
       type: g.type,
-      results: g.results.filter((r) => !media.findByTitle(g.type, r.title)).slice(0, MAX_PER_TYPE),
+      results: g.results.filter((r) => !media.findByTitle(g.type, r.title, r.externalId)).slice(0, MAX_PER_TYPE),
     }))
     .filter((g) => g.results.length > 0)
   searchingExternal.value = false
@@ -153,14 +153,16 @@ function select(option: Option) {
     ui.openEditEntry(option.entry.id)
     ui.setSearch('')
   } else if (option.kind === 'external') {
+    // Ficha de la obra: datos + reseñas de la comunidad + botón para agregarla.
     const r = option.result
-    ui.openCreateEntry({
+    ui.openWorkDetail({
       type: option.type,
       title: r.title,
       creator: r.creator,
       year: r.year,
       genres: r.genres,
       cover: r.cover,
+      externalId: r.externalId,
     })
     ui.setSearch('')
   } else {
@@ -274,7 +276,7 @@ onBeforeUnmount(() => {
               <span class="global-search__title">{{ opt.result.title }}</span>
               <span class="global-search__meta">{{ metaLine([opt.result.creator, opt.result.year]) }}</span>
             </span>
-            <span class="global-search__action">+ Agregar</span>
+            <span class="global-search__action">Ver ficha</span>
           </button>
         </section>
 

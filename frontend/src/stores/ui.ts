@@ -8,12 +8,19 @@ import type { MediaEntryInput } from '../types/media'
 
 /** Datos con los que precargar el alta de una obra (p. ej. desde el buscador global). */
 export type EntryPrefill = Partial<
-  Pick<MediaEntryInput, 'type' | 'title' | 'creator' | 'year' | 'genres' | 'cover'>
+  Pick<MediaEntryInput, 'type' | 'title' | 'creator' | 'year' | 'genres' | 'cover' | 'externalId'>
+>
+
+/** Obra de un catálogo externo, tal como se muestra en su ficha. */
+export type CatalogWork = Pick<
+  MediaEntryInput,
+  'type' | 'title' | 'creator' | 'year' | 'genres' | 'cover' | 'externalId'
 >
 
 type ModalState =
   | { name: 'none' }
   | { name: 'entry-form'; entryId: string | null; prefill?: EntryPrefill }
+  | { name: 'work-detail'; work: CatalogWork }
   | { name: 'settings' }
 
 export const useUiStore = defineStore('ui', () => {
@@ -30,6 +37,14 @@ export const useUiStore = defineStore('ui', () => {
   const entryPrefill = computed(() =>
     modal.value.name === 'entry-form' ? modal.value.prefill ?? null : null,
   )
+  const detailWork = computed(() =>
+    modal.value.name === 'work-detail' ? modal.value.work : null,
+  )
+
+  /** Ficha de una obra del catálogo: datos + reseñas de la comunidad. */
+  function openWorkDetail(work: CatalogWork): void {
+    modal.value = { name: 'work-detail', work }
+  }
 
   function openCreateEntry(prefill?: EntryPrefill): void {
     modal.value = { name: 'entry-form', entryId: null, prefill }
@@ -62,6 +77,8 @@ export const useUiStore = defineStore('ui', () => {
     isSettingsOpen,
     editingEntryId,
     entryPrefill,
+    detailWork,
+    openWorkDetail,
     openCreateEntry,
     openEditEntry,
     openSettings,

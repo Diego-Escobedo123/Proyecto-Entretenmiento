@@ -22,9 +22,15 @@ export interface MediaEntry {
   progress: number | null
   favorite: boolean
   genres: string[]
+  /** Comentario que acompaña la calificación. Siempre público (reseñas de la obra). */
+  review: string
+  /** Notas personales. Privadas salvo que `notesPublic`; aun así sólo se ven en el perfil. */
   notes: string
+  notesPublic: boolean
   /** URL de portada; `null` muestra un placeholder. */
   cover: string | null
+  /** Id en el catálogo externo (p. ej. "tmdb:438631"); `null` si se ingresó a mano. */
+  externalId: string | null
   createdAt: string
   updatedAt: string
 }

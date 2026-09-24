@@ -30,32 +30,42 @@ model Profile {
   tagline     String   @default("Tu identidad cultural")
   quote       String   @default("Cada obra cuenta una historia. Juntas cuentan la tuya.")
   memberSince Int?
-  /// Preferencia de visibilidad. Hoy solo se guarda: todavía no existe una
-  /// vista de perfil pública sin login que la respete.
+  /// Visibilidad del perfil público (GET /users/:id). Si es `false`, los demás
+  /// sólo ven nombre y avatar; las reseñas siguen visibles en cada obra.
   isPublic    Boolean  @default(false)
   updatedAt   DateTime @updatedAt
 }
 
 /// Una "obra" registrada por el usuario (película, libro, juego, álbum).
 model MediaEntry {
-  id        String   @id @default(cuid())
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  userId    String
-  type      String // 'movie' | 'book' | 'game' | 'music'
-  title     String
-  creator   String   @default("")
-  status    String   @default("want") // 'want' | 'in-progress' | 'completed'
-  year      Int?
-  rating    Float?
-  progress  Int?
-  favorite  Boolean  @default(false)
-  genres    String[] @default([]) // array nativo de Postgres
-  notes     String   @default("")
-  cover     String?
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id          String   @id @default(cuid())
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId      String
+  type        String // 'movie' | 'book' | 'game' | 'music'
+  title       String
+  creator     String   @default("")
+  status      String   @default("want") // 'want' | 'in-progress' | 'completed'
+  year        Int?
+  rating      Float?
+  progress    Int?
+  favorite    Boolean  @default(false)
+  genres      String[] @default([]) // array nativo de Postgres
+  /// Comentario que acompaña a la calificación. Siempre público: lo ven los
+  /// demás usuarios al buscar la obra.
+  review      String   @default("")
+  /// Notas personales. Privadas por defecto; si `notesPublic`, se muestran
+  /// sólo en el perfil público del usuario (nunca en las reseñas de la obra).
+  notes       String   @default("")
+  notesPublic Boolean  @default(false)
+  cover       String?
+  /// Id en el catálogo externo (p. ej. "tmdb:438631"). Identifica la misma
+  /// obra entre usuarios; `null` en obras ingresadas manualmente.
+  externalId  String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 
   @@index([userId])
+  @@index([type, externalId])
 }
 
 /// Contenido curado para la pantalla de descubrimiento (joyas escondidas y
