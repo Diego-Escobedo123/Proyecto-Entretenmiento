@@ -1,22 +1,18 @@
 <script setup lang="ts">
 /**
  * AppTopBar — barra superior: toggle de nav (móvil), búsqueda global
- * (enlazada a `useUiStore().searchQuery`) y el menú de perfil (Cuenta, Tema,
- * Notificaciones) que se despliega desde el avatar.
+ * (ver GlobalSearch) y el menú de perfil (Cuenta, Tema, Notificaciones)
+ * que se despliega desde el avatar.
  */
 import { onBeforeUnmount, onMounted, ref } from 'vue'
 import { storeToRefs } from 'pinia'
 import BaseIcon from './BaseIcon.vue'
+import GlobalSearch from './GlobalSearch.vue'
 import { useUiStore } from '../stores/ui'
 import { useProfileStore } from '../stores/profile'
 import { useTheme } from '../composables/useTheme'
 
-withDefaults(defineProps<{ placeholder?: string }>(), {
-  placeholder: 'Buscar en tu colección…',
-})
-
 const ui = useUiStore()
-const { searchQuery } = storeToRefs(ui)
 const { profile } = storeToRefs(useProfileStore())
 const { theme, toggleTheme } = useTheme()
 
@@ -65,16 +61,7 @@ onBeforeUnmount(() => {
       <BaseIcon name="list" />
     </button>
 
-    <div class="app-topbar__search">
-      <span class="app-topbar__search-icon"><BaseIcon name="search" /></span>
-      <input
-        v-model="searchQuery"
-        type="search"
-        :placeholder="placeholder"
-        class="app-topbar__search-input"
-        aria-label="Buscar"
-      />
-    </div>
+    <GlobalSearch />
 
     <div class="app-topbar__actions">
       <div ref="menuWrapEl" class="app-topbar__user-wrap">
@@ -137,33 +124,6 @@ onBeforeUnmount(() => {
   font-size: 1.25rem;
   cursor: pointer;
   padding: var(--space-xs);
-}
-
-.app-topbar__search {
-  flex: 1;
-  max-width: 480px;
-  display: flex;
-  align-items: center;
-  gap: var(--space-sm);
-  background: var(--color-surface);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-md);
-  padding: 10px var(--space-md);
-}
-
-.app-topbar__search-input {
-  flex: 1;
-  min-width: 0;
-  background: none;
-  border: none;
-  outline: none;
-  color: var(--color-text);
-  font: inherit;
-  font-size: 0.9375rem;
-}
-
-.app-topbar__search-input::placeholder {
-  color: var(--color-text-subtle);
 }
 
 .app-topbar__actions {

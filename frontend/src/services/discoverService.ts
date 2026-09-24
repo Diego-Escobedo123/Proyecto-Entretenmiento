@@ -15,6 +15,7 @@ function toQueryString(filters?: DiscoverFilters): string {
   if (!filters) return ''
   const params = new URLSearchParams()
   if (filters.q?.trim()) params.set('q', filters.q.trim())
+  if (filters.type) params.set('type', filters.type)
   if (filters.genres?.length) params.set('genres', filters.genres.join(','))
   if (filters.minRating) params.set('minRating', String(filters.minRating))
   const qs = params.toString()

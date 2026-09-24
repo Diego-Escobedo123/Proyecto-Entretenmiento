@@ -4,10 +4,16 @@
  */
 import { defineStore } from 'pinia'
 import { computed, ref } from 'vue'
+import type { MediaEntryInput } from '../types/media'
+
+/** Datos con los que precargar el alta de una obra (p. ej. desde el buscador global). */
+export type EntryPrefill = Partial<
+  Pick<MediaEntryInput, 'type' | 'title' | 'creator' | 'year' | 'genres' | 'cover'>
+>
 
 type ModalState =
   | { name: 'none' }
-  | { name: 'entry-form'; entryId: string | null }
+  | { name: 'entry-form'; entryId: string | null; prefill?: EntryPrefill }
   | { name: 'settings' }
 
 export const useUiStore = defineStore('ui', () => {
@@ -21,9 +27,12 @@ export const useUiStore = defineStore('ui', () => {
   const editingEntryId = computed(() =>
     modal.value.name === 'entry-form' ? modal.value.entryId : null,
   )
+  const entryPrefill = computed(() =>
+    modal.value.name === 'entry-form' ? modal.value.prefill ?? null : null,
+  )
 
-  function openCreateEntry(): void {
-    modal.value = { name: 'entry-form', entryId: null }
+  function openCreateEntry(prefill?: EntryPrefill): void {
+    modal.value = { name: 'entry-form', entryId: null, prefill }
   }
 
   function openEditEntry(entryId: string): void {
@@ -52,6 +61,7 @@ export const useUiStore = defineStore('ui', () => {
     isEntryFormOpen,
     isSettingsOpen,
     editingEntryId,
+    entryPrefill,
     openCreateEntry,
     openEditEntry,
     openSettings,

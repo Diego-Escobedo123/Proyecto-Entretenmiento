@@ -2,6 +2,7 @@
  * Modelo de la pantalla de descubrimiento (`/discover`): catálogo curado,
  * no las obras del usuario (ver `types/media.ts`).
  */
+import type { MediaType } from './media'
 
 export interface HiddenGem {
   id: string
@@ -27,6 +28,8 @@ export interface DiscoverResult {
 
 export interface DiscoverFilters {
   q?: string
+  /** Limita a un tipo de obra (pestañas de Explorar). */
+  type?: MediaType
   genres?: string[]
   minRating?: number
 }

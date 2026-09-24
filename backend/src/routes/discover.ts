@@ -33,12 +33,15 @@ function toAwardDTO(row: DiscoverItem) {
   }
 }
 
-/** Filtros comunes a partir de la querystring: ?genres=a,b&minRating=4&q=texto */
+/** Filtros comunes a partir de la querystring: ?type=movie&genres=a,b&minRating=4&q=texto */
 function buildWhere(c: { req: { query: (key: string) => string | undefined } }): Prisma.DiscoverItemWhereInput {
   const where: Prisma.DiscoverItemWhereInput = {}
 
   const q = c.req.query('q')?.trim()
   if (q) where.title = { contains: q, mode: 'insensitive' }
+
+  const type = c.req.query('type')
+  if (type && type in KIND_LABEL) where.type = type
 
   const genres = c.req.query('genres')
     ?.split(',')
@@ -52,7 +55,7 @@ function buildWhere(c: { req: { query: (key: string) => string | undefined } }):
   return where
 }
 
-// GET /discover?genres=a,b&minRating=4&q=texto -> { hiddenGems, awardWinners }
+// GET /discover?type=movie&genres=a,b&minRating=4&q=texto -> { hiddenGems, awardWinners }
 discoverRoutes.get('/', async (c) => {
   const where = buildWhere(c)
 

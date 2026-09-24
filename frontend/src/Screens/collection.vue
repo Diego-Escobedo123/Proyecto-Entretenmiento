@@ -5,6 +5,7 @@
  */
 import { computed, ref } from 'vue'
 import { storeToRefs } from 'pinia'
+import { useRouter } from 'vue-router'
 import MediaCard from '../components/MediaCard.vue'
 import BaseTag from '../components/BaseTag.vue'
 import BaseIcon from '../components/BaseIcon.vue'
@@ -20,6 +21,15 @@ const media = useMediaStore()
 const ui = useUiStore()
 const { entries, loading, isEmpty } = storeToRefs(media)
 const { searchQuery } = storeToRefs(ui)
+const router = useRouter()
+
+/** Texto buscado, si lo hay: permite ofrecer buscarlo en los catálogos (Explorar). */
+const searchText = computed(() => searchQuery.value.trim())
+
+function searchInCatalogs() {
+  // El texto se conserva en el store: Explorar lo usa para buscar en catálogos.
+  void router.push('/explore')
+}
 
 type TypeFilter = MediaType | 'all'
 const typeFilter = ref<TypeFilter>('all')
@@ -143,11 +153,24 @@ async function confirmDelete() {
     </div>
 
     <EmptyState
+      v-else-if="searchText"
+      compact
+      icon="search"
+      :title="`No tienes “${searchText}” en tu colección`"
+      text="Búscalo en los catálogos de películas, libros, juegos y música para agregarlo."
+    >
+      <div class="collection__empty-actions">
+        <BaseButton @click="searchInCatalogs">Buscar en catálogos</BaseButton>
+        <BaseButton variant="outline" @click="clearFilters">Limpiar filtros</BaseButton>
+      </div>
+    </EmptyState>
+
+    <EmptyState
       v-else
       compact
       icon="search"
       title="Nada coincide con estos filtros"
-      text="Ajusta los filtros o la búsqueda para ver más resultados."
+      text="Ajusta los filtros para ver más resultados."
     >
       <BaseButton variant="outline" @click="clearFilters">Limpiar filtros</BaseButton>
     </EmptyState>
@@ -221,6 +244,13 @@ async function confirmDelete() {
 .collection__sort:hover,
 .collection__sort:active {
   border-color: var(--color-accent-hover);
+}
+
+.collection__empty-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: var(--space-sm);
 }
 
 .collection__grid {

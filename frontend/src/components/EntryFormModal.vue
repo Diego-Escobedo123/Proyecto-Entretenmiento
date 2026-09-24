@@ -114,6 +114,16 @@ watch(
       })
     } else {
       Object.assign(form, blank())
+      // Alta precargada desde el buscador global de la barra superior.
+      const prefill = ui.entryPrefill
+      if (prefill) {
+        if (prefill.type) form.type = prefill.type
+        if (prefill.title) form.title = prefill.title
+        if (prefill.creator) form.creator = prefill.creator
+        if (prefill.year != null) form.year = String(prefill.year)
+        if (prefill.genres?.length) form.genres = prefill.genres.join(', ')
+        if (prefill.cover) form.cover = prefill.cover
+      }
     }
     errors.title = undefined
     errors.year = undefined
