@@ -2,11 +2,12 @@
 /**
  * MediaCard — tarjeta de una obra de la colección. Recibe la entidad completa
  * y deriva su presentación del catálogo. Acciones: favorito, editar, eliminar.
+ * Editar y Eliminar son botones siempre visibles (antes vivían en un menú ⋮
+ * que el `overflow: hidden` de la tarjeta recortaba).
  *
  * Uso:
  *   <MediaCard :entry="entry" @toggle-favorite="..." @edit="..." @delete="..." />
  */
-import { onBeforeUnmount, onMounted, ref } from 'vue'
 import BaseBadge from './BaseBadge.vue'
 import BaseIcon from './BaseIcon.vue'
 import RatingStars from './RatingStars.vue'
@@ -17,25 +18,10 @@ import type { MediaEntry } from '../types/media'
 defineProps<{ entry: MediaEntry }>()
 
 const emit = defineEmits<{ 'toggle-favorite': []; edit: []; delete: [] }>()
-
-const menuOpen = ref(false)
-const root = ref<HTMLElement | null>(null)
-
-function onDocClick(e: MouseEvent) {
-  if (root.value && !root.value.contains(e.target as Node)) menuOpen.value = false
-}
-onMounted(() => document.addEventListener('click', onDocClick))
-onBeforeUnmount(() => document.removeEventListener('click', onDocClick))
-
-function choose(action: 'edit' | 'delete') {
-  menuOpen.value = false
-  if (action === 'edit') emit('edit')
-  else emit('delete')
-}
 </script>
 
 <template>
-  <article ref="root" class="media-card">
+  <article class="media-card">
     <div class="media-card__cover">
       <img v-if="entry.cover" :src="entry.cover" :alt="entry.title" loading="lazy" />
       <div v-else class="media-card__cover-placeholder" aria-hidden="true">
@@ -60,36 +46,35 @@ function choose(action: 'edit' | 'delete') {
       <p v-if="entry.creator" class="media-card__subtitle">{{ entry.creator }}</p>
 
       <div class="media-card__footer">
-        <span class="media-card__footer-main">
-          <RatingStars v-if="entry.rating != null" :value="entry.rating" />
-          <ProgressBar v-else-if="entry.status === 'in-progress' && entry.progress != null" :percent="entry.progress" />
-          <span
-            v-else
-            class="media-card__status"
-            :style="{ color: statusMeta(entry.status).color }"
-          >
-            {{ statusMeta(entry.status).label }}
-          </span>
+        <RatingStars v-if="entry.rating != null" :value="entry.rating" />
+        <ProgressBar v-else-if="entry.status === 'in-progress' && entry.progress != null" :percent="entry.progress" />
+        <span
+          v-else
+          class="media-card__status"
+          :style="{ color: statusMeta(entry.status).color }"
+        >
+          {{ statusMeta(entry.status).label }}
         </span>
+      </div>
 
-        <div class="media-card__menu">
-          <button
-            class="media-card__action"
-            type="button"
-            aria-haspopup="true"
-            :aria-expanded="menuOpen"
-            aria-label="Más acciones"
-            @click="menuOpen = !menuOpen"
-          >
-            <BaseIcon name="three-dots-vertical" />
-          </button>
-          <div v-if="menuOpen" class="media-card__dropdown" role="menu">
-            <button type="button" role="menuitem" @click="choose('edit')">Editar</button>
-            <button type="button" role="menuitem" class="media-card__danger" @click="choose('delete')">
-              Eliminar
-            </button>
-          </div>
-        </div>
+      <div class="media-card__actions">
+        <button
+          type="button"
+          class="media-card__btn media-card__btn--edit"
+          :aria-label="`Editar ${entry.title}`"
+          @click="emit('edit')"
+        >
+          <BaseIcon name="pencil" /> Editar
+        </button>
+        <button
+          type="button"
+          class="media-card__btn media-card__btn--delete"
+          :aria-label="`Eliminar ${entry.title}`"
+          title="Eliminar"
+          @click="emit('delete')"
+        >
+          <BaseIcon name="trash" />
+        </button>
       </div>
     </div>
   </article>
@@ -150,6 +135,7 @@ function choose(action: 'edit' | 'delete') {
 }
 
 .media-card__body {
+  flex: 1;
   padding: var(--space-md);
   display: flex;
   flex-direction: column;
@@ -171,14 +157,9 @@ function choose(action: 'edit' | 'delete') {
 
 .media-card__footer {
   margin-top: var(--space-xs);
+  min-height: 20px;
   display: flex;
   align-items: center;
-  gap: var(--space-sm);
-}
-
-.media-card__footer-main {
-  flex: 1;
-  min-width: 0;
 }
 
 .media-card__status {
@@ -186,61 +167,53 @@ function choose(action: 'edit' | 'delete') {
   font-weight: 600;
 }
 
-.media-card__menu {
-  position: relative;
-  flex-shrink: 0;
+/* Acciones siempre visibles, pegadas al fondo (el body es flex: 1) para que
+   todas las tarjetas de una fila las tengan a la misma altura. */
+.media-card__actions {
+  margin-top: auto;
+  padding-top: var(--space-sm);
+  display: flex;
+  gap: var(--space-xs);
 }
 
-.media-card__action {
-  background: none;
-  border: none;
-  color: var(--color-text-muted);
-  font-size: 1rem;
-  line-height: 1;
-  cursor: pointer;
-  padding: var(--space-xs);
-  border-radius: var(--radius-sm);
-}
-
-.media-card__action:hover,
-.media-card__action:active {
-  color: var(--color-accent-hover-contrast);
-  background: var(--color-accent-hover-bg);
-}
-
-.media-card__dropdown {
-  position: absolute;
-  right: 0;
-  top: calc(100% + 4px);
-  z-index: 10;
-  background: var(--color-surface-2);
+.media-card__btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 6px var(--space-sm);
   border: 1px solid var(--color-border);
   border-radius: var(--radius-md);
-  padding: var(--space-xs);
-  display: flex;
-  flex-direction: column;
-  min-width: 130px;
-}
-
-.media-card__dropdown button {
-  background: none;
-  border: none;
-  text-align: left;
-  padding: var(--space-sm);
-  border-radius: var(--radius-sm);
+  background: var(--color-surface-2);
   color: var(--color-text);
   font: inherit;
-  font-size: 0.875rem;
+  font-size: 0.8125rem;
+  font-weight: 600;
   cursor: pointer;
+  transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease;
 }
 
-.media-card__dropdown button:hover,
-.media-card__dropdown button:active {
+.media-card__btn--edit {
+  flex: 1;
+}
+
+.media-card__btn--edit:hover,
+.media-card__btn--edit:focus-visible {
+  border-color: var(--color-accent);
   background: var(--color-accent-hover-bg);
   color: var(--color-accent-hover-contrast);
 }
 
-.media-card__danger {
+.media-card__btn--delete {
+  flex-shrink: 0;
+  width: 34px;
+  padding: 6px 0;
+  color: var(--color-text-muted);
+}
+
+.media-card__btn--delete:hover,
+.media-card__btn--delete:focus-visible {
+  border-color: var(--color-danger);
   color: var(--color-danger);
 }
 </style>
