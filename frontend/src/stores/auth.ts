@@ -61,19 +61,11 @@ export const useAuthStore = defineStore('auth', () => {
     }
   }
 
-  async function loginWithGoogle(): Promise<Result> {
-    // Botón simulado de respaldo (cuando no hay VITE_GOOGLE_CLIENT_ID).
-    return { ok: false, message: 'El inicio con Google todavía no está disponible.' }
-  }
-
   /**
    * Login real con Google: recibe el ID token del botón de Google y lo
    * manda al backend, que lo verifica y devuelve nuestra propia sesión.
    */
   async function loginWithGoogleCredential(idToken: string): Promise<Result> {
-    // TODO(backend): implementar POST /auth/google. Debe verificar la firma del
-    // ID token con las llaves públicas de Google (ej. google-auth-library),
-    // buscar o crear el usuario por email y devolver { token, user } igual que /auth/login.
     try {
       setSession(await apiFetch<AuthResponse>('/auth/google', { method: 'POST', body: { idToken } }))
       return { ok: true }
@@ -105,5 +97,5 @@ export const useAuthStore = defineStore('auth', () => {
     }
   }
 
-  return { user, isAuthenticated, login, loginWithGoogle, loginWithGoogleCredential, register, logout, restore }
+  return { user, isAuthenticated, login, loginWithGoogleCredential, register, logout, restore }
 })
