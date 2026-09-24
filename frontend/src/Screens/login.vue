@@ -2,10 +2,10 @@
 /**
  * Login — correo/contraseña + botón de Google.
  *
- * - Correo/contraseña: autenticación simulada (ver stores/auth.ts).
+ * - Correo/contraseña: POST /auth/login contra el backend (ver stores/auth.ts).
  * - Google: si existe VITE_GOOGLE_CLIENT_ID en .env, se muestra el botón
  *   REAL de Google Identity Services. Si no existe (o el script de Google
- *   no carga), se muestra el botón simulado de antes para no romper nada.
+ *   no carga), se muestra un botón desactivado que indica que no está disponible.
  */
 import { onBeforeUnmount, onMounted, reactive, ref } from 'vue'
 import { useRouter } from 'vue-router'
@@ -61,25 +61,13 @@ async function onSubmit() {
   }
 }
 
-/** Botón simulado (solo se usa si Google real no está disponible). */
-async function onGoogleLogin() {
-  formError.value = ''
-  googleLoading.value = true
-  const result = await auth.loginWithGoogle()
-  googleLoading.value = false
-
-  if (result.ok) {
-    router.push('/')
-  } else {
-    formError.value = result.message
-    triggerShake()
-  }
-}
-
 /** Callback del botón real de Google: recibe el ID token. */
 async function onGoogleCredential(response: GoogleCredentialResponse) {
+  if (googleLoading.value) return
   formError.value = ''
+  googleLoading.value = true
   const result = await auth.loginWithGoogleCredential(response.credential)
+  googleLoading.value = false
 
   if (result.ok) {
     router.push('/')
@@ -165,24 +153,28 @@ onBeforeUnmount(() => {
     <div class="login__divider"><span>o</span></div>
 
     <div class="login__google-wrap">
-      <!-- Aquí Google dibuja su botón real -->
+      <!-- Aquí Google dibuja su botón real (se oculta mientras se valida la cuenta) -->
       <div
-        v-show="googleStatus !== 'unavailable'"
+        v-show="googleStatus !== 'unavailable' && !googleLoading"
         ref="googleButtonEl"
         class="login__google-gis"
       ></div>
 
-      <!-- Respaldo: botón simulado si no hay Client ID o Google no cargó -->
+      <p v-if="googleLoading" class="login__google-status" role="status">
+        <BaseSpinner size="sm" />
+        Conectando con Google…
+      </p>
+
+      <!-- Respaldo: sin Client ID o si el script de Google no cargó -->
       <button
         v-if="googleStatus === 'unavailable'"
         class="login__google"
         type="button"
-        :disabled="googleLoading"
-        @click="onGoogleLogin"
+        disabled
+        title="El inicio con Google no está configurado."
       >
-        <BaseSpinner v-if="googleLoading" size="sm" />
-        <span v-else>🅶</span>
-        {{ googleLoading ? 'Conectando…' : 'Continuar con Google' }}
+        <span>🅶</span>
+        Google no disponible
       </button>
     </div>
 
@@ -250,6 +242,17 @@ onBeforeUnmount(() => {
   min-height: 44px;
   display: flex;
   justify-content: center;
+}
+
+.login__google-status {
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-sm);
+  color: var(--color-text-muted);
+  font-size: 0.875rem;
+  margin: 0;
 }
 
 .login__google {

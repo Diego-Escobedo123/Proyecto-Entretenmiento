@@ -1,6 +1,6 @@
 import { Hono } from 'hono'
 import { prisma } from '../lib/prisma'
-import { hashPassword, signToken, verifyPassword } from '../lib/auth'
+import { hashPassword, isGoogleAuthEnabled, signToken, verifyGoogleIdToken, verifyPassword } from '../lib/auth'
 import { requireAuth, type AuthEnv } from '../middleware/auth'
 
 export const authRoutes = new Hono<AuthEnv>()
@@ -45,6 +45,36 @@ authRoutes.post('/login', async (c) => {
   const user = typeof email === 'string' ? await prisma.user.findUnique({ where: { email } }) : null
   const ok = user ? await verifyPassword(String(password ?? ''), user.passwordHash) : false
   if (!user || !ok) return c.json({ message: 'Correo o contraseña incorrectos.' }, 401)
+
+  return c.json({ token: await signToken(user.id), user: publicUser(user) })
+})
+
+// POST /auth/google  { idToken }  (ID token del botón de Google Identity Services)
+authRoutes.post('/google', async (c) => {
+  if (!isGoogleAuthEnabled()) {
+    return c.json({ message: 'El inicio con Google no está configurado en el servidor.' }, 503)
+  }
+
+  const { idToken } = await c.req.json().catch(() => ({}))
+  if (typeof idToken !== 'string' || !idToken) return c.json({ message: 'Falta el token de Google.' }, 400)
+
+  const google = await verifyGoogleIdToken(idToken)
+  if (!google) return c.json({ message: 'No se pudo verificar la cuenta de Google.' }, 401)
+
+  // Si ya existe una cuenta con ese correo, entra a esa misma cuenta.
+  // Si no, se crea con una contraseña aleatoria: solo podrá entrar con Google.
+  const user =
+    (await prisma.user.findUnique({ where: { email: google.email } })) ??
+    (await prisma.user.create({
+      data: {
+        name: google.name,
+        email: google.email,
+        passwordHash: await hashPassword(crypto.randomUUID()),
+        profile: {
+          create: { handle: google.email.split('@')[0], memberSince: new Date().getFullYear() },
+        },
+      },
+    }))
 
   return c.json({ token: await signToken(user.id), user: publicUser(user) })
 })
