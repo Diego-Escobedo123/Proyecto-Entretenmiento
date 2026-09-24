@@ -4,6 +4,8 @@ import { logger } from 'hono/logger'
 import { authRoutes } from './routes/auth'
 import { mediaRoutes } from './routes/media'
 import { profileRoutes } from './routes/profile'
+import { discoverRoutes } from './routes/discover'
+import { searchRoutes } from './routes/search'
 
 const app = new Hono()
 
@@ -23,6 +25,8 @@ app.get('/health', (c) => c.json({ status: 'ok' }))
 app.route('/auth', authRoutes)
 app.route('/media', mediaRoutes)
 app.route('/profile', profileRoutes)
+app.route('/discover', discoverRoutes)
+app.route('/search', searchRoutes)
 
 app.notFound((c) => c.json({ message: 'Ruta no encontrada.' }, 404))
 app.onError((err, c) => {
