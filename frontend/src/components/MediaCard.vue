@@ -1,12 +1,13 @@
 <script setup lang="ts">
 /**
  * MediaCard — tarjeta de una obra de la colección. Recibe la entidad completa
- * y deriva su presentación del catálogo. Acciones: favorito, editar, eliminar.
+ * y deriva su presentación del catálogo. Acciones: abrir la ficha (portada o
+ * título), favorito, editar, eliminar.
  * Editar y Eliminar son botones siempre visibles (antes vivían en un menú ⋮
  * que el `overflow: hidden` de la tarjeta recortaba).
  *
  * Uso:
- *   <MediaCard :entry="entry" @toggle-favorite="..." @edit="..." @delete="..." />
+ *   <MediaCard :entry="entry" @open="..." @toggle-favorite="..." @edit="..." @delete="..." />
  */
 import BaseBadge from './BaseBadge.vue'
 import BaseIcon from './BaseIcon.vue'
@@ -17,16 +18,24 @@ import type { MediaEntry } from '../types/media'
 
 defineProps<{ entry: MediaEntry }>()
 
-const emit = defineEmits<{ 'toggle-favorite': []; edit: []; delete: [] }>()
+const emit = defineEmits<{ open: []; 'toggle-favorite': []; edit: []; delete: [] }>()
 </script>
 
 <template>
   <article class="media-card">
     <div class="media-card__cover">
-      <img v-if="entry.cover" :src="entry.cover" :alt="entry.title" loading="lazy" />
-      <div v-else class="media-card__cover-placeholder" aria-hidden="true">
-        <BaseIcon :name="typeMeta(entry.type).icon" />
-      </div>
+      <button
+        type="button"
+        class="media-card__open"
+        :aria-label="`Ver ficha de ${entry.title}`"
+        tabindex="-1"
+        @click="emit('open')"
+      >
+        <img v-if="entry.cover" :src="entry.cover" :alt="entry.title" loading="lazy" />
+        <div v-else class="media-card__cover-placeholder" aria-hidden="true">
+          <BaseIcon :name="typeMeta(entry.type).icon" />
+        </div>
+      </button>
 
       <button
         class="media-card__favorite"
@@ -42,7 +51,9 @@ const emit = defineEmits<{ 'toggle-favorite': []; edit: []; delete: [] }>()
 
     <div class="media-card__body">
       <BaseBadge>{{ typeMeta(entry.type).label }}</BaseBadge>
-      <h3 class="media-card__title">{{ entry.title }}</h3>
+      <h3 class="media-card__title">
+        <button type="button" class="media-card__title-btn" @click="emit('open')">{{ entry.title }}</button>
+      </h3>
       <p v-if="entry.creator" class="media-card__subtitle">{{ entry.creator }}</p>
 
       <div class="media-card__footer">
@@ -96,11 +107,36 @@ const emit = defineEmits<{ 'toggle-favorite': []; edit: []; delete: [] }>()
   background: var(--color-surface-2);
 }
 
+.media-card__open {
+  display: block;
+  width: 100%;
+  height: 100%;
+  padding: 0;
+  border: none;
+  background: none;
+  cursor: pointer;
+}
+
 .media-card__cover img {
   width: 100%;
   height: 100%;
   object-fit: cover;
   display: block;
+}
+
+.media-card__title-btn {
+  padding: 0;
+  border: none;
+  background: none;
+  font: inherit;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.media-card__title-btn:hover,
+.media-card__title-btn:focus-visible {
+  color: var(--color-accent);
 }
 
 .media-card__cover-placeholder {

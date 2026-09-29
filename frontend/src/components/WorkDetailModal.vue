@@ -9,6 +9,7 @@ import BaseModal from './BaseModal.vue'
 import BaseButton from './BaseButton.vue'
 import BaseIcon from './BaseIcon.vue'
 import CommunityReviews from './CommunityReviews.vue'
+import WorkInfo from './WorkInfo.vue'
 import { typeMeta } from '../lib/catalog'
 import { useMediaStore } from '../stores/media'
 import { useUiStore } from '../stores/ui'
@@ -62,6 +63,8 @@ function addOrEdit() {
           </p>
         </div>
       </div>
+
+      <WorkInfo :type="work.type" :external-id="work.externalId" />
 
       <CommunityReviews
         :work="{ type: work.type, externalId: work.externalId, title: work.title }"

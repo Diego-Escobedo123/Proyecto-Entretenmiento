@@ -146,6 +146,7 @@ async function confirmDelete() {
         v-for="entry in visible"
         :key="entry.id"
         :entry="entry"
+        @open="ui.openWorkDetail(entry)"
         @toggle-favorite="media.toggleFavorite(entry.id)"
         @edit="ui.openEditEntry(entry.id)"
         @delete="pendingDelete = entry"
