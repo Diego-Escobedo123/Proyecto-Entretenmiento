@@ -3,6 +3,9 @@
  * Diario — cada vez que viste, leíste, jugaste o escuchaste algo, por fecha
  * (como el diary de Letterboxd). Agrupado por mes, con filtro por año y tipo.
  * Las entradas se crean solas al cambiar el estado de una obra.
+ *
+ * La pestaña "Resumen del año" muestra el reto anual (metas) y las
+ * estadísticas del año elegido, calculadas desde el mismo diario.
  */
 import { computed, onMounted, ref } from 'vue'
 import BaseIcon from '../components/BaseIcon.vue'
@@ -10,20 +13,33 @@ import BaseTag from '../components/BaseTag.vue'
 import BaseSpinner from '../components/BaseSpinner.vue'
 import EmptyState from '../components/EmptyState.vue'
 import RatingStars from '../components/RatingStars.vue'
+import YearGoals from '../components/YearGoals.vue'
+import YearReview from '../components/YearReview.vue'
 import { MEDIA_TYPES, statusLabel, typeMeta } from '../lib/catalog'
 import { formatDay, formatMonth, parseISODay } from '../lib/dates'
 import { logService } from '../services/logService'
+import { useMediaStore } from '../stores/media'
 import { useUiStore } from '../stores/ui'
 import type { LogEntry } from '../types/log'
 import type { MediaType } from '../types/media'
 
 const ui = useUiStore()
+const media = useMediaStore()
 
 const logs = ref<LogEntry[]>([])
 const loading = ref(true)
 const failed = ref(false)
 
+type Tab = 'diary' | 'review'
+const TABS: { value: Tab; label: string; icon: string }[] = [
+  { value: 'diary', label: 'Diario', icon: 'journal-bookmark' },
+  { value: 'review', label: 'Resumen del año', icon: 'bar-chart' },
+]
+const tab = ref<Tab>('diary')
+
 onMounted(async () => {
+  // Páginas y horas del resumen vienen de las obras de la colección.
+  void media.ensureLoaded()
   try {
     logs.value = await logService.list()
   } catch {
@@ -101,6 +117,30 @@ function open(log: LogEntry) {
     </select>
   </header>
 
+  <div class="diary__tabs" role="tablist" aria-label="Secciones del diario">
+    <button
+      v-for="t in TABS"
+      :key="t.value"
+      type="button"
+      role="tab"
+      class="diary__tab"
+      :class="{ 'is-active': tab === t.value }"
+      :aria-selected="tab === t.value"
+      @click="tab = t.value"
+    >
+      <BaseIcon :name="t.icon" /> {{ t.label }}
+    </button>
+  </div>
+
+  <p v-if="loading" class="diary__hint"><BaseSpinner size="sm" /> Cargando tu diario…</p>
+  <p v-else-if="failed" class="diary__hint">No se pudo cargar el diario.</p>
+
+  <template v-else-if="tab === 'review'">
+    <YearGoals :year="year" :logs="logs" />
+    <YearReview :year="year" :logs="logs" @open="open" />
+  </template>
+
+  <template v-else>
   <div class="diary__filters">
     <BaseTag :active="typeFilter === 'all'" @click="typeFilter = 'all'">Todo</BaseTag>
     <BaseTag v-for="t in MEDIA_TYPES" :key="t.value" :active="typeFilter === t.value" @click="typeFilter = t.value">
@@ -108,17 +148,14 @@ function open(log: LogEntry) {
     </BaseTag>
   </div>
 
-  <p v-if="loading" class="diary__hint"><BaseSpinner size="sm" /> Cargando tu diario…</p>
-  <p v-else-if="failed" class="diary__hint">No se pudo cargar el diario.</p>
-
   <EmptyState
-    v-else-if="!months.length"
+    v-if="!months.length"
     icon="journal-bookmark"
     :title="`Nada registrado en ${year}`"
     text="Cuando empieces o termines algo, aparecerá aquí con su fecha."
   />
 
-  <section v-for="m in months" v-else :key="m.key" class="diary__month">
+  <section v-for="m in months" :key="m.key" class="diary__month">
     <h2 class="diary__month-title">{{ m.label }}</h2>
     <ul class="diary__list">
       <li v-for="log in m.items" :key="log.id">
@@ -142,6 +179,7 @@ function open(log: LogEntry) {
       </li>
     </ul>
   </section>
+  </template>
 </template>
 
 <style scoped>
@@ -169,6 +207,36 @@ function open(log: LogEntry) {
 .diary__year {
   width: auto;
   min-width: 110px;
+}
+
+.diary__tabs {
+  display: flex;
+  gap: var(--space-md);
+  border-bottom: 1px solid var(--color-border);
+}
+
+.diary__tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: -1px;
+  padding: var(--space-sm) 2px;
+  border: none;
+  border-bottom: 2px solid transparent;
+  background: none;
+  color: var(--color-text-muted);
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.diary__tab:hover {
+  color: var(--color-text);
+}
+
+.diary__tab.is-active {
+  color: var(--color-text);
+  border-bottom-color: var(--color-accent);
 }
 
 .diary__filters {

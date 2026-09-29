@@ -17,6 +17,7 @@ model User {
   profile      Profile?
   entries      MediaEntry[]
   logs         LogEntry[]
+  goals        Goal[]
   createdAt    DateTime     @default(now())
   updatedAt    DateTime     @updatedAt
 }
@@ -122,4 +123,18 @@ model DiscoverItem {
   updatedAt   DateTime @updatedAt
 
   @@index([award])
+}
+
+/// Reto anual (como el Reading Challenge de Goodreads): terminar `target`
+/// obras de un tipo en un año. El avance se cuenta desde el diario.
+model Goal {
+  id     String @id @default(cuid())
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId String
+  year   Int
+  /// 'movie' | 'series' | 'book' | 'game' | 'music', o 'all' para cualquier tipo.
+  type   String
+  target Int
+
+  @@unique([userId, year, type])
 }
