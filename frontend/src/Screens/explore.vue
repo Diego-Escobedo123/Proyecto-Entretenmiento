@@ -36,6 +36,7 @@ const isSearching = computed(() => isDebouncing.value || isLoading.value)
 const mediaTabs: { label: string; value: MediaType | null }[] = [
   { label: 'Todo', value: null },
   { label: 'Cine', value: 'movie' },
+  { label: 'Series', value: 'series' },
   { label: 'Literatura', value: 'book' },
   { label: 'Videojuegos', value: 'game' },
   { label: 'Música', value: 'music' },

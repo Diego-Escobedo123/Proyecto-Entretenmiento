@@ -36,12 +36,12 @@ model Profile {
   updatedAt   DateTime @updatedAt
 }
 
-/// Una "obra" registrada por el usuario (película, libro, juego, álbum).
+/// Una "obra" registrada por el usuario (película, serie, libro, juego, álbum).
 model MediaEntry {
   id          String   @id @default(cuid())
   user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   userId      String
-  type        String // 'movie' | 'book' | 'game' | 'music'
+  type        String // 'movie' | 'series' | 'book' | 'game' | 'music'
   title       String
   creator     String   @default("")
   status      String   @default("want") // 'want' | 'in-progress' | 'completed'

@@ -19,6 +19,7 @@ export interface MediaTypeMeta {
 
 export const MEDIA_TYPES: readonly MediaTypeMeta[] = [
   { value: 'movie', label: 'Película', plural: 'Películas', icon: 'film', creatorLabel: 'Dirección', gender: 'f' },
+  { value: 'series', label: 'Serie', plural: 'Series', icon: 'tv', creatorLabel: 'Creación', gender: 'f' },
   { value: 'book', label: 'Libro', plural: 'Libros', icon: 'book', creatorLabel: 'Autor/a', gender: 'm' },
   { value: 'game', label: 'Juego', plural: 'Juegos', icon: 'controller', creatorLabel: 'Estudio', gender: 'm' },
   { value: 'music', label: 'Álbum', plural: 'Álbumes', icon: 'disc', creatorLabel: 'Artista', gender: 'm' },

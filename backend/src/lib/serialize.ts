@@ -1,4 +1,5 @@
 import type { MediaEntry } from '@prisma/client'
+import { upgradeBookCover } from './externalSearch'
 
 /**
  * Convierte una fila de Prisma al shape que espera el frontend
@@ -19,7 +20,7 @@ export function toMediaDTO(row: MediaEntry) {
     review: row.review,
     notes: row.notes,
     notesPublic: row.notesPublic,
-    cover: row.cover,
+    cover: upgradeBookCover(row.cover),
     externalId: row.externalId,
     createdAt: row.createdAt.toISOString(),
     updatedAt: row.updatedAt.toISOString(),
@@ -81,7 +82,7 @@ export function toPublicEntryDTO(row: MediaEntry) {
     year: row.year,
     rating: row.rating,
     genres: row.genres,
-    cover: row.cover,
+    cover: upgradeBookCover(row.cover),
     review: row.review,
     notes: row.notesPublic ? row.notes : null,
     updatedAt: row.updatedAt.toISOString(),

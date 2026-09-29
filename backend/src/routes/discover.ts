@@ -7,6 +7,7 @@ export const discoverRoutes = new Hono()
 /** Etiqueta en español para el `type` de MediaEntry/DiscoverItem. */
 const KIND_LABEL: Record<string, string> = {
   movie: 'Cine',
+  series: 'Series',
   book: 'Literatura',
   game: 'Videojuegos',
   music: 'Música',

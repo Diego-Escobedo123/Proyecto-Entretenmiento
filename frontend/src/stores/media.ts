@@ -58,7 +58,7 @@ export const useMediaStore = defineStore('media', () => {
   const isEmpty = computed(() => loaded.value && entries.value.length === 0)
 
   const countByType = computed<Record<MediaType, number>>(() => {
-    const acc: Record<MediaType, number> = { movie: 0, book: 0, game: 0, music: 0 }
+    const acc: Record<MediaType, number> = { movie: 0, series: 0, book: 0, game: 0, music: 0 }
     for (const e of entries.value) acc[e.type]++
     return acc
   })

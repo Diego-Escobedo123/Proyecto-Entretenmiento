@@ -6,7 +6,7 @@ export const searchRoutes = new Hono<AuthEnv>()
 
 searchRoutes.use('*', requireAuth)
 
-const VALID_TYPES = new Set(['movie', 'book', 'game', 'music'])
+const VALID_TYPES = new Set(['movie', 'series', 'book', 'game', 'music'])
 
 // GET /search?type=movie&q=dune -> { available, results }
 searchRoutes.get('/', async (c) => {
@@ -14,7 +14,7 @@ searchRoutes.get('/', async (c) => {
   const q = c.req.query('q')?.trim() ?? ''
 
   if (!VALID_TYPES.has(type)) {
-    return c.json({ message: 'Tipo inválido. Usa movie, book, game o music.' }, 400)
+    return c.json({ message: 'Tipo inválido. Usa movie, series, book, game o music.' }, 400)
   }
   if (q.length < 2) return c.json({ available: true, results: [] })
 

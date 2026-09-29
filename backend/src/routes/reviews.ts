@@ -8,7 +8,7 @@ export const reviewRoutes = new Hono<AuthEnv>()
 
 reviewRoutes.use('*', requireAuth)
 
-const VALID_TYPES = new Set(['movie', 'book', 'game', 'music'])
+const VALID_TYPES = new Set(['movie', 'series', 'book', 'game', 'music'])
 const MAX_REVIEWS = 30
 
 /**
@@ -26,7 +26,7 @@ reviewRoutes.get('/', async (c) => {
   const title = c.req.query('title')?.trim() || ''
 
   if (!VALID_TYPES.has(type)) {
-    return c.json({ message: 'Tipo inválido. Usa movie, book, game o music.' }, 400)
+    return c.json({ message: 'Tipo inválido. Usa movie, series, book, game o music.' }, 400)
   }
   if (!externalId && !title) {
     return c.json({ message: 'Falta externalId o title.' }, 400)

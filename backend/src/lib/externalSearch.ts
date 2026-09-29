@@ -3,7 +3,8 @@
  * autocompletar el formulario de alta y para poblar /discover con datos reales.
  *
  * Proveedores (todos con tier gratuito):
- * - movie: TMDB          (requiere TMDB_API_KEY)
+ * - movie:  TMDB         (requiere TMDB_API_KEY)
+ * - series: TMDB         (misma key)
  * - book:  Google Books  (sin key)
  * - game:  RAWG          (requiere RAWG_API_KEY)
  * - music: iTunes Search (sin key)
@@ -11,7 +12,7 @@
  * Si falta la key de un proveedor, esa búsqueda vuelve `available: false` en
  * vez de romper: el resto de la app sigue funcionando sin esa fuente.
  */
-export type MediaKind = 'movie' | 'book' | 'game' | 'music'
+export type MediaKind = 'movie' | 'series' | 'book' | 'game' | 'music'
 
 export interface ExternalResult {
   externalId: string
@@ -41,45 +42,81 @@ async function fetchJson(url: string): Promise<unknown> {
   }
 }
 
-// ---- TMDB (películas) -------------------------------------------------
+// ---- TMDB (películas y series) ---------------------------------------
 
-let tmdbGenreCache: Map<number, string> | null = null
+type TmdbKind = 'movie' | 'tv'
 
-async function tmdbGenres(apiKey: string): Promise<Map<number, string>> {
-  if (tmdbGenreCache) return tmdbGenreCache
+const tmdbGenreCache = new Map<TmdbKind, Map<number, string>>()
+
+async function tmdbGenres(apiKey: string, kind: TmdbKind): Promise<Map<number, string>> {
+  const cached = tmdbGenreCache.get(kind)
+  if (cached) return cached
   const data = (await fetchJson(
-    `https://api.themoviedb.org/3/genre/movie/list?api_key=${apiKey}&language=es-ES`,
+    `https://api.themoviedb.org/3/genre/${kind}/list?api_key=${apiKey}&language=es-ES`,
   )) as { genres?: { id: number; name: string }[] }
-  tmdbGenreCache = new Map((data.genres ?? []).map((g) => [g.id, g.name]))
-  return tmdbGenreCache
+  const genres = new Map((data.genres ?? []).map((g) => [g.id, g.name]))
+  tmdbGenreCache.set(kind, genres)
+  return genres
 }
 
-async function searchMovies(query: string): Promise<ExternalSearchResponse> {
+/** TMDB usa `title`/`release_date` en películas y `name`/`first_air_date` en series. */
+interface TmdbResult {
+  id: number
+  title?: string
+  name?: string
+  release_date?: string
+  first_air_date?: string
+  poster_path?: string | null
+  genre_ids?: number[]
+}
+
+async function searchTmdb(kind: TmdbKind, query: string): Promise<ExternalSearchResponse> {
   const apiKey = process.env.TMDB_API_KEY
   if (!apiKey) return { available: false, results: [] }
 
   const [genres, data] = await Promise.all([
-    tmdbGenres(apiKey),
+    tmdbGenres(apiKey, kind),
     fetchJson(
-      `https://api.themoviedb.org/3/search/movie?api_key=${apiKey}&language=es-ES&query=${encodeURIComponent(query)}`,
-    ) as Promise<{
-      results?: { id: number; title: string; release_date?: string; poster_path?: string | null; genre_ids?: number[] }[]
-    }>,
+      `https://api.themoviedb.org/3/search/${kind}?api_key=${apiKey}&language=es-ES&query=${encodeURIComponent(query)}`,
+    ) as Promise<{ results?: TmdbResult[] }>,
   ])
 
-  const results = (data.results ?? []).slice(0, 10).map((m) => ({
-    externalId: `tmdb:${m.id}`,
-    title: m.title,
-    creator: '',
-    year: m.release_date ? Number(m.release_date.slice(0, 4)) : null,
-    cover: m.poster_path ? `https://image.tmdb.org/t/p/w342${m.poster_path}` : null,
-    genres: (m.genre_ids ?? []).map((id) => genres.get(id)).filter((g): g is string => Boolean(g)),
-  }))
+  const results = (data.results ?? [])
+    .filter((m) => m.title ?? m.name)
+    .slice(0, 10)
+    .map((m) => {
+      const date = m.release_date || m.first_air_date
+      return {
+        // Prefijo distinto: en TMDB el mismo id numérico puede ser película y serie.
+        externalId: `${kind === 'movie' ? 'tmdb' : 'tmdb-tv'}:${m.id}`,
+        title: (m.title ?? m.name)!,
+        creator: '',
+        year: date ? Number(date.slice(0, 4)) : null,
+        cover: m.poster_path ? `https://image.tmdb.org/t/p/w342${m.poster_path}` : null,
+        genres: (m.genre_ids ?? []).map((id) => genres.get(id)).filter((g): g is string => Boolean(g)),
+      }
+    })
 
   return { available: true, results }
 }
 
 // ---- Google Books (libros) --------------------------------------------
+
+/**
+ * Google Books sólo entrega un `thumbnail` de 128x192 (borroso al escalarlo).
+ * Su servidor de imágenes acepta `fife=w<ancho>` y devuelve la portada a esa
+ * resolución; también quitamos `edge=curl` (la esquina doblada). Otras URLs
+ * se devuelven tal cual, así que es seguro aplicarlo a cualquier portada.
+ */
+export function upgradeBookCover(url: string | null): string | null {
+  if (!url || !/^https?:\/\/books\.google(usercontent)?\.[^/]+\/books\/(content|publisher)/.test(url)) return url
+  return (
+    url
+      .replace(/^http:/, 'https:')
+      .replace(/&edge=curl/, '')
+      .replace(/&fife=[^&]*/, '') + '&fife=w800'
+  )
+}
 
 async function searchBooks(query: string): Promise<ExternalSearchResponse> {
   // Sin key, la cuota compartida de Google Books rate-limita rápido (429).
@@ -112,7 +149,7 @@ async function searchBooks(query: string): Promise<ExternalSearchResponse> {
           title: info.title!,
           creator: info.authors?.join(', ') ?? '',
           year: info.publishedDate ? Number(info.publishedDate.slice(0, 4)) : null,
-          cover: info.imageLinks?.thumbnail?.replace(/^http:/, 'https:') ?? null,
+          cover: upgradeBookCover(info.imageLinks?.thumbnail ?? null),
           genres: info.categories ?? [],
         }
       })
@@ -183,7 +220,9 @@ async function searchMusic(query: string): Promise<ExternalSearchResponse> {
 export async function searchExternal(type: MediaKind | string, query: string): Promise<ExternalSearchResponse> {
   switch (type) {
     case 'movie':
-      return searchMovies(query)
+      return searchTmdb('movie', query)
+    case 'series':
+      return searchTmdb('tv', query)
     case 'book':
       return searchBooks(query)
     case 'game':

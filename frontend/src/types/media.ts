@@ -1,9 +1,9 @@
 /**
- * Modelo de dominio — una "obra" registrada en Mosaic (película, libro, juego, álbum).
+ * Modelo de dominio — una "obra" registrada en Mosaic (película, serie, libro, juego, álbum).
  * Todo el resto de la app (stores, screens, componentes) depende de estos tipos.
  */
 
-export type MediaType = 'movie' | 'book' | 'game' | 'music'
+export type MediaType = 'movie' | 'series' | 'book' | 'game' | 'music'
 
 export type MediaStatus = 'want' | 'in-progress' | 'completed'
 
@@ -11,7 +11,7 @@ export interface MediaEntry {
   id: string
   type: MediaType
   title: string
-  /** Director, autor, estudio o artista según el tipo. */
+  /** Director, creador/a, autor, estudio o artista según el tipo. */
   creator: string
   status: MediaStatus
   /** Año de estreno/publicación. `null` si el usuario no lo indica. Alimenta la stat de décadas. */
