@@ -327,6 +327,9 @@ async function remove(log: LogEntry) {
   display: flex;
   flex-direction: column;
   gap: 4px;
+}
+
+.history__field > span {
   font-size: 0.75rem;
   font-weight: 600;
   color: var(--color-text-muted);

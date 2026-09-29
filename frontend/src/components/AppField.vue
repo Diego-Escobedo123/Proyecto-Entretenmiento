@@ -48,28 +48,6 @@ const id = useId()
   margin: 0;
 }
 
-/* Estilos compartidos de controles, disponibles para los inputs del slot */
-:slotted(.app-input),
-:slotted(.app-select),
-:slotted(.app-textarea) {
-  width: 100%;
-  background: var(--color-bg);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-md);
-  color: var(--color-text);
-  font: inherit;
-  padding: 10px var(--space-md);
-  outline: none;
-}
-
-:slotted(.app-input:focus),
-:slotted(.app-select:focus),
-:slotted(.app-textarea:focus) {
-  border-color: var(--color-accent);
-}
-
-:slotted(.app-textarea) {
-  min-height: 80px;
-  resize: vertical;
-}
+/* Los estilos de .app-input / .app-select / .app-textarea viven en style.css
+   para que también apliquen a controles fuera de un AppField. */
 </style>

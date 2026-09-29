@@ -118,10 +118,11 @@ const emit = defineEmits<{ open: []; 'toggle-favorite': []; edit: []; delete: []
   background: var(--color-surface-2);
 }
 
+/* Ocupa la portada sin alterar su proporción 3:4 (la imagen no la estira). */
 .media-card__open {
+  position: absolute;
+  inset: 0;
   display: block;
-  width: 100%;
-  height: 100%;
   padding: 0;
   border: none;
   background: none;
