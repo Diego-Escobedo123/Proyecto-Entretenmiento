@@ -5,7 +5,7 @@
  */
 import { computed } from 'vue'
 import { storeToRefs } from 'pinia'
-import { MEDIA_TYPES, typeMeta } from '../lib/catalog'
+import { MEDIA_TYPES, isFinished, typeMeta } from '../lib/catalog'
 import { useMediaStore } from '../stores/media'
 import type { MediaEntry } from '../types/media'
 
@@ -66,7 +66,7 @@ export function useCulturalProfile() {
   })
 
   const completionRate = computed(() =>
-    pct(entries.value.filter((e) => e.status === 'completed').length, entries.value.length),
+    pct(entries.value.filter((e) => isFinished(e.status)).length, entries.value.length),
   )
 
   const identitySentence = computed(() => {
@@ -117,7 +117,7 @@ export function useCulturalProfile() {
 
   const achievements = computed(() => {
     const total = entries.value.length
-    const completed = entries.value.filter((e) => e.status === 'completed').length
+    const completed = entries.value.filter((e) => isFinished(e.status)).length
     const list: { label: string; done: boolean }[] = [
       { label: 'Primera obra registrada', done: total >= 1 },
       { label: '10 obras documentadas', done: total >= 10 },
@@ -207,7 +207,8 @@ export function useCulturalProfile() {
 }
 
 function diaryVerb(e: MediaEntry): string {
-  if (e.status === 'completed') return 'Completaste'
+  if (isFinished(e.status)) return 'Completaste'
+  if (e.status === 'abandoned') return 'Dejaste'
   if (e.status === 'in-progress') return 'Avanzaste en'
   return 'Agregaste a tu lista'
 }

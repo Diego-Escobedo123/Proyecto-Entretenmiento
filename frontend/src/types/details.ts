@@ -27,6 +27,11 @@ export interface WorkDetails {
   people: { label: string; names: string[] }[]
   cast: CastMember[]
   tracks: Track[]
+  /** Datos para el seguimiento del formulario. */
+  pages: number | null
+  /** Sólo series: episodios de cada temporada regular. */
+  seasons: { number: number; episodes: number }[]
+  platforms: string[]
   /** `region` sólo viene cuando la disponibilidad depende del país (películas/series). */
   where: {
     region: string | null

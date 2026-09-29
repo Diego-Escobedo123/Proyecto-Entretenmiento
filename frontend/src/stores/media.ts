@@ -7,6 +7,7 @@ import { defineStore } from 'pinia'
 import { computed, ref } from 'vue'
 import { mediaService } from '../services/mediaService'
 import type { MediaEntry, MediaEntryInput, MediaType } from '../types/media'
+import { isFinished } from '../lib/catalog'
 
 export const useMediaStore = defineStore('media', () => {
   const entries = ref<MediaEntry[]>([])
@@ -66,7 +67,7 @@ export const useMediaStore = defineStore('media', () => {
   const favorites = computed(() => entries.value.filter((e) => e.favorite))
 
   const completedCount = computed(
-    () => entries.value.filter((e) => e.status === 'completed').length,
+    () => entries.value.filter((e) => isFinished(e.status)).length,
   )
   const inProgressCount = computed(
     () => entries.value.filter((e) => e.status === 'in-progress').length,

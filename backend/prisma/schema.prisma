@@ -44,10 +44,19 @@ model MediaEntry {
   type        String // 'movie' | 'series' | 'book' | 'game' | 'music'
   title       String
   creator     String   @default("")
-  status      String   @default("want") // 'want' | 'in-progress' | 'completed'
+  status      String   @default("want") // 'want' | 'in-progress' | 'completed' | 'mastered' | 'abandoned'
   year        Int?
+  /// 0.5–5 en pasos de medio punto.
   rating      Float?
+  /// 0–100, derivado del seguimiento específico cuando lo hay.
   progress    Int?
+  /// Seguimiento específico por tipo; `null` si no aplica.
+  pagesRead   Int? // libros
+  pagesTotal  Int?
+  season      Int? // series
+  episode     Int?
+  hoursPlayed Float? // juegos
+  platform    String?
   favorite    Boolean  @default(false)
   genres      String[] @default([]) // array nativo de Postgres
   /// Comentario que acompaña a la calificación. Siempre público: lo ven los

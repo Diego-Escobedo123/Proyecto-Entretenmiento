@@ -39,6 +39,11 @@ export interface WorkDetails {
   people: { label: string; names: string[] }[]
   cast: CastMember[]
   tracks: Track[]
+  /** Datos crudos para el seguimiento en el formulario (páginas, episodios, plataformas). */
+  pages: number | null
+  /** Sólo series: episodios de cada temporada regular (sin especiales). */
+  seasons: { number: number; episodes: number }[]
+  platforms: string[]
   /** Dónde consumirla. `region` sólo cuando la disponibilidad depende del país. */
   where: {
     region: string | null
@@ -128,6 +133,7 @@ interface TmdbDetails {
   last_episode_to_air?: { runtime?: number | null } | null
   number_of_seasons?: number
   number_of_episodes?: number
+  seasons?: { season_number: number; episode_count: number }[]
   created_by?: { name: string }[]
   credits?: {
     cast?: { name: string; character?: string; profile_path?: string | null }[]
@@ -184,6 +190,11 @@ async function tmdbDetails(kind: 'movie' | 'tv', id: string, region: string): Pr
       photo: tmdbImage(p.profile_path, 'w185'),
     })),
     tracks: [],
+    pages: null,
+    seasons: (data.seasons ?? [])
+      .filter((s) => s.season_number > 0 && s.episode_count > 0)
+      .map((s) => ({ number: s.season_number, episodes: s.episode_count })),
+    platforms: [],
     where: {
       region,
       groups: [
@@ -268,6 +279,9 @@ async function bookDetails(id: string, region: string): Promise<WorkDetails> {
     people: info.publisher ? [{ label: 'Editorial', names: [info.publisher] }] : [],
     cast: [],
     tracks: [],
+    pages: info.pageCount ?? null,
+    seasons: [],
+    platforms: [],
     where: {
       region: null,
       groups: [
@@ -337,6 +351,9 @@ async function gameDetails(id: string): Promise<WorkDetails | null> {
     people,
     cast: [],
     tracks: [],
+    pages: null,
+    seasons: [],
+    platforms,
     where: stores.length ? { region: null, groups: [{ label: 'Tiendas', items: stores }], credit: null } : null,
   }
 }
@@ -381,6 +398,9 @@ async function albumDetails(id: string, region: string): Promise<WorkDetails | n
     people: [],
     cast: [],
     tracks,
+    pages: null,
+    seasons: [],
+    platforms: [],
     where: {
       region: null,
       groups: [

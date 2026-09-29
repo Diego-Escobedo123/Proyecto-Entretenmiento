@@ -15,6 +15,12 @@ export function toMediaDTO(row: MediaEntry) {
     year: row.year,
     rating: row.rating,
     progress: row.progress,
+    pagesRead: row.pagesRead,
+    pagesTotal: row.pagesTotal,
+    season: row.season,
+    episode: row.episode,
+    hoursPlayed: row.hoursPlayed,
+    platform: row.platform,
     favorite: row.favorite,
     genres: row.genres,
     review: row.review,
@@ -36,6 +42,12 @@ const WRITABLE = [
   'year',
   'rating',
   'progress',
+  'pagesRead',
+  'pagesTotal',
+  'season',
+  'episode',
+  'hoursPlayed',
+  'platform',
   'favorite',
   'genres',
   'review',
@@ -45,11 +57,24 @@ const WRITABLE = [
   'externalId',
 ] as const
 
+/** Campos numéricos opcionales: cualquier valor que no sea un número >= 0 se guarda como null. */
+const INT_FIELDS = new Set(['progress', 'pagesRead', 'pagesTotal', 'season', 'episode'])
+const FLOAT_FIELDS = new Set(['rating', 'hoursPlayed'])
+
+const STATUSES = new Set(['want', 'in-progress', 'completed', 'mastered', 'abandoned'])
+
 export function fromMediaInput(body: Record<string, unknown>): Record<string, unknown> {
   const data: Record<string, unknown> = {}
   for (const key of WRITABLE) {
     if (!(key in body)) continue
-    data[key] = key === 'genres' && !Array.isArray(body[key]) ? [] : body[key]
+    const value = body[key]
+    if (key === 'genres') data[key] = Array.isArray(value) ? value : []
+    else if (INT_FIELDS.has(key) || FLOAT_FIELDS.has(key)) {
+      const n = typeof value === 'number' && Number.isFinite(value) && value >= 0 ? value : null
+      data[key] = n != null && INT_FIELDS.has(key) ? Math.round(n) : n
+    } else if (key === 'status') data[key] = typeof value === 'string' && STATUSES.has(value) ? value : 'want'
+    else if (key === 'platform') data[key] = typeof value === 'string' && value.trim() ? value.trim() : null
+    else data[key] = value
   }
   return data
 }
