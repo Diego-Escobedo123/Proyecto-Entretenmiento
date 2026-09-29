@@ -16,6 +16,7 @@ model User {
   passwordHash String
   profile      Profile?
   entries      MediaEntry[]
+  logs         LogEntry[]
   createdAt    DateTime     @default(now())
   updatedAt    DateTime     @updatedAt
 }
@@ -74,7 +75,32 @@ model MediaEntry {
   updatedAt   DateTime @updatedAt
 
   @@index([userId])
+  logs        LogEntry[]
+
   @@index([type, externalId])
+}
+
+/// Una vez que el usuario vio/leyó/jugó/escuchó una obra: el diario. Una obra
+/// tiene varias si se vuelve a ver o leer. `finishedAt` nulo = en curso.
+model LogEntry {
+  id         String     @id @default(cuid())
+  user       User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId     String
+  entry      MediaEntry @relation(fields: [entryId], references: [id], onDelete: Cascade)
+  entryId    String
+  /// Días sin hora: lo que el usuario elige en el calendario.
+  startedAt  DateTime?  @db.Date
+  finishedAt DateTime?  @db.Date
+  /// Calificación de esa vez (como en Letterboxd, cada visionado tiene la suya).
+  rating     Float?
+  /// Volver a verla/leerla (rewatch/reread).
+  repeat     Boolean    @default(false)
+  /// Se dejó a medias: `finishedAt` es cuándo se abandonó.
+  abandoned  Boolean    @default(false)
+  createdAt  DateTime   @default(now())
+
+  @@index([userId, finishedAt])
+  @@index([entryId])
 }
 
 /// Contenido curado para la pantalla de descubrimiento (joyas escondidas y

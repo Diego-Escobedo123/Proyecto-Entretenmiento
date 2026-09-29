@@ -5,7 +5,7 @@
  */
 import { defineStore } from 'pinia'
 import { computed, ref } from 'vue'
-import { mediaService } from '../services/mediaService'
+import { mediaService, type MediaWriteOptions } from '../services/mediaService'
 import type { MediaEntry, MediaEntryInput, MediaType } from '../types/media'
 import { isFinished } from '../lib/catalog'
 
@@ -34,15 +34,21 @@ export const useMediaStore = defineStore('media', () => {
     }
   }
 
-  async function addEntry(input: MediaEntryInput): Promise<MediaEntry> {
-    const created = await mediaService.create(input)
+  async function addEntry(input: MediaEntryInput, options?: MediaWriteOptions): Promise<MediaEntry> {
+    const created = await mediaService.create(input, options)
     entries.value = [created, ...entries.value]
     return created
   }
 
-  async function editEntry(id: string, patch: Partial<MediaEntryInput>): Promise<void> {
-    const updated = await mediaService.update(id, patch)
+  async function editEntry(id: string, patch: Partial<MediaEntryInput>, options?: MediaWriteOptions): Promise<void> {
+    const updated = await mediaService.update(id, patch, options)
     entries.value = entries.value.map((e) => (e.id === id ? updated : e))
+  }
+
+  /** Vuelve a leer una obra del backend (p. ej. después de registrarla otra vez en el diario). */
+  async function reloadEntry(id: string): Promise<void> {
+    const fresh = await mediaService.get(id)
+    if (fresh) entries.value = entries.value.map((e) => (e.id === id ? fresh : e))
   }
 
   async function deleteEntry(id: string): Promise<void> {
@@ -114,6 +120,7 @@ export const useMediaStore = defineStore('media', () => {
     fetchAll,
     addEntry,
     editEntry,
+    reloadEntry,
     deleteEntry,
     toggleFavorite,
     getById,

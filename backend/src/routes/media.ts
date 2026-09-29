@@ -2,6 +2,15 @@ import { Hono } from 'hono'
 import { prisma } from '../lib/prisma'
 import { requireAuth, type AuthEnv } from '../middleware/auth'
 import { fromMediaInput, toMediaDTO } from '../lib/serialize'
+import { parseDay, recordStatusChange, syncLatestRating } from '../lib/logs'
+
+/**
+ * Día que el usuario eligió para el cambio de estado (`logDate`, "2026-09-29").
+ * No es un campo de la obra: sólo alimenta el diario. Por defecto, hoy (UTC).
+ */
+function logDay(body: Record<string, unknown>): Date {
+  return parseDay(body.logDate) ?? new Date(new Date().toISOString().slice(0, 10))
+}
 
 export const mediaRoutes = new Hono<AuthEnv>()
 
@@ -42,6 +51,7 @@ mediaRoutes.post('/', async (c) => {
   const row = await prisma.mediaEntry.create({
     data: { ...fromMediaInput(body), userId: c.get('userId') } as never,
   })
+  await recordStatusChange(row, null, logDay(body))
   return c.json(toMediaDTO(row), 201)
 })
 
@@ -55,6 +65,8 @@ mediaRoutes.patch('/:id', async (c) => {
     where: { id: owned.id },
     data: fromMediaInput(body),
   })
+  if (row.status !== owned.status) await recordStatusChange(row, owned.status, logDay(body))
+  else if (row.rating !== owned.rating) await syncLatestRating(row)
   return c.json(toMediaDTO(row))
 })
 

@@ -11,7 +11,9 @@ import BaseIcon from './BaseIcon.vue'
 import AppField from './AppField.vue'
 import RatingStars from './RatingStars.vue'
 import CommunityReviews from './CommunityReviews.vue'
-import { MEDIA_TYPES, statusMeta, statusesFor, typeMeta } from '../lib/catalog'
+import EntryHistory from './EntryHistory.vue'
+import { MEDIA_TYPES, isFinished, statusLabel, statusMeta, statusesFor, typeMeta } from '../lib/catalog'
+import { todayISO } from '../lib/dates'
 import { bookProgress, seriesProgress } from '../lib/progress'
 import { useMediaStore } from '../stores/media'
 import { useUiStore } from '../stores/ui'
@@ -132,13 +134,23 @@ async function runSearch(query: string) {
   }
 }
 
+/** Día en que empezó/terminó/abandonó, para el diario. Hoy por defecto. */
+const logDate = ref(todayISO())
+/** El usuario pidió "volver a leerlo": al guardar se abre una entrada nueva. */
+const restarting = ref(false)
+
 // Rellena el formulario cuando cambia la obra en edición (o lo limpia en alta).
-// `watch` (no `watchEffect`) a propósito: sólo debe depender de `editing`,
-// nunca de `form.title` — si no, cada tecla que el usuario escribe dispara
-// este handler y `Object.assign(form, blank())` borra lo que acaba de teclear.
+// `watch` (no `watchEffect`) a propósito: sólo debe depender del id de la
+// obra, nunca de `form.title` — si no, cada tecla que el usuario escribe
+// dispara este handler y `Object.assign(form, blank())` borra lo que acaba de
+// teclear. Tampoco del objeto `editing`: el store lo reemplaza al refrescar
+// la obra (p. ej. tras registrarla otra vez) y se perderían los cambios sin guardar.
 watch(
-  editing,
-  (e) => {
+  () => editing.value?.id,
+  () => {
+    const e = editing.value
+    logDate.value = todayISO()
+    restarting.value = false
     suppressNextSearch = true
     picked.value = false
     manualMode.value = false
@@ -190,6 +202,32 @@ watch(
 )
 
 const creatorLabel = computed(() => typeMeta(form.type).creatorLabel)
+
+// --- Diario: fecha del cambio de estado y "volver a verla/leerla" ---
+
+
+const statusChanged = computed(() =>
+  editing.value ? form.status !== editing.value.status : form.status !== 'want',
+)
+const logDateLabel = computed(() =>
+  form.status === 'in-progress' ? 'Empezaste el' : `${statusLabel(form.type, form.status)} el`,
+)
+
+/** Series, libros y juegos: la vuelve a empezar desde cero. */
+function restart() {
+  form.status = 'in-progress'
+  form.pagesRead = 0
+  form.season = seasons.value[0]?.number ?? 1
+  form.episode = null
+  restarting.value = true
+}
+
+/** Se registró otra vez desde el historial: la calificación de la obra pasa a ser la de esa vez. */
+async function onHistoryChanged() {
+  if (!editing.value) return
+  await media.reloadEntry(editing.value.id)
+  form.rating = editing.value?.rating ?? 0
+}
 
 // --- Estado y avance, propios de cada tipo (páginas, episodios, horas…) ---
 
@@ -372,10 +410,11 @@ async function submit() {
   if (!validate() || submitting.value) return
   submitting.value = true
   try {
+    const options = statusChanged.value ? { logDate: logDate.value || todayISO() } : undefined
     if (editing.value) {
-      await media.editEntry(editing.value.id, toInput())
+      await media.editEntry(editing.value.id, toInput(), options)
     } else {
-      await media.addEntry(toInput())
+      await media.addEntry(toInput(), options)
     }
     closeAnimated()
   } catch (e) {
@@ -507,6 +546,16 @@ async function submit() {
         </AppField>
       </div>
 
+      <!-- Para el diario: cuándo empezó/terminó (sólo si cambia el estado) -->
+      <AppField
+        v-if="statusChanged"
+        v-slot="{ id }"
+        :label="logDateLabel"
+        :hint="restarting ? 'Se registrará en tu diario como una vez más' : 'Queda registrado en tu diario'"
+      >
+        <input :id="id" v-model="logDate" type="date" :max="todayISO()" class="app-input entry-form__date" />
+      </AppField>
+
       <!-- Avance: específico de cada tipo -->
       <template v-if="showProgress">
         <div v-if="form.type === 'book'" class="entry-form__row">
@@ -636,6 +685,16 @@ async function submit() {
         Marcar como favorita
       </label>
 
+      <!-- Diario de esta obra: fechas, repeticiones, volver a verla -->
+      <EntryHistory
+        v-if="editing"
+        :entry-id="editing.id"
+        :type="editing.type"
+        :finished="isFinished(editing.status)"
+        @restart="restart"
+        @changed="onHistoryChanged"
+      />
+
       <!-- Reseñas de los demás (sólo cuando la obra ya está identificada) -->
       <CommunityReviews
         v-if="workLocked"
@@ -655,6 +714,10 @@ async function submit() {
 </template>
 
 <style scoped>
+.entry-form__date {
+  max-width: 220px;
+}
+
 .entry-form {
   display: flex;
   flex-direction: column;
