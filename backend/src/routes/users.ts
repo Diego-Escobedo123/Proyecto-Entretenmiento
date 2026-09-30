@@ -5,6 +5,7 @@ import { toPublicEntryDTO, toPublicUserDTO } from '../lib/serialize'
 import { LIST_SUMMARY_INCLUDE, toListSummaryDTO } from './lists'
 import { toLogDTO } from '../lib/logs'
 import { ratingSummary } from '../lib/ratings'
+import { culturalDna } from '../lib/dna'
 
 export const userRoutes = new Hono<AuthEnv>()
 
@@ -138,7 +139,11 @@ userRoutes.get('/suggestions', async (c) => {
  * GET /users/:id (o /users/me) -> el perfil de una persona, tal como se ve en
  * su página (la misma para ella y para los demás):
  *   { user, tagline, quote, memberSince, isPublic, isSelf, isFollowing,
- *     followers, following, counts, favorites, recent, ratings, entries, lists }
+ *     followers, following, counts, favorites, recent, ratings, dna, activity, entries, lists }
+ *
+ * `dna` (géneros, década, formato, % terminado) y `activity` (días del último
+ * año en que empezó o terminó algo, uno por registro) alimentan "ADN cultural"
+ * y "Constancia" en los perfiles públicos.
  *
  * Con perfil privado (y si no es el propio) sólo viajan los datos básicos, los
  * contadores de seguidores y sus listas públicas: nada de su colección
@@ -167,7 +172,8 @@ userRoutes.get('/:id', async (c) => {
   const topPicks = user.profile?.topPicks ?? []
   const yearStart = new Date(`${new Date().getFullYear()}-01-01T00:00:00Z`)
 
-  const [entries, lists, follow, works, finishedThisYear, listCount, favorites, recent, rated] = await Promise.all([
+  const yearAgo = new Date(Date.now() - 371 * 86_400_000)
+  const [entries, lists, follow, works, finishedThisYear, listCount, favorites, recent, rated, collection, activityLogs] = await Promise.all([
     canSee
       ? prisma.mediaEntry.findMany({ where: { userId: id }, orderBy: { updatedAt: 'desc' }, take: MAX_ENTRIES })
       : Promise.resolve([]),
@@ -200,7 +206,18 @@ userRoutes.get('/:id', async (c) => {
     canSee
       ? prisma.mediaEntry.findMany({ where: { userId: id, rating: { not: null } }, select: { rating: true } })
       : Promise.resolve([]),
+    canSee
+      ? prisma.mediaEntry.findMany({ where: { userId: id }, select: { genres: true, year: true, type: true, status: true } })
+      : Promise.resolve([]),
+    canSee
+      ? prisma.logEntry.findMany({
+          where: { userId: id, OR: [{ startedAt: { gte: yearAgo } }, { finishedAt: { gte: yearAgo } }] },
+          select: { startedAt: true, finishedAt: true },
+        })
+      : Promise.resolve([]),
   ])
+
+  const day = (d: Date | null) => (d && d >= yearAgo ? d.toISOString().slice(0, 10) : null)
 
   // En el orden que eligió; si borró una obra de su colección, simplemente no aparece.
   const favoriteById = new Map(favorites.map((f) => [f.id, f]))
@@ -222,6 +239,8 @@ userRoutes.get('/:id', async (c) => {
     }),
     recent: recent.map(toLogDTO),
     ratings: ratingSummary(rated.map((r) => r.rating)),
+    dna: culturalDna(collection),
+    activity: activityLogs.flatMap((l) => [day(l.startedAt), day(l.finishedAt)]).filter((d): d is string => Boolean(d)),
     entries: entries.map(toPublicEntryDTO),
     lists: lists.map(toListSummaryDTO),
   })

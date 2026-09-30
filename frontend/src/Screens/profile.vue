@@ -5,9 +5,10 @@
  * además, los botones para editar.
  *
  * Arriba la identidad (frase y cita sólo si las escribió) con sus números;
- * luego sus 4 favoritas (las elige él), actividad reciente, cómo califica,
- * reseñas y listas públicas. Al final, sólo para su dueño, "Tu retrato
- * cultural" (ADN, resumen del año, constancia, logros, evolución).
+ * luego sus 4 favoritas (las elige él), actividad reciente y cómo califica.
+ * Si el perfil es público sigue su ADN cultural y su constancia; si es
+ * privado (y por eso sólo lo ve su dueño), sus reseñas recientes. Después las
+ * listas públicas y, sólo para su dueño, "Tu retrato cultural".
  *
  * Con perfil privado, los demás sólo ven nombre, contadores y listas públicas.
  */
@@ -24,6 +25,8 @@ import ListCard from '../components/lists/ListCard.vue'
 import FollowButton from '../components/social/FollowButton.vue'
 import UserAvatar from '../components/social/UserAvatar.vue'
 import FavoritesPicker from '../components/profile/FavoritesPicker.vue'
+import DnaCard from '../components/profile/DnaCard.vue'
+import ConstancyCard from '../components/profile/ConstancyCard.vue'
 import { statusLabel, typeMeta } from '../lib/catalog'
 import { formatDay } from '../lib/dates'
 import { ApiError } from '../lib/api'
@@ -278,8 +281,20 @@ const nf = (n: number) => n.toLocaleString('es')
           </section>
         </div>
 
-        <!-- Reseñas y notas públicas -->
-        <section v-if="reviews.length" class="profile-section">
+        <!-- Perfil público: ADN cultural y constancia (lo mismo para todos) -->
+        <div v-if="profile.isPublic" class="profile-columns profile-columns--even">
+          <DnaCard
+            :top-genres="profile.dna.topGenres"
+            :favorite-decade="profile.dna.favoriteDecade"
+            :dominant-label="profile.dna.dominantType ? typeMeta(profile.dna.dominantType).plural : null"
+            :completion-rate="profile.dna.completionRate"
+            :self="isSelf"
+          />
+          <ConstancyCard :days="profile.activity" :self="isSelf" />
+        </div>
+
+        <!-- Perfil privado (sólo lo ve su dueño): reseñas y notas públicas -->
+        <section v-else-if="reviews.length" class="profile-section">
           <h2 class="profile-section__title"><BaseIcon name="chat-quote" /> Reseñas recientes</h2>
           <ul class="reviews">
             <li v-for="e in reviews" :key="e.id" class="reviews__item">
@@ -318,7 +333,7 @@ const nf = (n: number) => n.toLocaleString('es')
       </section>
 
       <!-- Sólo para su dueño -->
-      <CulturalPortrait v-if="isSelf && media.entries.length" />
+      <CulturalPortrait v-if="isSelf && media.entries.length" :hide-shared="profile.isPublic" />
 
       <FavoritesPicker
         v-if="pickingFavorites"
@@ -552,6 +567,14 @@ a.profile-stats__item:hover {
   grid-template-columns: 3fr 2fr;
   gap: var(--space-md);
   align-items: start;
+}
+
+.profile-columns > * {
+  min-width: 0;
+}
+
+.profile-columns--even {
+  grid-template-columns: 1fr 1fr;
 }
 
 /* --- Favoritas --- */

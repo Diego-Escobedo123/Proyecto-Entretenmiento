@@ -95,6 +95,15 @@ export interface PublicProfile {
   recent: LogEntry[]
   /** Cómo califica: promedio e histograma de ½ a 5. */
   ratings: { average: number | null; count: number; histogram: number[] }
+  /** ADN cultural (vacío con perfil privado ajeno). */
+  dna: {
+    topGenres: { name: string; count: number; percent: number }[]
+    favoriteDecade: { decade: number; percent: number } | null
+    dominantType: MediaType | null
+    completionRate: number
+  }
+  /** Días del último año en que empezó o terminó algo (Constancia). */
+  activity: string[]
   entries: PublicEntry[]
   /** Sus listas públicas (visibles aunque el perfil sea privado). */
   lists: ListSummary[]

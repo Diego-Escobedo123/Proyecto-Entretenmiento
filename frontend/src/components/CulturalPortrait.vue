@@ -8,11 +8,19 @@
  *
  * El resumen del año sale de `yearStats`, igual que en Diario → Resumen del
  * año, así que ambos cuentan exactamente lo mismo.
+ *
+ * `hideShared`: con perfil público, ADN y Constancia ya se muestran en la
+ * parte visible para todos, así que aquí se omiten.
+ *
+ * Uso:
+ *   <CulturalPortrait :hide-shared="perfil.isPublic" />
  */
-import { computed, nextTick, onMounted, ref, watch } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { storeToRefs } from 'pinia'
 import BaseIcon from './BaseIcon.vue'
 import CulturalStory, { type StorySlide } from './CulturalStory.vue'
+import DnaCard from './profile/DnaCard.vue'
+import ConstancyCard from './profile/ConstancyCard.vue'
 import { MEDIA_TYPES } from '../lib/catalog'
 import { goalProgress, yearStats } from '../lib/yearStats'
 import { logService } from '../services/logService'
@@ -22,6 +30,8 @@ import type { LogEntry } from '../types/log'
 import { useMediaStore } from '../stores/media'
 import { useProfileStore } from '../stores/profile'
 import { useCulturalProfile } from '../composables/useCulturalProfile'
+
+withDefaults(defineProps<{ hideShared?: boolean }>(), { hideShared: false })
 
 const { entries } = storeToRefs(useMediaStore())
 const { profile } = storeToRefs(useProfileStore())
@@ -47,8 +57,12 @@ const {
   unlockedAchievements,
   nextAchievement,
   evolution,
-  activityHeatmap,
 } = useCulturalProfile(logs)
+
+/** Días en que empezó o terminó algo, para Constancia. */
+const activityDays = computed(() =>
+  logs.value.flatMap((l) => [l.startedAt, l.finishedAt].filter((d): d is string => Boolean(d))),
+)
 
 /** El año en curso, calculado igual que en Diario → Resumen del año. */
 const year = computed(() => yearStats(logs.value, currentYear, entries.value))
@@ -58,17 +72,6 @@ const MONTH_NAMES = [
 ]
 
 const storyOpen = ref(false)
-
-// Si el heatmap no cabe, arranca mostrando los días más recientes (a la derecha).
-const heatmapEl = ref<HTMLElement | null>(null)
-watch(
-  [heatmapEl, activityHeatmap],
-  async () => {
-    await nextTick()
-    if (heatmapEl.value) heatmapEl.value.scrollLeft = heatmapEl.value.scrollWidth
-  },
-  { flush: 'post' },
-)
 
 // --- Historia cultural estilo "Wrapped": el año en curso, desde el diario ---
 const storySlides = computed<StorySlide[]>(() => {
@@ -245,21 +248,6 @@ const hoverPoint = computed(() =>
   hoverIndex.value !== null ? points.value[hoverIndex.value] ?? null : null,
 )
 
-// --- Donut de géneros (ADN cultural) ---
-const genreColors = ['var(--color-accent)', 'var(--fig-stem-green)', 'var(--rose)']
-
-const donutGradient = computed(() => {
-  const genres = topGenres.value
-  if (!genres.length) return 'conic-gradient(var(--color-border) 0% 100%)'
-  let acc = 0
-  const stops = genres.map((g, i) => {
-    const start = acc
-    acc += g.percent
-    return `${genreColors[i % genreColors.length]} ${start}% ${acc}%`
-  })
-  if (acc < 100) stops.push(`var(--color-border) ${acc}% 100%`)
-  return `conic-gradient(${stops.join(', ')})`
-})
 </script>
 
 <template>
@@ -270,49 +258,15 @@ const donutGradient = computed(() => {
     </header>
     <p v-if="identitySentence" class="portrait__identity">{{ identitySentence }}</p>
 
-    <section class="two-col">
-      <div class="card">
-        <div class="card__header">
-          <h2 class="card__title">ADN cultural</h2>
-          <span class="card__header-label"><BaseIcon name="diagram-3" /></span>
-        </div>
-        <div class="dna">
-          <template v-if="topGenres.length">
-            <div class="donut" :style="{ background: donutGradient }">
-              <div class="donut__hole">
-                <strong>{{ topGenres[0].percent }}%</strong>
-                <span>{{ topGenres[0].name }}</span>
-              </div>
-            </div>
-            <ul class="donut__legend">
-              <li v-for="(g, i) in topGenres" :key="g.name">
-                <span class="donut__dot" :style="{ background: genreColors[i % genreColors.length] }" />
-                {{ g.name }}<template v-if="i > 0"> ({{ g.percent }}%)</template>
-              </li>
-            </ul>
-          </template>
-          <p v-else class="dna__value">Aún sin géneros: agrégalos al registrar obras.</p>
-
-          <div class="dna__row">
-            <div class="dna__field">
-              <h4 class="dna__label">Década favorita</h4>
-              <p class="dna__value">
-                <template v-if="favoriteDecade">Los {{ favoriteDecade.decade }}s — {{ favoriteDecade.percent }}%</template>
-                <template v-else>Sin datos aún</template>
-              </p>
-            </div>
-            <div class="dna__field">
-              <h4 class="dna__label">Formato dominante</h4>
-              <p class="dna__value">{{ dominantFormat ? dominantFormat.plural : 'Sin datos suficientes' }}</p>
-            </div>
-          </div>
-
-          <p class="dna__insight">
-            <strong>Insight:</strong> completas el {{ completionRate }}% de las obras que empiezas.
-          </p>
-        </div>
-      </div>
-
+    <div class="portrait__grid" :class="{ 'portrait__grid--even': hideShared }">
+      <DnaCard
+        v-if="!hideShared"
+        :top-genres="topGenres"
+        :favorite-decade="favoriteDecade"
+        :dominant-label="dominantFormat?.plural ?? null"
+        :completion-rate="completionRate"
+        self
+      />
       <div class="card wrapup">
         <span class="wrapup__eyebrow">Tu {{ currentYear }}</span>
         <h2 class="wrapup__title">Resumen del año</h2>
@@ -329,36 +283,7 @@ const donutGradient = computed(() => {
           Ver en números <BaseIcon name="arrow-right" />
         </RouterLink>
       </div>
-    </section>
-
-    <section class="two-col">
-      <div class="card">
-        <div class="card__header">
-          <h2 class="card__title">Constancia</h2>
-          <span class="card__header-label">Últimos 365 días</span>
-        </div>
-        <div class="heatmap">
-          <div ref="heatmapEl" class="heatmap__grid">
-            <span
-              v-for="day in activityHeatmap"
-              :key="day.date"
-              class="heatmap__cell"
-              :class="`heatmap__cell--${day.level}`"
-              :title="`${day.count} ${day.count === 1 ? 'registro' : 'registros'} en tu diario · ${day.label}`"
-            />
-          </div>
-          <div class="heatmap__legend">
-            <span>Menos</span>
-            <span class="heatmap__cell heatmap__cell--0" />
-            <span class="heatmap__cell heatmap__cell--1" />
-            <span class="heatmap__cell heatmap__cell--2" />
-            <span class="heatmap__cell heatmap__cell--3" />
-            <span class="heatmap__cell heatmap__cell--4" />
-            <span>Más</span>
-          </div>
-        </div>
-      </div>
-
+      <ConstancyCard v-if="!hideShared" :days="activityDays" self />
       <div class="card">
         <h2 class="card__title"><BaseIcon name="trophy" /> Logros</h2>
         <ul class="achievements">
@@ -372,7 +297,7 @@ const donutGradient = computed(() => {
           </li>
         </ul>
       </div>
-    </section>
+    </div>
 
     <CulturalStory v-if="storyOpen" :slides="storySlides" @close="storyOpen = false" />
 
@@ -462,6 +387,22 @@ const donutGradient = computed(() => {
   color: var(--color-text-muted);
 }
 
+/* ADN | Resumen del año / Constancia | Logros. Sin ADN ni Constancia: Resumen | Logros. */
+.portrait__grid {
+  display: grid;
+  grid-template-columns: 2fr 1fr;
+  gap: var(--space-md);
+  align-items: start;
+}
+
+.portrait__grid > * {
+  min-width: 0;
+}
+
+.portrait__grid--even {
+  grid-template-columns: 1fr 1fr;
+}
+
 .portrait__identity {
   margin: 0;
   font-size: 1.0625rem;
@@ -529,156 +470,6 @@ const donutGradient = computed(() => {
 
 
 
-
-.dna {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-md);
-}
-
-.donut {
-  width: 140px;
-  height: 140px;
-  border-radius: 50%;
-  position: relative;
-  margin: 0 auto;
-}
-
-.donut__hole {
-  position: absolute;
-  inset: 16px;
-  border-radius: 50%;
-  background: var(--color-surface);
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  text-align: center;
-}
-
-.donut__hole strong {
-  color: var(--color-text);
-  font-size: 1.375rem;
-  font-weight: 800;
-}
-
-.donut__hole span {
-  color: var(--color-text-subtle);
-  font-size: 0.75rem;
-}
-
-.donut__legend {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: center;
-  gap: var(--space-sm) var(--space-md);
-  font-size: 0.8125rem;
-  color: var(--color-text-muted);
-}
-
-.donut__legend li {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-}
-
-.donut__dot {
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  flex-shrink: 0;
-}
-
-.dna__row {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: var(--space-md);
-  border-top: 1px solid var(--color-border);
-  padding-top: var(--space-md);
-}
-
-.dna__label {
-  color: var(--color-text);
-  font-size: 0.875rem;
-  font-weight: 700;
-  margin: 0 0 var(--space-xs) 0;
-}
-
-.dna__value {
-  color: var(--color-text-muted);
-  font-size: 0.875rem;
-  margin: 0;
-}
-
-.dna__insight {
-  background: var(--color-accent-bg);
-  border-radius: var(--radius-md);
-  padding: var(--space-sm) var(--space-md);
-  color: var(--color-text-muted);
-  font-size: 0.8125rem;
-  margin: 0;
-  line-height: 1.5;
-}
-
-.dna__insight strong {
-  color: var(--color-accent);
-}
-
-
-
-
-
-
-
-.heatmap__grid {
-  display: grid;
-  grid-auto-flow: column;
-  grid-template-rows: repeat(7, 11px);
-  gap: 3px;
-  overflow-x: auto;
-  padding-bottom: var(--space-xs);
-}
-
-.heatmap__cell {
-  width: 11px;
-  height: 11px;
-  border-radius: 2px;
-  background: var(--color-surface-2);
-}
-
-.heatmap__cell--1 {
-  background: color-mix(in srgb, var(--color-accent) 25%, var(--color-surface-2));
-}
-
-.heatmap__cell--2 {
-  background: color-mix(in srgb, var(--color-accent) 50%, var(--color-surface-2));
-}
-
-.heatmap__cell--3 {
-  background: color-mix(in srgb, var(--color-accent) 75%, var(--color-surface-2));
-}
-
-.heatmap__cell--4 {
-  background: var(--color-accent);
-}
-
-.heatmap__legend {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  margin-top: var(--space-sm);
-  color: var(--color-text-subtle);
-  font-size: 0.75rem;
-  justify-content: flex-end;
-}
-
-.heatmap__legend .heatmap__cell {
-  width: 10px;
-  height: 10px;
-}
 
 .wrapup {
   align-self: stretch;
@@ -859,7 +650,8 @@ const donutGradient = computed(() => {
 }
 
 @media (max-width: 900px) {
-  .two-col {
+  .two-col,
+  .portrait__grid {
     grid-template-columns: 1fr;
   }
 }
