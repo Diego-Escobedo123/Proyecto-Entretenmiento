@@ -8,13 +8,15 @@
  * Uso:
  *   <RatingHistogram :histogram="[0,0,1,…10 valores]" :average="4.1" :count="12" />
  * `barsHeight` (px, 64 por defecto) agranda las barras donde sobra espacio.
+ * `hideAverage`: sin el promedio al lado (quien lo usa lo muestra en otro lado)
+ * y la gráfica ocupa todo el ancho.
  */
 import { computed, ref } from 'vue'
 import BaseIcon from './BaseIcon.vue'
 
 const props = withDefaults(
-  defineProps<{ histogram: number[]; average: number | null; count: number; barsHeight?: number }>(),
-  { barsHeight: 64 },
+  defineProps<{ histogram: number[]; average: number | null; count: number; barsHeight?: number; hideAverage?: boolean }>(),
+  { barsHeight: 64, hideAverage: false },
 )
 
 const maxBar = computed(() => Math.max(1, ...props.histogram))
@@ -40,7 +42,7 @@ const summary = computed(
 
 <template>
   <div class="histogram">
-    <figure class="histogram__figure" :aria-label="summary" role="img">
+    <figure class="histogram__figure" :class="{ 'histogram__figure--full': hideAverage }" :aria-label="summary" role="img">
       <div class="histogram__bars" :style="{ height: `${barsHeight}px` }" @mouseleave="active = null">
         <div
           v-for="(n, i) in histogram"
@@ -61,7 +63,7 @@ const summary = computed(
       </div>
     </figure>
 
-    <div class="histogram__average">
+    <div v-if="!hideAverage" class="histogram__average">
       <strong>{{ averageText }}</strong>
       <span>{{ count }} {{ count === 1 ? 'calificación' : 'calificaciones' }}</span>
     </div>
@@ -84,6 +86,10 @@ const summary = computed(
   flex: 1;
   max-width: 420px;
   margin: 0;
+}
+
+.histogram__figure--full {
+  max-width: none;
 }
 
 .histogram__bars {

@@ -36,13 +36,17 @@ export function culturalDna(entries: { genres: string[]; year: number | null; ty
 
   const byType = new Map<string, number>()
   for (const e of entries) byType.set(e.type, (byType.get(e.type) ?? 0) + 1)
-  const dominantType =
-    [...byType.entries()].sort((a, b) => b[1] - a[1] || TYPE_ORDER.indexOf(a[0]) - TYPE_ORDER.indexOf(b[0]))[0]?.[0] ?? null
+  const typeShares = [...byType.entries()]
+    .sort((a, b) => b[1] - a[1] || TYPE_ORDER.indexOf(a[0]) - TYPE_ORDER.indexOf(b[0]))
+    .map(([type, count]) => ({ type, percent: pct(count, entries.length) }))
+  const dominantType = typeShares[0]?.type ?? null
 
   return {
     topGenres,
     favoriteDecade: topDecade ? { decade: topDecade[0], percent: pct(topDecade[1], withYear) } : null,
     dominantType,
+    /** Qué parte de la colección es de cada tipo, de mayor a menor. */
+    typeShares,
     completionRate: pct(entries.filter((e) => FINISHED.has(e.status)).length, entries.length),
   }
 }

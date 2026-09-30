@@ -173,7 +173,7 @@ userRoutes.get('/:id', async (c) => {
   const yearStart = new Date(`${new Date().getFullYear()}-01-01T00:00:00Z`)
 
   const yearAgo = new Date(Date.now() - 371 * 86_400_000)
-  const [entries, lists, follow, works, finishedThisYear, listCount, favorites, recent, rated, collection, activityLogs] = await Promise.all([
+  const [entries, lists, follow, works, finishedThisYear, listCount, favorites, recent, rated, collection, activityLogs, lastAbandoned] = await Promise.all([
     canSee
       ? prisma.mediaEntry.findMany({ where: { userId: id }, orderBy: { updatedAt: 'desc' }, take: MAX_ENTRIES })
       : Promise.resolve([]),
@@ -212,9 +212,16 @@ userRoutes.get('/:id', async (c) => {
     canSee
       ? prisma.logEntry.findMany({
           where: { userId: id, OR: [{ startedAt: { gte: yearAgo } }, { finishedAt: { gte: yearAgo } }] },
-          select: { startedAt: true, finishedAt: true },
+          select: { startedAt: true, finishedAt: true, entry: { select: { title: true, type: true, genres: true } } },
         })
       : Promise.resolve([]),
+    canSee
+      ? prisma.mediaEntry.findFirst({
+          where: { userId: id, status: 'abandoned' },
+          orderBy: { updatedAt: 'desc' },
+          select: { title: true },
+        })
+      : Promise.resolve(null),
   ])
 
   const day = (d: Date | null) => (d && d >= yearAgo ? d.toISOString().slice(0, 10) : null)
@@ -240,7 +247,13 @@ userRoutes.get('/:id', async (c) => {
     recent: recent.map(toLogDTO),
     ratings: ratingSummary(rated.map((r) => r.rating)),
     dna: culturalDna(collection),
-    activity: activityLogs.flatMap((l) => [day(l.startedAt), day(l.finishedAt)]).filter((d): d is string => Boolean(d)),
+    // Cada vez que empezó o terminó algo en el último año, con la obra ("Tu año en obras").
+    activity: activityLogs.flatMap((l) =>
+      [day(l.startedAt), day(l.finishedAt)]
+        .filter((d): d is string => Boolean(d))
+        .map((date) => ({ date, title: l.entry.title, type: l.entry.type, genres: l.entry.genres })),
+    ),
+    lastAbandoned: lastAbandoned?.title ?? null,
     entries: entries.map(toPublicEntryDTO),
     lists: lists.map(toListSummaryDTO),
   })

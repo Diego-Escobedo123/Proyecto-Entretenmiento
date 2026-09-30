@@ -25,8 +25,8 @@ import ListCard from '../components/lists/ListCard.vue'
 import FollowButton from '../components/social/FollowButton.vue'
 import UserAvatar from '../components/social/UserAvatar.vue'
 import FavoritesPicker from '../components/profile/FavoritesPicker.vue'
-import DnaCard from '../components/profile/DnaCard.vue'
-import ConstancyCard from '../components/profile/ConstancyCard.vue'
+import DnaOverview from '../components/profile/DnaOverview.vue'
+import YearInWorks from '../components/profile/YearInWorks.vue'
 import { statusLabel, typeMeta } from '../lib/catalog'
 import { formatDay } from '../lib/dates'
 import { ApiError } from '../lib/api'
@@ -122,6 +122,11 @@ const reviews = computed(() =>
 )
 
 const nf = (n: number) => n.toLocaleString('es')
+
+/** Promedio de "Cómo califica" con un decimal ("4,4"). */
+const averageText = computed(() =>
+  (profile.value?.ratings.average ?? 0).toLocaleString('es', { minimumFractionDigits: 1, maximumFractionDigits: 1 }),
+)
 </script>
 
 <template>
@@ -241,8 +246,8 @@ const nf = (n: number) => n.toLocaleString('es')
 
         <!--
           Actividad reciente + cómo califica. Perfil público: a su lado, más
-          anchos, ADN cultural y constancia (lo mismo para todos):
-            Actividad | ADN  /  Cómo califica | Constancia
+          anchos, ADN cultural y el año en obras (lo mismo para todos):
+            Actividad | ADN  /  Cómo califica | Año en obras
         -->
         <div class="profile-columns" :class="{ 'profile-columns--public': profile.isPublic }">
           <section class="card profile-section profile-columns__recent">
@@ -274,28 +279,39 @@ const nf = (n: number) => n.toLocaleString('es')
           </section>
 
           <section class="card profile-section profile-section--rating profile-columns__rating">
-            <h2 class="profile-section__title"><BaseIcon name="bar-chart" /> {{ isSelf ? 'Cómo calificas' : 'Cómo califica' }}</h2>
+            <header class="rating-head">
+              <h2 class="profile-section__title"><BaseIcon name="bar-chart" /> {{ isSelf ? 'Cómo calificas' : 'Cómo califica' }}</h2>
+              <p v-if="profile.ratings.count" class="rating-head__average">
+                <strong><BaseIcon name="star-fill" class="rating-head__star" /> {{ averageText }}</strong>
+                <span>{{ profile.ratings.count }} {{ profile.ratings.count === 1 ? 'calificación' : 'calificaciones' }}</span>
+              </p>
+            </header>
             <RatingHistogram
               v-if="profile.ratings.count"
               :histogram="profile.ratings.histogram"
               :average="profile.ratings.average"
               :count="profile.ratings.count"
-              :bars-height="140"
+              :bars-height="profile.isPublic ? 200 : 140"
+              hide-average
             />
             <p v-else class="profile__hint">Todavía no hay calificaciones.</p>
           </section>
 
           <template v-if="profile.isPublic">
-            <DnaCard
+            <DnaOverview
               class="profile-columns__dna"
-              :top-genres="profile.dna.topGenres"
-              :favorite-decade="profile.dna.favoriteDecade"
-              :dominant-label="profile.dna.dominantType ? typeMeta(profile.dna.dominantType).plural : null"
-              :completion-rate="profile.dna.completionRate"
+              :dna="profile.dna"
+              :ratings="profile.ratings"
+              :activity="profile.activity"
+              :last-abandoned="profile.lastAbandoned"
               :self="isSelf"
-              wide
             />
-            <ConstancyCard class="profile-columns__constancy" :days="profile.activity" :self="isSelf" />
+            <YearInWorks
+              class="profile-columns__year"
+              :activity="profile.activity"
+              :top-genres="profile.dna.topGenres.map((g) => g.name)"
+              :self="isSelf"
+            />
           </template>
         </div>
 
@@ -568,9 +584,44 @@ a.profile-stats__item:hover {
   cursor: pointer;
 }
 
-/* "Cómo calificas" crece a la altura de "Actividad reciente": la gráfica queda centrada. */
+/* "Cómo calificas": el promedio arriba a la derecha y la gráfica abajo, llenando la tarjeta. */
 .profile-section--rating > :last-child {
-  margin-block: auto;
+  margin-top: auto;
+}
+
+.rating-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-md);
+}
+
+.rating-head__average {
+  font-family: var(--font-sans);
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  margin: 0;
+  line-height: 1.1;
+}
+
+.rating-head__average strong {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 2.25rem;
+  font-weight: 800;
+  color: var(--color-text);
+}
+
+.rating-head__star {
+  font-size: 1.25rem;
+  color: var(--color-accent);
+}
+
+.rating-head__average span {
+  font-size: 0.8125rem;
+  color: var(--color-text-muted);
 }
 
 /* Dos columnas iguales y tarjetas de la misma altura. */
@@ -586,14 +637,15 @@ a.profile-stats__item:hover {
 }
 
 /*
- * Público: tarjeta angosta + ancha en cada fila, con 12 columnas para que
- * cada fila tenga su proporción: Actividad 5 | ADN 7, Cómo califica 4 | Constancia 8.
+ * Público, con espacio: tarjeta angosta + ancha en cada fila, con 12 columnas
+ * para que cada fila tenga su proporción: Actividad 5 | ADN 7, Cómo califica 4 | Año 8.
+ * Con menos espacio el ADN va a todo lo ancho (ver media queries al final).
  */
 .profile-columns--public {
   grid-template-columns: repeat(12, minmax(0, 1fr));
   grid-template-areas:
     'recent recent recent recent recent dna dna dna dna dna dna dna'
-    'rating rating rating rating constancy constancy constancy constancy constancy constancy constancy constancy';
+    'rating rating rating rating year year year year year year year year';
 }
 
 .profile-columns__recent {
@@ -608,8 +660,8 @@ a.profile-stats__item:hover {
   grid-area: dna;
 }
 
-.profile-columns__constancy {
-  grid-area: constancy;
+.profile-columns__year {
+  grid-area: year;
 }
 
 /* --- Favoritas --- */
@@ -883,11 +935,21 @@ a.profile-stats__item:hover {
   }
 }
 
-/* Con la barra lateral, bajo ~1100px la columna ancha no alcanza para el año completo de Constancia. */
-@media (max-width: 1100px) {
+/* Sin espacio para ADN al lado de la actividad: ADN arriba a todo lo ancho, y debajo actividad | cómo califica. */
+@media (max-width: 1499px) {
+  .profile-columns--public {
+    grid-template-columns: 1fr 1fr;
+    grid-template-areas:
+      'dna dna'
+      'recent rating'
+      'year year';
+  }
+}
+
+@media (max-width: 1000px) {
   .profile-columns--public {
     grid-template-columns: 1fr;
-    grid-template-areas: 'recent' 'dna' 'rating' 'constancy';
+    grid-template-areas: 'recent' 'dna' 'rating' 'year';
   }
 }
 

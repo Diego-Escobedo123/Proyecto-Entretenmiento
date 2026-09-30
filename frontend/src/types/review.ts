@@ -74,6 +74,15 @@ export interface PublicEntry {
   updatedAt: string
 }
 
+/** Un inicio o un final del diario, con los datos de la obra. */
+export interface ActivityEvent {
+  /** "YYYY-MM-DD" */
+  date: string
+  title: string
+  type: MediaType
+  genres: string[]
+}
+
 /** GET /users/:id */
 export interface PublicProfile {
   user: PublicUser
@@ -100,10 +109,14 @@ export interface PublicProfile {
     topGenres: { name: string; count: number; percent: number }[]
     favoriteDecade: { decade: number; percent: number } | null
     dominantType: MediaType | null
+    /** Qué parte de la colección es de cada tipo, de mayor a menor. */
+    typeShares: { type: MediaType; percent: number }[]
     completionRate: number
   }
-  /** Días del último año en que empezó o terminó algo (Constancia). */
-  activity: string[]
+  /** Cada vez que empezó o terminó algo en el último año, con la obra ("Tu año en obras"). */
+  activity: ActivityEvent[]
+  /** Última obra que dejó sin terminar, o null. */
+  lastAbandoned: string | null
   entries: PublicEntry[]
   /** Sus listas públicas (visibles aunque el perfil sea privado). */
   lists: ListSummary[]
