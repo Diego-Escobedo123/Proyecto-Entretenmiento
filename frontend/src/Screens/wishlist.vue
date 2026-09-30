@@ -3,7 +3,8 @@
  * Wishlist — lo que quieres ver, leer, jugar o escuchar (como la watchlist
  * de Letterboxd o el "Want to read" de Goodreads). No es una lista aparte:
  * son las obras de la colección en estado `want`, así que al empezarlas o
- * terminarlas salen solas. Se agregan desde la ficha de cualquier obra.
+ * terminarlas salen solas. Se agregan desde la ficha de cualquier obra o con
+ * "+ Agregar obra" (el formulario ya empieza en "Quiero verla/leerlo…").
  */
 import { computed, ref } from 'vue'
 import { storeToRefs } from 'pinia'
@@ -81,6 +82,7 @@ async function confirmRemove() {
           Al empezarlas salen de aquí solas.
         </p>
       </div>
+      <BaseButton class="wishlist__add" @click="ui.openCreateEntry()">+ Agregar obra</BaseButton>
     </header>
 
     <p v-if="loading && !media.loaded" class="wishlist__hint">Cargando…</p>
@@ -160,7 +162,12 @@ async function confirmRemove() {
 .wishlist__head {
   display: flex;
   align-items: center;
+  flex-wrap: wrap;
   gap: var(--space-md);
+}
+
+.wishlist__add {
+  margin-left: auto;
 }
 
 .wishlist__icon {

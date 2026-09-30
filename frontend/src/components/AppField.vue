@@ -6,6 +6,7 @@
  *   <AppField v-slot="{ id }" label="Título" :error="errors.title">
  *     <input :id="id" v-model="form.title" class="app-input" />
  *   </AppField>
+ * El slot `label` reemplaza el texto del label (p. ej. para sumarle un ícono).
  */
 import { useId } from 'vue'
 
@@ -16,7 +17,7 @@ const id = useId()
 
 <template>
   <div class="app-field">
-    <label class="app-field__label" :for="id">{{ label }}</label>
+    <label class="app-field__label" :for="id"><slot name="label">{{ label }}</slot></label>
     <slot :id="id" />
     <p v-if="hint && !error" class="app-field__hint">{{ hint }}</p>
     <p v-if="error" class="app-field__error">{{ error }}</p>
