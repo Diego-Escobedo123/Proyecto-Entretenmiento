@@ -9,6 +9,7 @@ import BaseModal from './BaseModal.vue'
 import BaseButton from './BaseButton.vue'
 import BaseIcon from './BaseIcon.vue'
 import CommunityReviews from './CommunityReviews.vue'
+import WorkStats from './WorkStats.vue'
 import WorkInfo from './WorkInfo.vue'
 import AddToList from './lists/AddToList.vue'
 import { typeMeta } from '../lib/catalog'
@@ -69,8 +70,11 @@ function addOrEdit() {
 
       <WorkInfo :type="work.type" :external-id="work.externalId" />
 
+      <WorkStats :work="{ type: work.type, externalId: work.externalId, title: work.title }" />
+
       <CommunityReviews
         :work="{ type: work.type, externalId: work.externalId, title: work.title }"
+        hide-average
         @navigate="closeAnimated"
       />
     </div>

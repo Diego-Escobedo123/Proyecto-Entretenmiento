@@ -16,7 +16,8 @@ import RatingStars from './RatingStars.vue'
 import { socialService } from '../services/socialService'
 import type { WorkKey, WorkReviews } from '../types/review'
 
-const props = defineProps<{ work: WorkKey }>()
+/** `hideAverage`: donde ya se ve WorkStats (ficha), para no mostrar dos promedios distintos. */
+const props = withDefaults(defineProps<{ work: WorkKey; hideAverage?: boolean }>(), { hideAverage: false })
 defineEmits<{ navigate: [] }>()
 
 const INITIAL_VISIBLE = 3
@@ -65,8 +66,8 @@ function formatDate(iso: string): string {
   <section class="community">
     <header class="community__head">
       <h4 class="community__title"><BaseIcon name="people" /> Lo que opinan otros</h4>
-      <span v-if="data && data.average != null" class="community__average">
-        <BaseIcon name="star-fill" /> {{ data.average.toFixed(1) }}
+      <span v-if="!hideAverage && data && data.average != null" class="community__average">
+        <BaseIcon name="star-fill" /> {{ data.average.toLocaleString('es', { minimumFractionDigits: 1, maximumFractionDigits: 1 }) }}
         <span class="community__count">
           · {{ data.ratingCount }} {{ data.ratingCount === 1 ? 'calificación' : 'calificaciones' }}
         </span>

@@ -29,6 +29,22 @@ export interface WorkReviews {
   reviews: WorkReview[]
 }
 
+/** GET /reviews/stats — números de la obra en todo Mosaic (incluido el usuario actual). */
+export interface WorkStats {
+  /** Personas que la tienen en su colección. */
+  people: number
+  byStatus: { want: number; inProgress: number; finished: number; abandoned: number }
+  rating: {
+    average: number | null
+    count: number
+    /** 10 barras: [0] = ½ estrella … [9] = 5 estrellas. */
+    histogram: number[]
+  }
+  /** Veces que se terminó (según los diarios) y cuántas de ellas fueron repeticiones. */
+  finishes: number
+  repeats: number
+}
+
 /** Identifica una obra entre usuarios: por id de catálogo o, si no hay, por tipo + título. */
 export interface WorkKey {
   type: MediaType
