@@ -261,13 +261,14 @@ const hoverPoint = computed(() =>
     <div class="portrait__grid" :class="{ 'portrait__grid--even': hideShared }">
       <DnaCard
         v-if="!hideShared"
+        class="portrait__dna"
         :top-genres="topGenres"
         :favorite-decade="favoriteDecade"
         :dominant-label="dominantFormat?.plural ?? null"
         :completion-rate="completionRate"
         self
       />
-      <div class="card wrapup">
+      <div class="card wrapup portrait__wrap">
         <span class="wrapup__eyebrow">Tu {{ currentYear }}</span>
         <h2 class="wrapup__title">Resumen del año</h2>
         <p v-if="year.total" class="wrapup__stat">
@@ -283,8 +284,8 @@ const hoverPoint = computed(() =>
           Ver en números <BaseIcon name="arrow-right" />
         </RouterLink>
       </div>
-      <ConstancyCard v-if="!hideShared" :days="activityDays" self />
-      <div class="card">
+      <ConstancyCard v-if="!hideShared" class="portrait__constancy" :days="activityDays" self />
+      <div class="card portrait__logros">
         <h2 class="card__title"><BaseIcon name="trophy" /> Logros</h2>
         <ul class="achievements">
           <li v-for="a in unlockedAchievements" :key="a.label">
@@ -297,12 +298,7 @@ const hoverPoint = computed(() =>
           </li>
         </ul>
       </div>
-    </div>
-
-    <CulturalStory v-if="storyOpen" :slides="storySlides" @close="storyOpen = false" />
-
-    <section>
-      <div class="card">
+      <div class="card portrait__evo">
         <div class="card__header">
           <h2 class="card__title">Evolución</h2>
           <span class="card__header-label">Últimos 12 meses</span>
@@ -349,7 +345,10 @@ const hoverPoint = computed(() =>
           <span v-for="(m, i) in evolution.months" :key="i" v-show="i % 3 === 0">{{ m }}</span>
         </div>
       </div>
-    </section>
+    </div>
+
+    <CulturalStory v-if="storyOpen" :slides="storySlides" @close="storyOpen = false" />
+
   </section>
 </template>
 
@@ -387,20 +386,51 @@ const hoverPoint = computed(() =>
   color: var(--color-text-muted);
 }
 
-/* ADN | Resumen del año / Constancia | Logros. Sin ADN ni Constancia: Resumen | Logros. */
+/*
+ * Filas de dos tarjetas iguales (misma altura) y Constancia a todo lo ancho:
+ *   ADN | Resumen del año  /  Constancia  /  Logros | Evolución
+ * Sin ADN ni Constancia (ya se ven arriba, perfil público):
+ *   Resumen del año | Logros  /  Evolución
+ */
 .portrait__grid {
   display: grid;
-  grid-template-columns: 2fr 1fr;
+  grid-template-columns: 1fr 1fr;
+  grid-template-areas:
+    'dna wrap'
+    'constancy constancy'
+    'logros evo';
   gap: var(--space-md);
-  align-items: start;
+  align-items: stretch;
+}
+
+.portrait__grid--even {
+  grid-template-areas:
+    'wrap logros'
+    'evo evo';
 }
 
 .portrait__grid > * {
   min-width: 0;
 }
 
-.portrait__grid--even {
-  grid-template-columns: 1fr 1fr;
+.portrait__dna {
+  grid-area: dna;
+}
+
+.portrait__wrap {
+  grid-area: wrap;
+}
+
+.portrait__constancy {
+  grid-area: constancy;
+}
+
+.portrait__logros {
+  grid-area: logros;
+}
+
+.portrait__evo {
+  grid-area: evo;
 }
 
 .portrait__identity {
@@ -653,6 +683,14 @@ const hoverPoint = computed(() =>
   .two-col,
   .portrait__grid {
     grid-template-columns: 1fr;
+  }
+
+  .portrait__grid {
+    grid-template-areas: 'dna' 'wrap' 'constancy' 'logros' 'evo';
+  }
+
+  .portrait__grid--even {
+    grid-template-areas: 'wrap' 'logros' 'evo';
   }
 }
 </style>

@@ -3,9 +3,10 @@
  * DnaCard — "ADN cultural": dona con los 3 géneros más frecuentes, década
  * favorita, formato dominante y qué tanto termina lo que empieza. Sirve para
  * el perfil propio y para perfiles públicos ajenos (`self` ajusta el texto).
+ * `wide`: a todo lo ancho, la dona a la izquierda y los datos a la derecha.
  *
  * Uso:
- *   <DnaCard :top-genres="…" :favorite-decade="…" dominant-label="Películas" :completion-rate="62" self />
+ *   <DnaCard :top-genres="…" :favorite-decade="…" dominant-label="Películas" :completion-rate="62" self wide />
  */
 import { computed } from 'vue'
 import BaseIcon from '../BaseIcon.vue'
@@ -17,6 +18,7 @@ const props = defineProps<{
   dominantLabel: string | null
   completionRate: number
   self?: boolean
+  wide?: boolean
 }>()
 
 const genreColors = ['var(--color-accent)', 'var(--fig-stem-green)', 'var(--rose)']
@@ -40,7 +42,8 @@ const donutGradient = computed(() => {
       <h2 class="card__title">ADN cultural</h2>
       <span class="card__header-label"><BaseIcon name="diagram-3" /></span>
     </div>
-    <div class="dna">
+    <div class="dna" :class="{ 'dna--wide': wide }">
+      <div class="dna__chart">
       <template v-if="topGenres.length">
         <div class="donut" :style="{ background: donutGradient }">
           <div class="donut__hole">
@@ -58,7 +61,9 @@ const donutGradient = computed(() => {
       <p v-else class="dna__value">
         {{ self ? 'Aún sin géneros: agrégalos al registrar obras.' : 'Aún sin géneros registrados.' }}
       </p>
+      </div>
 
+      <div class="dna__facts">
       <div class="dna__row">
         <div class="dna__field">
           <h4 class="dna__label">Década favorita</h4>
@@ -77,12 +82,14 @@ const donutGradient = computed(() => {
         <strong>Insight:</strong> {{ self ? 'completas' : 'completa' }} el {{ completionRate }}% de las obras que
         {{ self ? 'empiezas' : 'empieza' }}.
       </p>
+      </div>
     </div>
   </div>
 </template>
 
 <style scoped>
 .card {
+  height: 100%;
   background: var(--color-surface);
   border: 1px solid var(--color-border);
   border-radius: var(--radius-lg);
@@ -112,10 +119,37 @@ const donutGradient = computed(() => {
   font-weight: 600;
 }
 
-.dna {
+.dna,
+.dna__chart,
+.dna__facts {
   display: flex;
   flex-direction: column;
   gap: var(--space-md);
+}
+
+/* A todo lo ancho: dona y leyenda | década, formato e insight. */
+.dna--wide {
+  display: grid;
+  grid-template-columns: minmax(220px, 1fr) 2fr;
+  align-items: center;
+  gap: var(--space-xl);
+}
+
+.dna--wide .dna__row {
+  border-top: none;
+  padding-top: 0;
+}
+
+@media (max-width: 720px) {
+  .dna--wide {
+    grid-template-columns: 1fr;
+    gap: var(--space-md);
+  }
+
+  .dna--wide .dna__row {
+    border-top: 1px solid var(--color-border);
+    padding-top: var(--space-md);
+  }
 }
 
 .donut {

@@ -7,11 +7,15 @@
  *
  * Uso:
  *   <RatingHistogram :histogram="[0,0,1,…10 valores]" :average="4.1" :count="12" />
+ * `barsHeight` (px, 64 por defecto) agranda las barras donde sobra espacio.
  */
 import { computed, ref } from 'vue'
 import BaseIcon from './BaseIcon.vue'
 
-const props = defineProps<{ histogram: number[]; average: number | null; count: number }>()
+const props = withDefaults(
+  defineProps<{ histogram: number[]; average: number | null; count: number; barsHeight?: number }>(),
+  { barsHeight: 64 },
+)
 
 const maxBar = computed(() => Math.max(1, ...props.histogram))
 const active = ref<number | null>(null)
@@ -37,7 +41,7 @@ const summary = computed(
 <template>
   <div class="histogram">
     <figure class="histogram__figure" :aria-label="summary" role="img">
-      <div class="histogram__bars" @mouseleave="active = null">
+      <div class="histogram__bars" :style="{ height: `${barsHeight}px` }" @mouseleave="active = null">
         <div
           v-for="(n, i) in histogram"
           :key="i"
@@ -78,12 +82,11 @@ const summary = computed(
 
 .histogram__figure {
   flex: 1;
-  max-width: 320px;
+  max-width: 420px;
   margin: 0;
 }
 
 .histogram__bars {
-  height: 64px;
   display: grid;
   grid-template-columns: repeat(10, 1fr);
   gap: 2px;

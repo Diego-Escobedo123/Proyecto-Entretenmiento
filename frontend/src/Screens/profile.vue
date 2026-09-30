@@ -269,29 +269,31 @@ const nf = (n: number) => n.toLocaleString('es')
             </ul>
           </section>
 
-          <section class="card profile-section">
+          <section class="card profile-section profile-section--rating">
             <h2 class="profile-section__title"><BaseIcon name="bar-chart" /> {{ isSelf ? 'Cómo calificas' : 'Cómo califica' }}</h2>
             <RatingHistogram
               v-if="profile.ratings.count"
               :histogram="profile.ratings.histogram"
               :average="profile.ratings.average"
               :count="profile.ratings.count"
+              :bars-height="140"
             />
             <p v-else class="profile__hint">Todavía no hay calificaciones.</p>
           </section>
         </div>
 
         <!-- Perfil público: ADN cultural y constancia (lo mismo para todos) -->
-        <div v-if="profile.isPublic" class="profile-columns profile-columns--even">
+        <template v-if="profile.isPublic">
           <DnaCard
             :top-genres="profile.dna.topGenres"
             :favorite-decade="profile.dna.favoriteDecade"
             :dominant-label="profile.dna.dominantType ? typeMeta(profile.dna.dominantType).plural : null"
             :completion-rate="profile.dna.completionRate"
             :self="isSelf"
+            wide
           />
           <ConstancyCard :days="profile.activity" :self="isSelf" />
-        </div>
+        </template>
 
         <!-- Perfil privado (sólo lo ve su dueño): reseñas y notas públicas -->
         <section v-else-if="reviews.length" class="profile-section">
@@ -562,19 +564,21 @@ a.profile-stats__item:hover {
   cursor: pointer;
 }
 
+/* "Cómo calificas" crece a la altura de "Actividad reciente": la gráfica queda centrada. */
+.profile-section--rating > :last-child {
+  margin-block: auto;
+}
+
+/* Dos columnas iguales y tarjetas de la misma altura. */
 .profile-columns {
   display: grid;
-  grid-template-columns: 3fr 2fr;
+  grid-template-columns: 1fr 1fr;
   gap: var(--space-md);
-  align-items: start;
+  align-items: stretch;
 }
 
 .profile-columns > * {
   min-width: 0;
-}
-
-.profile-columns--even {
-  grid-template-columns: 1fr 1fr;
 }
 
 /* --- Favoritas --- */
