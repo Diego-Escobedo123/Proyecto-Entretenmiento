@@ -162,6 +162,8 @@ const busiestDay = computed(() => {
           </ul>
         </div>
 
+        <!-- Década y formato: juntas, del alto de su contenido (no del de la dona) -->
+        <div class="ov__facts">
         <!-- Década favorita -->
         <div class="ov__fact">
           <h3 class="ov__kicker">Década favorita</h3>
@@ -197,6 +199,7 @@ const busiestDay = computed(() => {
             </ul>
           </template>
           <p v-else class="ov__caption">Sin datos suficientes</p>
+        </div>
         </div>
       </div>
 
@@ -308,9 +311,21 @@ const busiestDay = computed(() => {
   gap: var(--space-md);
 }
 
+/* Década y formato: una columna en teléfono, lado a lado en escritorio. */
+.ov__facts {
+  display: grid;
+  gap: var(--space-md);
+}
+
 @container (min-width: 400px) {
   .ov__top {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
+    grid-template-columns: minmax(0, 1fr) minmax(0, 2fr);
+    align-items: start;
+    gap: clamp(8px, 2cqi, 16px);
+  }
+
+  .ov__facts {
+    grid-template-columns: 1fr 1fr;
     gap: clamp(8px, 2cqi, 16px);
   }
 
@@ -326,7 +341,7 @@ const busiestDay = computed(() => {
 
 /* --- Dona --- */
 .donut {
-  width: min(150px, 100%);
+  width: min(130px, 100%);
   aspect-ratio: 1;
   flex-shrink: 0;
   border-radius: 50%;
@@ -349,7 +364,7 @@ const busiestDay = computed(() => {
 
 .donut__hole strong {
   color: var(--color-text);
-  font-size: 1.625rem;
+  font-size: 1.375rem;
   font-weight: 800;
   line-height: 1.1;
 }
@@ -385,9 +400,9 @@ const busiestDay = computed(() => {
   flex-direction: column;
   gap: var(--space-xs);
   min-width: 0;
-  padding: var(--space-md);
+  padding: 12px;
   border: 1px solid var(--color-border);
-  border-radius: var(--radius-lg);
+  border-radius: var(--radius-md);
   background: color-mix(in srgb, var(--color-surface-2) 60%, var(--color-surface));
 }
 
@@ -404,7 +419,7 @@ const busiestDay = computed(() => {
 .ov__big {
   margin: 0;
   font-family: var(--font-serif);
-  font-size: 1.75rem;
+  font-size: 1.375rem;
   font-weight: 900;
   line-height: 1.1;
   color: var(--color-text);
@@ -412,7 +427,7 @@ const busiestDay = computed(() => {
 }
 
 .ov__big--accent {
-  font-size: 3rem;
+  font-size: 2.25rem;
   color: var(--color-accent);
 }
 
@@ -420,12 +435,12 @@ const busiestDay = computed(() => {
   margin: 0;
   font-family: var(--font-serif);
   font-style: italic;
-  font-size: 0.875rem;
+  font-size: 0.8125rem;
   color: var(--color-text-muted);
 }
 
 .ov__type-icon {
-  font-size: 2.25rem;
+  font-size: 1.75rem;
   color: var(--color-accent);
   line-height: 1;
   margin-bottom: var(--space-xs);
@@ -434,11 +449,11 @@ const busiestDay = computed(() => {
 .ov__types {
   list-style: none;
   margin: auto 0 0;
-  padding: var(--space-sm) 0 0;
+  padding: var(--space-xs) 0 0;
   display: flex;
   flex-wrap: wrap;
-  gap: var(--space-xs) var(--space-md);
-  font-size: 0.8125rem;
+  gap: 2px var(--space-md);
+  font-size: 0.75rem;
   color: var(--color-text-muted);
 }
 
@@ -452,7 +467,7 @@ const busiestDay = computed(() => {
 .timeline {
   list-style: none;
   margin: auto 0 0;
-  padding: var(--space-md) 0 0;
+  padding: var(--space-sm) 0 0;
   display: grid;
   grid-auto-flow: column;
   grid-auto-columns: 1fr;
@@ -462,7 +477,7 @@ const busiestDay = computed(() => {
 .timeline::before {
   content: '';
   position: absolute;
-  top: calc(var(--space-md) + 7px);
+  top: calc(var(--space-sm) + 7px);
   left: 8%;
   right: 8%;
   height: 2px;
@@ -629,7 +644,7 @@ const busiestDay = computed(() => {
   }
 
   .ov__fact {
-    padding: clamp(10px, 2.4cqi, 16px);
+    padding: clamp(8px, 1.9cqi, 12px);
   }
 
   .insight {
@@ -637,15 +652,15 @@ const busiestDay = computed(() => {
   }
 
   .ov__big {
-    font-size: clamp(1.125rem, 4cqi, 1.75rem);
+    font-size: clamp(1rem, 3.2cqi, 1.375rem);
   }
 
   .ov__big--accent {
-    font-size: clamp(1.75rem, 6.5cqi, 3rem);
+    font-size: clamp(1.5rem, 5cqi, 2.25rem);
   }
 
   .ov__caption {
-    font-size: clamp(0.6875rem, 1.9cqi, 0.8125rem);
+    font-size: clamp(0.625rem, 1.7cqi, 0.75rem);
   }
 
   .insight__text {
@@ -653,7 +668,7 @@ const busiestDay = computed(() => {
   }
 
   .ov__type-icon {
-    font-size: clamp(1.5rem, 5cqi, 2.25rem);
+    font-size: clamp(1.25rem, 3.8cqi, 1.75rem);
   }
 
   .ov__kicker,
@@ -682,7 +697,7 @@ const busiestDay = computed(() => {
 
   .ov__types {
     flex-direction: column;
-    font-size: clamp(0.6875rem, 1.9cqi, 0.8125rem);
+    font-size: clamp(0.625rem, 1.7cqi, 0.75rem);
   }
 }
 
