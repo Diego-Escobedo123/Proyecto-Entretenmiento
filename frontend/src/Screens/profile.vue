@@ -15,18 +15,16 @@
 import { computed, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import BaseIcon from '../components/BaseIcon.vue'
-import BaseButton from '../components/BaseButton.vue'
 import BaseSpinner from '../components/BaseSpinner.vue'
 import EmptyState from '../components/EmptyState.vue'
 import RatingStars from '../components/RatingStars.vue'
 import RatingHistogram from '../components/RatingHistogram.vue'
 import CulturalPortrait from '../components/CulturalPortrait.vue'
 import ListCard from '../components/lists/ListCard.vue'
-import FollowButton from '../components/social/FollowButton.vue'
-import UserAvatar from '../components/social/UserAvatar.vue'
 import FavoritesPicker from '../components/profile/FavoritesPicker.vue'
 import DnaOverview from '../components/profile/DnaOverview.vue'
 import YearInWorks from '../components/profile/YearInWorks.vue'
+import ProfileHeader from '../components/profile/ProfileHeader.vue'
 import { statusLabel, typeMeta } from '../lib/catalog'
 import { formatDay } from '../lib/dates'
 import { ApiError } from '../lib/api'
@@ -122,8 +120,6 @@ function describeLog(log: LogEntry): string {
   return `${status} el ${formatDay(log.finishedAt)}`
 }
 
-const nf = (n: number) => n.toLocaleString('es')
-
 /** Promedio de "Cómo califica" con un decimal ("4,4"). */
 const averageText = computed(() =>
   (profile.value?.ratings.average ?? 0).toLocaleString('es', { minimumFractionDigits: 1, maximumFractionDigits: 1 }),
@@ -136,81 +132,9 @@ const averageText = computed(() =>
     <EmptyState v-else-if="error" icon="person-x" :title="error" />
 
     <template v-else-if="profile">
-      <!-- Identidad y números -->
-      <header class="card profile-head">
-        <UserAvatar :user="profile.user" :size="96" :link="false" class="profile-head__avatar" />
+      <!-- Identidad y números (mosaico + avatar, nombre, frase, contadores) -->
+      <ProfileHeader :profile="profile" :can-see-collection="canSeeCollection" @follow-change="onFollowChange" />
 
-        <div class="profile-head__identity">
-          <h1 class="profile-head__name">{{ profile.user.name }}</h1>
-          <p class="profile-head__handle">
-            <template v-if="profile.user.handle">@{{ profile.user.handle }}</template>
-            <template v-if="profile.memberSince"> · En Mosaic desde {{ profile.memberSince }}</template>
-          </p>
-          <p v-if="profile.tagline" class="profile-head__tagline">{{ profile.tagline }}</p>
-          <blockquote v-if="profile.quote" class="profile-head__quote">“{{ profile.quote }}”</blockquote>
-          <p v-else-if="isSelf && !profile.tagline" class="profile-head__empty">
-            Agrega una frase que te describa desde
-            <button type="button" class="profile-head__inline" @click="ui.openSettings()">Editar perfil</button>.
-          </p>
-        </div>
-
-        <div class="profile-head__actions">
-          <template v-if="isSelf">
-            <BaseButton variant="outline" @click="ui.openSettings()"><BaseIcon name="pencil" /> Editar perfil</BaseButton>
-            <button type="button" class="profile-head__visibility" title="Cambiar en Editar perfil" @click="ui.openSettings()">
-              <BaseIcon :name="profile.isPublic ? 'globe' : 'lock-fill'" />
-              {{ profile.isPublic ? 'Perfil público' : 'Perfil privado' }}
-            </button>
-          </template>
-          <FollowButton
-            v-else
-            :user-id="profile.user.id"
-            :following="profile.isFollowing"
-            :requested="profile.requested"
-            @change="onFollowChange"
-          />
-        </div>
-
-        <nav class="profile-stats" aria-label="Números del perfil">
-          <component
-            :is="isSelf ? 'RouterLink' : 'span'"
-            :to="isSelf ? '/collection' : undefined"
-            class="profile-stats__item"
-            :class="{ 'is-muted': !canSeeCollection }"
-          >
-            <strong>{{ nf(profile.counts.works) }}</strong> obras
-          </component>
-          <component
-            :is="isSelf ? 'RouterLink' : 'span'"
-            :to="isSelf ? '/diary?tab=review' : undefined"
-            class="profile-stats__item"
-            :class="{ 'is-muted': !canSeeCollection }"
-          >
-            <strong>{{ nf(profile.counts.finishedThisYear) }}</strong> este año
-          </component>
-          <component :is="isSelf ? 'RouterLink' : 'span'" :to="isSelf ? '/lists' : undefined" class="profile-stats__item">
-            <strong>{{ nf(profile.counts.lists) }}</strong> {{ profile.counts.lists === 1 ? 'lista' : 'listas' }}
-          </component>
-          <!-- Cuenta privada ajena: el servidor no manda los contadores y no se muestran. -->
-          <template v-if="profile.followers != null && profile.following != null">
-            <RouterLink :to="`/users/${profile.user.id}/followers`" class="profile-stats__item">
-              <strong>{{ nf(profile.followers) }}</strong> {{ profile.followers === 1 ? 'seguidor' : 'seguidores' }}
-            </RouterLink>
-            <RouterLink :to="`/users/${profile.user.id}/following`" class="profile-stats__item">
-              <strong>{{ nf(profile.following) }}</strong> {{ profile.following === 1 ? 'seguido' : 'seguidos' }}
-            </RouterLink>
-          </template>
-        </nav>
-      </header>
-
-      <p v-if="isSelf && !profile.isPublic" class="profile__banner">
-        <BaseIcon name="lock" />
-        <span>
-          Tu perfil es <strong>privado</strong>: sólo quienes aceptes como seguidores ven tu colección y tu actividad. El
-          resto ve tu nombre, cuántas obras y listas tienes y tus listas públicas.
-        </span>
-        <BaseButton variant="outline" @click="ui.openSettings()">Hacerlo público</BaseButton>
-      </p>
       <p v-if="isSelf && profile.pendingRequests" class="profile__banner profile__banner--requests">
         <BaseIcon name="person-plus" />
         <span>
@@ -381,134 +305,6 @@ const averageText = computed(() =>
   padding: var(--space-lg);
 }
 
-/* --- Encabezado --- */
-.profile-head {
-  display: grid;
-  grid-template-columns: auto 1fr auto;
-  grid-template-areas:
-    'avatar identity actions'
-    'stats stats stats';
-  gap: var(--space-md) var(--space-lg);
-  align-items: start;
-}
-
-.profile-head__avatar {
-  grid-area: avatar;
-  box-shadow: 0 0 0 3px var(--color-accent);
-}
-
-.profile-head__identity {
-  grid-area: identity;
-  min-width: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-}
-
-.profile-head__name {
-  margin: 0;
-  font-size: 2rem;
-  font-weight: 800;
-  color: var(--color-text);
-  overflow-wrap: anywhere;
-}
-
-.profile-head__handle {
-  margin: 0;
-  color: var(--color-text-muted);
-}
-
-.profile-head__tagline {
-  margin: 4px 0 0;
-  font-weight: 700;
-  color: var(--color-accent);
-}
-
-.profile-head__quote {
-  margin: 4px 0 0;
-  padding-left: var(--space-md);
-  border-left: 3px solid var(--color-accent);
-  font-family: var(--font-serif);
-  font-style: italic;
-  color: var(--color-text-muted);
-}
-
-.profile-head__empty {
-  margin: 4px 0 0;
-  font-size: 0.875rem;
-  color: var(--color-text-subtle);
-}
-
-.profile-head__inline {
-  padding: 0;
-  border: none;
-  background: none;
-  font: inherit;
-  font-weight: 600;
-  color: var(--color-accent);
-  cursor: pointer;
-}
-
-.profile-head__actions {
-  grid-area: actions;
-  display: flex;
-  flex-direction: column;
-  align-items: flex-end;
-  gap: var(--space-sm);
-}
-
-.profile-head__visibility {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  padding: 0;
-  border: none;
-  background: none;
-  font: inherit;
-  font-size: 0.8125rem;
-  font-weight: 600;
-  color: var(--color-text-muted);
-  cursor: pointer;
-}
-
-.profile-head__visibility:hover {
-  color: var(--color-text);
-}
-
-.profile-stats {
-  grid-area: stats;
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--space-sm);
-  padding-top: var(--space-md);
-  border-top: 1px solid var(--color-border);
-}
-
-.profile-stats__item {
-  display: inline-flex;
-  align-items: baseline;
-  gap: 6px;
-  padding: 6px 14px;
-  border-radius: 999px;
-  background: var(--color-surface-2);
-  font-family: var(--font-sans);
-  font-size: 0.875rem;
-  color: var(--color-text-muted);
-}
-
-.profile-stats__item strong {
-  font-size: 1.0625rem;
-  color: var(--color-text);
-}
-
-a.profile-stats__item:hover {
-  color: var(--color-accent);
-}
-
-.profile-stats__item.is-muted {
-  opacity: 0.6;
-}
-
 .profile__banner {
   display: flex;
   align-items: center;
@@ -530,10 +326,6 @@ a.profile-stats__item:hover {
 
 .profile__banner strong {
   color: var(--color-text);
-}
-
-.profile__banner :deep(button) {
-  margin-left: auto;
 }
 
 .profile__banner--requests {
@@ -851,29 +643,6 @@ a.profile-stats__item:hover {
 }
 
 @media (max-width: 620px) {
-  .profile-head {
-    grid-template-columns: auto 1fr;
-    grid-template-areas:
-      'avatar identity'
-      'actions actions'
-      'stats stats';
-  }
-
-  .profile-head__actions {
-    flex-direction: row;
-    align-items: center;
-    flex-wrap: wrap;
-  }
-
-  .profile-head__name {
-    font-size: 1.5rem;
-  }
-
-  .profile-head :deep(.user-avatar) {
-    width: 64px !important;
-    height: 64px !important;
-  }
-
   .favorites {
     gap: 6px;
   }

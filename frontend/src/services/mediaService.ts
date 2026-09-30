@@ -14,6 +14,8 @@ import { delay, makeId, readJson, writeJson } from './storage'
 export interface MediaWriteOptions {
   /** Día del cambio de estado para el diario ("YYYY-MM-DD"). Por defecto, hoy. */
   logDate?: string
+  /** Al terminar o abandonar una serie, libro o juego: cuándo la empezó ("YYYY-MM-DD"). */
+  startDate?: string
 }
 
 export interface MediaService {

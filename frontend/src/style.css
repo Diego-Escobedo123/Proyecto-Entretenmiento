@@ -14,6 +14,41 @@ body,
   height: 100%;
 }
 
+/*
+ * Barras de desplazamiento sutiles en toda la app (carruseles de Explorar,
+ * reparto, listas largas…): delgadas, sin fondo blanco y con el mango
+ * translúcido, que se aclara al pasar el mouse. `scrollbar-color` cubre
+ * Firefox y Chrome/Edge actuales; las reglas ::-webkit-* son para Safari y
+ * Chrome anteriores.
+ */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: color-mix(in srgb, var(--color-text) 22%, transparent) transparent;
+}
+
+*:hover {
+  scrollbar-color: color-mix(in srgb, var(--color-text) 38%, transparent) transparent;
+}
+
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track,
+::-webkit-scrollbar-corner {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--color-text) 22%, transparent);
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: color-mix(in srgb, var(--color-text) 38%, transparent);
+}
+
 body {
   margin: 0;
   background: var(--color-bg);

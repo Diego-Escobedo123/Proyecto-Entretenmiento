@@ -2,7 +2,8 @@
 /**
  * Personas — encontrar gente para seguir: buscador por nombre o @usuario y
  * sugerencias según las obras que tienen en común contigo. Arriba, las
- * solicitudes para seguirme (cuenta privada): confirmar o eliminar.
+ * solicitudes para seguirme (cuenta privada): confirmar o eliminar. En el
+ * medio, "Tu red": pestañas con mis seguidores y a quiénes sigo.
  */
 import { computed, onMounted, ref, watch } from 'vue'
 import BaseIcon from '../components/BaseIcon.vue'
@@ -40,6 +41,27 @@ const hasQuery = computed(() => debouncedQuery.value.trim().length >= 2)
 // --- Solicitudes para seguirme ---
 const requests = useFollowRequestsStore()
 onMounted(() => void requests.load())
+
+// --- Tu red: mis seguidores y a quiénes sigo ---
+type NetworkTab = 'followers' | 'following'
+const networkTab = ref<NetworkTab>('followers')
+const network = ref<Record<NetworkTab, Person[]>>({ followers: [], following: [] })
+const loadingNetwork = ref(true)
+const networkFailed = ref(false)
+onMounted(async () => {
+  try {
+    const [followers, following] = await Promise.all([socialService.followers('me'), socialService.following('me')])
+    network.value = { followers, following }
+  } catch {
+    networkFailed.value = true
+  } finally {
+    loadingNetwork.value = false
+  }
+})
+const NETWORK_EMPTY: Record<NetworkTab, { title: string; text: string }> = {
+  followers: { title: 'Todavía nadie te sigue', text: 'Cuando alguien te siga, aparecerá aquí.' },
+  following: { title: 'Todavía no sigues a nadie', text: 'Busca personas arriba o sigue alguna de las sugerencias de abajo.' },
+}
 
 const suggestions = ref<SuggestedPerson[]>([])
 const loadingSuggestions = ref(true)
@@ -95,6 +117,37 @@ function sharedDetail(p: SuggestedPerson): string | undefined {
       <p v-else-if="!results.length" class="people__hint">Nadie coincide con “{{ debouncedQuery.trim() }}”.</p>
       <div v-else class="people__list">
         <PersonRow v-for="p in results" :key="p.id" :person="p" />
+      </div>
+    </section>
+
+    <section class="people__section">
+      <h2 class="people__section-title"><BaseIcon name="people" /> Tu red</h2>
+      <div class="people__tabs" role="tablist" aria-label="Seguidores y seguidos">
+        <button
+          v-for="t in (['followers', 'following'] as const)"
+          :key="t"
+          type="button"
+          role="tab"
+          class="people__tab"
+          :class="{ 'is-active': networkTab === t }"
+          :aria-selected="networkTab === t"
+          @click="networkTab = t"
+        >
+          {{ t === 'followers' ? 'Seguidores' : 'Seguidos' }}
+          <span v-if="!loadingNetwork && !networkFailed" class="people__tab-count">{{ network[t].length }}</span>
+        </button>
+      </div>
+      <p v-if="loadingNetwork" class="people__hint"><BaseSpinner size="sm" /> Cargando…</p>
+      <p v-else-if="networkFailed" class="people__hint">No se pudo cargar tu red.</p>
+      <EmptyState
+        v-else-if="!network[networkTab].length"
+        compact
+        icon="people"
+        :title="NETWORK_EMPTY[networkTab].title"
+        :text="NETWORK_EMPTY[networkTab].text"
+      />
+      <div v-else class="people__list" role="tabpanel">
+        <PersonRow v-for="p in network[networkTab]" :key="p.id" :person="p" />
       </div>
     </section>
 
@@ -156,6 +209,51 @@ function sharedDetail(p: SuggestedPerson): string | undefined {
   display: flex;
   flex-direction: column;
   gap: var(--space-sm);
+}
+
+/* Pestañas Seguidores | Seguidos, con su cantidad. */
+.people__tabs {
+  display: flex;
+  gap: var(--space-xs);
+  border-bottom: 1px solid var(--color-border);
+}
+
+.people__tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: -1px;
+  padding: var(--space-sm) var(--space-md);
+  border: none;
+  border-bottom: 2px solid transparent;
+  background: none;
+  color: var(--color-text-muted);
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.people__tab:hover {
+  color: var(--color-text);
+}
+
+.people__tab.is-active {
+  border-bottom-color: var(--color-accent);
+  color: var(--color-text);
+}
+
+.people__tab-count {
+  min-width: 22px;
+  padding: 0 7px;
+  border-radius: 999px;
+  background: var(--color-surface-2);
+  font-size: 0.8125rem;
+  text-align: center;
+}
+
+.people__tab.is-active .people__tab-count {
+  background: var(--color-accent);
+  color: var(--color-accent-contrast);
 }
 
 .people__section-title {

@@ -12,6 +12,16 @@ function logDay(body: Record<string, unknown>): Date {
   return parseDay(body.logDate) ?? new Date(new Date().toISOString().slice(0, 10))
 }
 
+/**
+ * Cuándo la empezó (`startDate`), si la está terminando o abandonando y lo
+ * indicó. Error si es posterior al día del cambio.
+ */
+function startDay(body: Record<string, unknown>): { day: Date | null } | { error: string } {
+  const day = parseDay(body.startDate)
+  if (day && day > logDay(body)) return { error: 'La fecha de inicio no puede ser posterior a la de finalización.' }
+  return { day }
+}
+
 export const mediaRoutes = new Hono<AuthEnv>()
 
 // Todo /media requiere estar autenticado.
@@ -47,11 +57,13 @@ mediaRoutes.post('/', async (c) => {
   if (typeof body.type !== 'string' || !body.type) {
     return c.json({ message: 'El tipo es obligatorio.' }, 400)
   }
+  const start = startDay(body)
+  if ('error' in start) return c.json({ field: 'startDate', message: start.error }, 400)
 
   const row = await prisma.mediaEntry.create({
     data: { ...fromMediaInput(body), userId: c.get('userId') } as never,
   })
-  await recordStatusChange(row, null, logDay(body))
+  await recordStatusChange(row, null, logDay(body), start.day)
   return c.json(toMediaDTO(row), 201)
 })
 
@@ -61,11 +73,13 @@ mediaRoutes.patch('/:id', async (c) => {
   if (!owned) return c.json({ message: 'No existe la obra.' }, 404)
 
   const body = await c.req.json().catch(() => ({}))
+  const start = startDay(body)
+  if ('error' in start) return c.json({ field: 'startDate', message: start.error }, 400)
   const row = await prisma.mediaEntry.update({
     where: { id: owned.id },
     data: fromMediaInput(body),
   })
-  if (row.status !== owned.status) await recordStatusChange(row, owned.status, logDay(body))
+  if (row.status !== owned.status) await recordStatusChange(row, owned.status, logDay(body), start.day)
   else if (row.rating !== owned.rating) await syncLatestRating(row)
   return c.json(toMediaDTO(row))
 })
