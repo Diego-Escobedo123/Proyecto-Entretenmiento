@@ -1,7 +1,7 @@
 <script setup lang="ts">
 /**
- * FavoritesPicker — elegir y ordenar "Tus 4 favoritas" (como el top 4 de
- * Letterboxd) entre las obras de la propia colección, de cualquier tipo.
+ * FavoritesPicker — elegir y ordenar "Tus 5 favoritas" (como el top 4 de
+ * Letterboxd, con una más) entre las obras de la propia colección, de cualquier tipo.
  * Guarda en el perfil y emite `saved` con los ids en orden.
  *
  * Uso:
@@ -20,7 +20,7 @@ import type { MediaEntry } from '../../types/media'
 const props = defineProps<{ initial: string[] }>()
 const emit = defineEmits<{ close: []; saved: [ids: string[]] }>()
 
-const MAX = 4
+const MAX = 5
 const media = useMediaStore()
 void media.ensureLoaded()
 const { entries } = storeToRefs(media)
@@ -80,7 +80,7 @@ async function save() {
 </script>
 
 <template>
-  <BaseModal ref="modalRef" title="Tus 4 favoritas" size="lg" @close="emit('close')">
+  <BaseModal ref="modalRef" title="Tus 5 favoritas" size="lg" @close="emit('close')">
     <div class="picker">
       <p class="picker__hint">
         Las obras que mejor te definen, de cualquier tipo. Aparecen arriba en tu perfil, en este orden.
@@ -136,7 +136,7 @@ async function save() {
             type="button"
             class="picker__candidate"
             :disabled="chosen.length >= MAX"
-            :title="chosen.length >= MAX ? 'Ya elegiste 4: quita una para cambiarla' : `Agregar ${e.title}`"
+            :title="chosen.length >= MAX ? 'Ya elegiste 5: quita una para cambiarla' : `Agregar ${e.title}`"
             @click="add(e)"
           >
             <img v-if="e.cover" :src="e.cover" alt="" class="picker__cover" loading="lazy" />
@@ -176,7 +176,7 @@ async function save() {
   margin: 0;
   padding: 0;
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(5, minmax(0, 1fr));
   gap: var(--space-sm);
 }
 

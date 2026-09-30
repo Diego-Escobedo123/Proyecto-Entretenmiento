@@ -5,7 +5,7 @@
  * además, los botones para editar.
  *
  * Arriba la identidad (frase y cita sólo si las escribió) con sus números;
- * luego sus 4 favoritas (las elige él), actividad reciente y cómo califica.
+ * luego sus 5 favoritas (las elige él), actividad reciente y cómo califica.
  * Si el perfil es público sigue su ADN cultural y su constancia; si es
  * privado (y por eso sólo lo ve su dueño), sus reseñas recientes. Después las
  * listas públicas y, sólo para su dueño, "Tu retrato cultural".
@@ -212,7 +212,7 @@ const nf = (n: number) => n.toLocaleString('es')
         <!-- Favoritas: las elige su dueño -->
         <section v-if="profile.favorites.length || isSelf" class="profile-section">
           <header class="profile-section__head">
-            <h2 class="profile-section__title"><BaseIcon name="heart" /> {{ isSelf ? 'Tus 4 favoritas' : 'Sus 4 favoritas' }}</h2>
+            <h2 class="profile-section__title"><BaseIcon name="heart" /> {{ isSelf ? 'Tus 5 favoritas' : 'Sus 5 favoritas' }}</h2>
             <button v-if="isSelf" type="button" class="profile-section__link" @click="pickingFavorites = true">
               <BaseIcon name="pencil" /> {{ profile.favorites.length ? 'Cambiar' : 'Elegir' }}
             </button>
@@ -229,7 +229,7 @@ const nf = (n: number) => n.toLocaleString('es')
               </button>
             </li>
             <template v-if="isSelf">
-              <li v-for="n in 4 - profile.favorites.length" :key="`empty-${n}`">
+              <li v-for="n in 5 - profile.favorites.length" :key="`empty-${n}`">
                 <button type="button" class="favorites__item" @click="pickingFavorites = true">
                   <span class="favorites__cover favorites__cover--slot"><BaseIcon name="plus-lg" /></span>
                   <span class="favorites__meta">Elegir</span>
@@ -588,9 +588,9 @@ a.profile-stats__item:hover {
   padding: 0;
   display: grid;
   /* minmax(0, 1fr): un título largo no ensancha su columna (todas las portadas iguales). */
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(5, minmax(0, 1fr));
   gap: var(--space-md);
-  max-width: 760px;
+  max-width: 920px;
 }
 
 .favorites__item {
@@ -877,11 +877,15 @@ a.profile-stats__item:hover {
   }
 
   .favorites {
-    gap: var(--space-sm);
+    gap: 6px;
   }
 
   .favorites__title {
-    font-size: 0.8125rem;
+    font-size: 0.75rem;
+  }
+
+  .favorites__meta {
+    font-size: 0.6875rem;
   }
 
   .recent__stars {

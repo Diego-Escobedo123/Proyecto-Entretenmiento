@@ -65,6 +65,6 @@ export interface UserProfile {
   memberSince: number | null
   /** Perfil público: los demás ven su colección, actividad y favoritas. */
   isPublic: boolean
-  /** "Tus 4 favoritas": ids de obras de la propia colección, en orden. */
+  /** "Tus 5 favoritas": ids de obras de la propia colección, en orden. */
   topPicks: string[]
 }

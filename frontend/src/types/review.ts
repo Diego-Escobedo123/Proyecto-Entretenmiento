@@ -89,7 +89,7 @@ export interface PublicProfile {
   following: number
   /** Con perfil privado (y si no es el propio), `works` y `finishedThisYear` vienen en 0. */
   counts: { works: number; finishedThisYear: number; lists: number }
-  /** Sus 4 favoritas, en el orden que eligió. */
+  /** Sus 5 favoritas, en el orden que eligió. */
   favorites: PublicEntry[]
   /** Sus últimas entradas del diario (con los datos de la obra). */
   recent: LogEntry[]

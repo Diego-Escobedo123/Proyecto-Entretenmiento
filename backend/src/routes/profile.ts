@@ -30,10 +30,10 @@ function toProfileDTO(p: ProfileRow, name: string) {
   }
 }
 
-const MAX_TOP_PICKS = 4
+const MAX_TOP_PICKS = 5
 
 /**
- * "Tus 4 favoritas": ids de obras del propio usuario, sin repetir, en orden.
+ * "Tus 5 favoritas": ids de obras del propio usuario, sin repetir, en orden.
  * Devuelve null si el valor no es una lista válida.
  */
 async function readTopPicks(value: unknown, userId: string): Promise<string[] | null> {
@@ -76,7 +76,7 @@ profileRoutes.patch('/', async (c) => {
   const fields = pickProfileFields(body)
   if ('topPicks' in body) {
     const topPicks = await readTopPicks(body.topPicks, userId)
-    if (!topPicks) return c.json({ message: 'Elige hasta 4 obras distintas de tu colección.' }, 400)
+    if (!topPicks) return c.json({ message: 'Elige hasta 5 obras distintas de tu colección.' }, 400)
     fields.topPicks = topPicks
   }
   const profile = await prisma.profile.upsert({
