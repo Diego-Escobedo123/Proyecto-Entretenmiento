@@ -90,7 +90,8 @@ async function save() {
           <span class="settings-visibility__label">Perfil público</span>
           <span class="settings-visibility__hint">
             Los demás ven tu colección, tu actividad y tus favoritas, y tu actividad aparece en el feed de quienes
-            te siguen. Si es privado, sólo ven tu nombre, tus contadores y tus listas públicas.
+            te siguen. Si es privado, para seguirte tienen que mandarte una solicitud: sólo quienes aceptes ven tu
+            colección y tu actividad.
           </span>
         </div>
         <button

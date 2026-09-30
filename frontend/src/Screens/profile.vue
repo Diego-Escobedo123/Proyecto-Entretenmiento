@@ -36,6 +36,7 @@ import { useProfileStore } from '../stores/profile'
 import { useUiStore } from '../stores/ui'
 import type { LogEntry } from '../types/log'
 import type { PublicEntry, PublicProfile } from '../types/review'
+import type { FollowStatus } from '../types/social'
 
 const route = useRoute()
 const ui = useUiStore()
@@ -69,8 +70,8 @@ async function load() {
 watch(userId, load, { immediate: true })
 
 const isSelf = computed(() => profile.value?.isSelf ?? false)
-/** Los demás no ven la colección de un perfil privado. */
-const canSeeCollection = computed(() => profile.value != null && (profile.value.isPublic || profile.value.isSelf))
+/** Cuenta privada: la colección sólo la ven su dueño y quienes la siguen (solicitud aceptada). */
+const canSeeCollection = computed(() => profile.value?.canView ?? false)
 
 // El propio perfil se recarga cuando se edita desde Ajustes (nombre, frase, visibilidad…).
 watch(
@@ -86,9 +87,15 @@ watch(isSelf, (self) => {
   if (self) void media.ensureLoaded()
 })
 
-function onFollowChange(following: boolean, followers: number) {
+function onFollowChange(status: FollowStatus, followers: number | null) {
   if (!profile.value) return
-  profile.value.isFollowing = following
+  // Dejar de seguir una cuenta privada vuelve a ocultarla: se recarga para reflejarlo.
+  if (!profile.value.isPublic && profile.value.isFollowing && status === 'none') {
+    void load()
+    return
+  }
+  profile.value.isFollowing = status === 'following'
+  profile.value.requested = status === 'requested'
   profile.value.followers = followers
 }
 
@@ -114,12 +121,6 @@ function describeLog(log: LogEntry): string {
   const status = statusLabel(type, log.abandoned ? 'abandoned' : 'completed')
   return `${status} el ${formatDay(log.finishedAt)}`
 }
-
-// --- Reseñas (y notas públicas) ---
-const MAX_REVIEWS = 4
-const reviews = computed(() =>
-  (profile.value?.entries ?? []).filter((e) => e.review.trim() || e.notes?.trim()).slice(0, MAX_REVIEWS),
-)
 
 const nf = (n: number) => n.toLocaleString('es')
 
@@ -161,7 +162,13 @@ const averageText = computed(() =>
               {{ profile.isPublic ? 'Perfil público' : 'Perfil privado' }}
             </button>
           </template>
-          <FollowButton v-else :user-id="profile.user.id" :following="profile.isFollowing" @change="onFollowChange" />
+          <FollowButton
+            v-else
+            :user-id="profile.user.id"
+            :following="profile.isFollowing"
+            :requested="profile.requested"
+            @change="onFollowChange"
+          />
         </div>
 
         <nav class="profile-stats" aria-label="Números del perfil">
@@ -184,33 +191,44 @@ const averageText = computed(() =>
           <component :is="isSelf ? 'RouterLink' : 'span'" :to="isSelf ? '/lists' : undefined" class="profile-stats__item">
             <strong>{{ nf(profile.counts.lists) }}</strong> {{ profile.counts.lists === 1 ? 'lista' : 'listas' }}
           </component>
-          <RouterLink :to="`/users/${profile.user.id}/followers`" class="profile-stats__item">
-            <strong>{{ nf(profile.followers) }}</strong> {{ profile.followers === 1 ? 'seguidor' : 'seguidores' }}
-          </RouterLink>
-          <RouterLink :to="`/users/${profile.user.id}/following`" class="profile-stats__item">
-            <strong>{{ nf(profile.following) }}</strong> {{ profile.following === 1 ? 'seguido' : 'seguidos' }}
-          </RouterLink>
+          <!-- Cuenta privada ajena: el servidor no manda los contadores y no se muestran. -->
+          <template v-if="profile.followers != null && profile.following != null">
+            <RouterLink :to="`/users/${profile.user.id}/followers`" class="profile-stats__item">
+              <strong>{{ nf(profile.followers) }}</strong> {{ profile.followers === 1 ? 'seguidor' : 'seguidores' }}
+            </RouterLink>
+            <RouterLink :to="`/users/${profile.user.id}/following`" class="profile-stats__item">
+              <strong>{{ nf(profile.following) }}</strong> {{ profile.following === 1 ? 'seguido' : 'seguidos' }}
+            </RouterLink>
+          </template>
         </nav>
       </header>
 
       <p v-if="isSelf && !profile.isPublic" class="profile__banner">
         <BaseIcon name="lock" />
         <span>
-          Tu perfil es <strong>privado</strong>: los demás sólo ven tu nombre, tus contadores y tus listas públicas. Tus
-          reseñas siguen visibles en cada obra.
+          Tu perfil es <strong>privado</strong>: sólo quienes aceptes como seguidores ven tu colección y tu actividad. El
+          resto ve tu nombre, cuántas obras y listas tienes y tus listas públicas.
         </span>
         <BaseButton variant="outline" @click="ui.openSettings()">Hacerlo público</BaseButton>
       </p>
-      <p v-else-if="!isSelf && profile.isFollowing && !profile.isPublic" class="profile__banner">
-        <BaseIcon name="lock" /> Sigues a esta persona, pero su perfil es privado: su actividad no aparece en tu feed. Sus
-        listas públicas, sí.
+      <p v-if="isSelf && profile.pendingRequests" class="profile__banner profile__banner--requests">
+        <BaseIcon name="person-plus" />
+        <span>
+          <strong>{{ profile.pendingRequests }}</strong>
+          {{ profile.pendingRequests === 1 ? 'persona quiere seguirte' : 'personas quieren seguirte' }}.
+        </span>
+        <RouterLink to="/people" class="profile__banner-link">Ver solicitudes <BaseIcon name="arrow-right" /></RouterLink>
       </p>
 
       <EmptyState
         v-if="!canSeeCollection"
         icon="lock"
-        title="Perfil privado"
-        text="Esta persona decidió no mostrar su colección. Sus reseñas siguen visibles en cada obra."
+        title="Esta cuenta es privada"
+        :text="
+          profile.requested
+            ? 'Solicitud enviada. Cuando la acepte, verás sus obras, su actividad y su ADN cultural.'
+            : 'Envíale una solicitud para ver sus obras, su actividad y su ADN cultural. Sus reseñas siguen visibles en cada obra.'
+        "
       />
 
       <template v-else>
@@ -245,11 +263,11 @@ const averageText = computed(() =>
         </section>
 
         <!--
-          Actividad reciente + cómo califica. Perfil público: a su lado, más
-          anchos, ADN cultural y el año en obras (lo mismo para todos):
+          Quien puede ver el perfil (su dueño, cualquiera si es público, o sus
+          seguidores si es privado) lo ve igual:
             Actividad | ADN  /  Cómo califica | Año en obras
         -->
-        <div class="profile-columns" :class="{ 'profile-columns--public': profile.isPublic }">
+        <div class="profile-columns profile-columns--full">
           <section class="card profile-section profile-columns__recent">
             <header class="profile-section__head">
               <h2 class="profile-section__title"><BaseIcon name="journal-bookmark" /> Actividad reciente</h2>
@@ -291,57 +309,29 @@ const averageText = computed(() =>
               :histogram="profile.ratings.histogram"
               :average="profile.ratings.average"
               :count="profile.ratings.count"
-              :bars-height="profile.isPublic ? 120 : 140"
+              :bars-height="120"
               hide-average
             />
             <p v-else class="profile__hint">Todavía no hay calificaciones.</p>
           </section>
 
-          <template v-if="profile.isPublic">
-            <DnaOverview
-              class="profile-columns__dna"
-              :dna="profile.dna"
-              :ratings="profile.ratings"
-              :activity="profile.activity"
-              :last-abandoned="profile.lastAbandoned"
-              :insights="profile.insights"
-              :self="isSelf"
-            />
-            <YearInWorks
-              class="profile-columns__year"
-              :activity="profile.activity"
-              :top-genres="profile.dna.topGenres.map((g) => g.name)"
-              :self="isSelf"
-            />
-          </template>
+          <DnaOverview
+            class="profile-columns__dna"
+            :dna="profile.dna"
+            :ratings="profile.ratings"
+            :activity="profile.activity"
+            :last-abandoned="profile.lastAbandoned"
+            :insights="profile.insights"
+            :self="isSelf"
+          />
+          <YearInWorks
+            class="profile-columns__year"
+            :activity="profile.activity"
+            :top-genres="profile.dna.topGenres.map((g) => g.name)"
+            :self="isSelf"
+          />
         </div>
 
-        <!-- Perfil privado (sólo lo ve su dueño): reseñas y notas públicas -->
-        <section v-if="!profile.isPublic && reviews.length" class="profile-section">
-          <h2 class="profile-section__title"><BaseIcon name="chat-quote" /> Reseñas recientes</h2>
-          <ul class="reviews">
-            <li v-for="e in reviews" :key="e.id" class="reviews__item">
-              <button type="button" class="reviews__cover-btn" :aria-label="`Ver ficha de ${e.title}`" @click="openWork(e)">
-                <img v-if="e.cover" :src="e.cover" alt="" class="reviews__cover" loading="lazy" />
-                <span v-else class="reviews__cover reviews__cover--empty" aria-hidden="true">
-                  <BaseIcon :name="typeMeta(e.type).icon" />
-                </span>
-              </button>
-              <div class="reviews__body">
-                <button type="button" class="reviews__title" @click="openWork(e)">{{ e.title }}</button>
-                <p class="reviews__meta">
-                  {{ [typeMeta(e.type).label, e.creator, e.year].filter(Boolean).join(' · ') }}
-                </p>
-                <RatingStars v-if="e.rating != null" :value="e.rating" />
-                <p v-if="e.review.trim()" class="reviews__text">{{ e.review }}</p>
-                <div v-if="e.notes?.trim()" class="reviews__note">
-                  <span class="reviews__note-label"><BaseIcon name="globe2" /> Nota</span>
-                  <p>{{ e.notes }}</p>
-                </div>
-              </div>
-            </li>
-          </ul>
-        </section>
       </template>
 
       <!-- Listas públicas (se ven aunque el perfil sea privado: cada lista decide) -->
@@ -356,7 +346,7 @@ const averageText = computed(() =>
       </section>
 
       <!-- Sólo para su dueño -->
-      <CulturalPortrait v-if="isSelf && media.entries.length" :hide-shared="profile.isPublic" />
+      <CulturalPortrait v-if="isSelf && media.entries.length" :hide-shared="canSeeCollection" />
 
       <FavoritesPicker
         v-if="pickingFavorites"
@@ -546,6 +536,24 @@ a.profile-stats__item:hover {
   margin-left: auto;
 }
 
+.profile__banner--requests {
+  border-color: var(--color-accent);
+  background: var(--color-accent-bg);
+}
+
+.profile__banner--requests > .bi {
+  color: var(--color-accent);
+}
+
+.profile__banner-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-left: auto;
+  color: var(--color-accent);
+  font-weight: 700;
+}
+
 /* --- Secciones --- */
 .profile-section {
   display: flex;
@@ -644,11 +652,11 @@ a.profile-stats__item:hover {
 }
 
 /*
- * Público, con espacio: tarjeta angosta + ancha en cada fila, con 12 columnas
+ * Perfil completo: tarjeta angosta + ancha en cada fila, con 12 columnas
  * para que cada fila tenga su proporción: Actividad 5 | ADN 7, Cómo califica 3 | Año 9.
  * En tablet y teléfono se apila en una columna (ver media queries al final).
  */
-.profile-columns--public {
+.profile-columns--full {
   grid-template-columns: repeat(12, minmax(0, 1fr));
   grid-template-areas:
     'recent recent recent recent recent dna dna dna dna dna dna dna'
@@ -822,114 +830,6 @@ a.profile-stats__item:hover {
 }
 
 /* --- Reseñas --- */
-.reviews {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-md);
-}
-
-.reviews__item {
-  display: flex;
-  gap: var(--space-md);
-  padding: var(--space-md);
-  background: var(--color-surface);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-lg);
-}
-
-.reviews__cover-btn {
-  flex-shrink: 0;
-  padding: 0;
-  border: none;
-  background: none;
-  cursor: pointer;
-}
-
-.reviews__cover {
-  display: block;
-  width: 64px;
-  aspect-ratio: 2 / 3;
-  border-radius: var(--radius-sm);
-  object-fit: cover;
-  background: var(--color-surface-2);
-}
-
-.reviews__cover--empty {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 1.5rem;
-  color: var(--color-text-subtle);
-}
-
-.reviews__body {
-  flex: 1;
-  min-width: 0;
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: 4px;
-}
-
-.reviews__title {
-  padding: 0;
-  border: none;
-  background: none;
-  font: inherit;
-  font-size: 1.0625rem;
-  font-weight: 700;
-  color: var(--color-text);
-  text-align: left;
-  cursor: pointer;
-}
-
-.reviews__title:hover {
-  color: var(--color-accent);
-}
-
-.reviews__meta {
-  margin: 0;
-  font-size: 0.8125rem;
-  color: var(--color-text-muted);
-}
-
-.reviews__text {
-  margin: var(--space-xs) 0 0;
-  color: var(--color-text);
-  font-size: 0.9375rem;
-  line-height: 1.55;
-  white-space: pre-line;
-  overflow-wrap: anywhere;
-}
-
-.reviews__note {
-  align-self: stretch;
-  margin-top: var(--space-xs);
-  padding: var(--space-sm);
-  border-radius: var(--radius-md);
-  background: var(--color-surface-2);
-}
-
-.reviews__note-label {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  font-size: 0.75rem;
-  font-weight: 700;
-  color: var(--color-text-subtle);
-}
-
-.reviews__note p {
-  margin: 4px 0 0;
-  font-size: 0.875rem;
-  color: var(--color-text-muted);
-  white-space: pre-line;
-  overflow-wrap: anywhere;
-}
-
 .profile-lists {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
@@ -944,7 +844,7 @@ a.profile-stats__item:hover {
 
 /* Tablet y teléfono: una sola columna, en el mismo orden de lectura. */
 @media (max-width: 1179px) {
-  .profile-columns--public {
+  .profile-columns--full {
     grid-template-columns: 1fr;
     grid-template-areas: 'recent' 'dna' 'rating' 'year';
   }

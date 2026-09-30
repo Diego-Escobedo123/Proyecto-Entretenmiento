@@ -85,6 +85,20 @@ profileRoutes.patch('/', async (c) => {
     update: fields,
   })
 
+  // Si la cuenta pasa a pública, las solicitudes pendientes se aceptan solas.
+  if (fields.isPublic === true) {
+    const pending = await prisma.followRequest.findMany({ where: { targetId: userId }, select: { requesterId: true } })
+    if (pending.length) {
+      await prisma.$transaction([
+        prisma.follow.createMany({
+          data: pending.map((r) => ({ followerId: r.requesterId, followingId: userId })),
+          skipDuplicates: true,
+        }),
+        prisma.followRequest.deleteMany({ where: { targetId: userId } }),
+      ])
+    }
+  }
+
   const user = await prisma.user.findUnique({ where: { id: userId } })
   return c.json(toProfileDTO(profile, user!.name))
 })

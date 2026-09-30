@@ -12,15 +12,18 @@ import EntryFormModal from '../components/EntryFormModal.vue'
 import SettingsModal from '../components/SettingsModal.vue'
 import { useMediaStore } from '../stores/media'
 import { useProfileStore } from '../stores/profile'
+import { useFollowRequestsStore } from '../stores/followRequests'
 import { useUiStore } from '../stores/ui'
 
 const ui = useUiStore()
 const media = useMediaStore()
 const profile = useProfileStore()
+const followRequests = useFollowRequestsStore()
 
 onMounted(() => {
   void media.ensureLoaded()
   void profile.ensureLoaded()
+  void followRequests.load()
 })
 </script>
 

@@ -54,7 +54,8 @@ reviewRoutes.get('/stats', async (c) => {
     prisma.mediaEntry.findMany({
       where: {
         ...where,
-        user: { followers: { some: { followerId: me } }, profile: { isPublic: true } },
+        // Seguirla ya implica permiso: en una cuenta privada, la solicitud fue aceptada.
+        user: { followers: { some: { followerId: me } } },
       },
       orderBy: { updatedAt: 'desc' },
       select: {

@@ -37,17 +37,37 @@ const PUBLIC_USER_SELECT = {
 /** `me` = el usuario actual. */
 const resolveId = (param: string, me: string) => (param === 'me' ? me : param)
 
-/** Usuarios públicos + si el usuario actual ya los sigue. */
+/** Usuarios públicos + si el usuario actual ya los sigue o les mandó solicitud. */
 async function withFollowState(
   me: string,
   users: { id: string; name: string; profile: { handle: string; avatar: string | null } | null }[],
 ) {
-  const followed = await prisma.follow.findMany({
-    where: { followerId: me, followingId: { in: users.map((u) => u.id) } },
-    select: { followingId: true },
-  })
-  const set = new Set(followed.map((f) => f.followingId))
-  return users.map((u) => ({ ...toPublicUserDTO(u), isFollowing: set.has(u.id), isSelf: u.id === me }))
+  const ids = users.map((u) => u.id)
+  const [followed, requested] = await Promise.all([
+    prisma.follow.findMany({ where: { followerId: me, followingId: { in: ids } }, select: { followingId: true } }),
+    prisma.followRequest.findMany({ where: { requesterId: me, targetId: { in: ids } }, select: { targetId: true } }),
+  ])
+  const following = new Set(followed.map((f) => f.followingId))
+  const pending = new Set(requested.map((r) => r.targetId))
+  return users.map((u) => ({
+    ...toPublicUserDTO(u),
+    isFollowing: following.has(u.id),
+    requested: pending.has(u.id),
+    isSelf: u.id === me,
+  }))
+}
+
+/**
+ * ¿Puede `me` ver el perfil completo de `id`? Sí si es el propio, si es
+ * público o si lo sigue (en una cuenta privada, seguir = solicitud aceptada).
+ */
+async function canView(id: string, me: string) {
+  if (id === me) return true
+  const [profile, follow] = await Promise.all([
+    prisma.profile.findUnique({ where: { userId: id }, select: { isPublic: true } }),
+    prisma.follow.findUnique({ where: { followerId_followingId: { followerId: me, followingId: id } } }),
+  ])
+  return Boolean(profile?.isPublic || follow)
 }
 
 // GET /users/search?q=ana -> personas por nombre o @usuario (sin el propio).
@@ -136,19 +156,56 @@ userRoutes.get('/suggestions', async (c) => {
   )
 })
 
+// GET /users/requests -> solicitudes pendientes para seguirme (cuenta privada), las más nuevas primero.
+userRoutes.get('/requests', async (c) => {
+  const me = c.get('userId')
+  const rows = await prisma.followRequest.findMany({
+    where: { targetId: me },
+    orderBy: { createdAt: 'desc' },
+    select: { createdAt: true, requester: { select: PUBLIC_USER_SELECT } },
+  })
+  const people = await withFollowState(me, rows.map((r) => r.requester))
+  return c.json(people.map((p, i) => ({ ...p, requestedAt: rows[i].createdAt.toISOString() })))
+})
+
+// POST /users/requests/:id/accept -> acepta la solicitud de :id (pasa a seguirme). { followers }
+userRoutes.post('/requests/:id/accept', async (c) => {
+  const me = c.get('userId')
+  const requesterId = c.req.param('id')
+  const { count } = await prisma.followRequest.deleteMany({ where: { requesterId, targetId: me } })
+  if (!count) return c.json({ message: 'No hay una solicitud de esa persona.' }, 404)
+  await prisma.follow.upsert({
+    where: { followerId_followingId: { followerId: requesterId, followingId: me } },
+    create: { followerId: requesterId, followingId: me },
+    update: {},
+  })
+  return c.json({ followers: await prisma.follow.count({ where: { followingId: me } }) })
+})
+
+// DELETE /users/requests/:id -> rechaza la solicitud de :id (idempotente).
+userRoutes.delete('/requests/:id', async (c) => {
+  const me = c.get('userId')
+  await prisma.followRequest.deleteMany({ where: { requesterId: c.req.param('id'), targetId: me } })
+  return c.json({ ok: true })
+})
+
 /**
  * GET /users/:id (o /users/me) -> el perfil de una persona, tal como se ve en
  * su página (la misma para ella y para los demás):
- *   { user, tagline, quote, memberSince, isPublic, isSelf, isFollowing,
- *     followers, following, counts, favorites, recent, ratings, dna, activity, entries, lists }
+ *   { user, tagline, quote, memberSince, isPublic, isSelf, isFollowing, requested,
+ *     canView, pendingRequests, followers, following, counts, favorites, recent,
+ *     ratings, dna, activity, entries, lists }
  *
  * `dna` (géneros, década, formato, % terminado) y `activity` (días del último
  * año en que empezó o terminó algo, uno por registro) alimentan "ADN cultural"
  * y "Constancia" en los perfiles públicos.
  *
- * Con perfil privado (y si no es el propio) sólo viajan los datos básicos, los
- * contadores de seguidores y sus listas públicas: nada de su colección
- * (`favorites`, `recent`, `ratings` y `entries` vacíos, `counts.works` en 0).
+ * Cuenta privada, como en Instagram: la ve completa (`canView`) su dueño y
+ * quien la sigue (solicitud aceptada). Los demás sólo reciben los datos
+ * básicos y sus listas públicas: nada de su colección ni sus seguidores
+ * (`favorites`, `recent`, `ratings` y `entries` vacíos, `counts.works` en 0,
+ * `followers`/`following` null). `requested`: ya le mandó solicitud.
+ * `pendingRequests`: en el propio, cuántas solicitudes esperan respuesta.
  * Las notas de cada obra sólo se incluyen si el dueño las marcó como públicas.
  */
 userRoutes.get('/:id', async (c) => {
@@ -169,12 +226,20 @@ userRoutes.get('/:id', async (c) => {
 
   const isSelf = id === me
   const isPublic = user.profile?.isPublic ?? false
-  const canSee = isPublic || isSelf
+  const [follow, request, pendingRequests] = await Promise.all([
+    isSelf ? null : prisma.follow.findUnique({ where: { followerId_followingId: { followerId: me, followingId: id } } }),
+    isSelf
+      ? null
+      : prisma.followRequest.findUnique({ where: { requesterId_targetId: { requesterId: me, targetId: id } } }),
+    isSelf ? prisma.followRequest.count({ where: { targetId: me } }) : 0,
+  ])
+  // En una cuenta privada, seguirla = su dueño aceptó la solicitud.
+  const canSee = isPublic || isSelf || Boolean(follow)
   const topPicks = user.profile?.topPicks ?? []
   const yearStart = new Date(`${new Date().getFullYear()}-01-01T00:00:00Z`)
 
   const yearAgo = new Date(Date.now() - 371 * 86_400_000)
-  const [entries, lists, follow, works, finishedThisYear, listCount, favorites, recent, rated, collection, activityLogs, lastAbandoned, insights] = await Promise.all([
+  const [entries, lists, works, finishedThisYear, listCount, favorites, recent, rated, collection, activityLogs, lastAbandoned, insights] = await Promise.all([
     canSee
       ? prisma.mediaEntry.findMany({ where: { userId: id }, orderBy: { updatedAt: 'desc' }, take: MAX_ENTRIES })
       : Promise.resolve([]),
@@ -184,9 +249,6 @@ userRoutes.get('/:id', async (c) => {
       include: LIST_SUMMARY_INCLUDE,
       orderBy: { updatedAt: 'desc' },
     }),
-    isSelf
-      ? Promise.resolve(null)
-      : prisma.follow.findUnique({ where: { followerId_followingId: { followerId: me, followingId: id } } }),
     canSee ? prisma.mediaEntry.count({ where: { userId: id } }) : Promise.resolve(0),
     canSee
       ? prisma.logEntry.count({ where: { userId: id, finishedAt: { gte: yearStart }, abandoned: false } })
@@ -239,8 +301,12 @@ userRoutes.get('/:id', async (c) => {
     isPublic,
     isSelf,
     isFollowing: Boolean(follow),
-    followers: user._count.followers,
-    following: user._count.following,
+    requested: Boolean(request),
+    canView: canSee,
+    pendingRequests,
+    // Cuenta privada: ni cuántos la siguen ni a cuántos sigue (salvo su dueño y quien la sigue).
+    followers: canSee ? user._count.followers : null,
+    following: canSee ? user._count.following : null,
     counts: { works, finishedThisYear, lists: listCount },
     favorites: topPicks.flatMap((pick) => {
       const f = favoriteById.get(pick)
@@ -262,46 +328,78 @@ userRoutes.get('/:id', async (c) => {
   })
 })
 
-// POST /users/:id/follow -> { followers }   (idempotente)
+/** Seguidores tras seguir / dejar de seguir; `null` si `me` no puede ver la cuenta. */
+async function followersAfterChange(id: string, me: string) {
+  return (await canView(id, me)) ? prisma.follow.count({ where: { followingId: id } }) : null
+}
+
+/**
+ * POST /users/:id/follow -> { status, followers }   (idempotente)
+ * Cuenta pública: la sigue (status "following"). Privada: le manda una
+ * solicitud (status "requested") que su dueño acepta o rechaza.
+ * `followers` es null si no puede ver la cuenta.
+ */
 userRoutes.post('/:id/follow', async (c) => {
   const me = c.get('userId')
   const id = c.req.param('id')
   if (id === me) return c.json({ message: 'No puedes seguirte a ti mismo.' }, 400)
-  const exists = await prisma.user.count({ where: { id } })
-  if (!exists) return c.json({ message: 'No existe el usuario.' }, 404)
+  const target = await prisma.user.findUnique({
+    where: { id },
+    select: { profile: { select: { isPublic: true } }, followers: { where: { followerId: me }, select: { followerId: true } } },
+  })
+  if (!target) return c.json({ message: 'No existe el usuario.' }, 404)
+
+  const alreadyFollowing = target.followers.length > 0
+  if (!target.profile?.isPublic && !alreadyFollowing) {
+    await prisma.followRequest.upsert({
+      where: { requesterId_targetId: { requesterId: me, targetId: id } },
+      create: { requesterId: me, targetId: id },
+      update: {},
+    })
+    return c.json({ status: 'requested', followers: null })
+  }
 
   await prisma.follow.upsert({
     where: { followerId_followingId: { followerId: me, followingId: id } },
     create: { followerId: me, followingId: id },
     update: {},
   })
-  return c.json({ followers: await prisma.follow.count({ where: { followingId: id } }) })
+  return c.json({ status: 'following', followers: await followersAfterChange(id, me) })
 })
 
-// DELETE /users/:id/follow -> { followers }   (idempotente)
+// DELETE /users/:id/follow -> { status: "none", followers }   Deja de seguir o cancela la solicitud (idempotente).
 userRoutes.delete('/:id/follow', async (c) => {
   const me = c.get('userId')
   const id = c.req.param('id')
-  await prisma.follow.deleteMany({ where: { followerId: me, followingId: id } })
-  return c.json({ followers: await prisma.follow.count({ where: { followingId: id } }) })
+  await prisma.$transaction([
+    prisma.follow.deleteMany({ where: { followerId: me, followingId: id } }),
+    prisma.followRequest.deleteMany({ where: { requesterId: me, targetId: id } }),
+  ])
+  return c.json({ status: 'none', followers: await followersAfterChange(id, me) })
 })
 
-// GET /users/:id/followers -> quienes lo siguen (con si el usuario actual los sigue)
+const PRIVATE_ACCOUNT = { message: 'Esta cuenta es privada.' }
+
+// GET /users/:id/followers -> quienes lo siguen (con si el usuario actual los sigue). 403 si no puede verla.
 userRoutes.get('/:id/followers', async (c) => {
   const me = c.get('userId')
+  const id = resolveId(c.req.param('id'), me)
+  if (!(await canView(id, me))) return c.json(PRIVATE_ACCOUNT, 403)
   const rows = await prisma.follow.findMany({
-    where: { followingId: resolveId(c.req.param('id'), me) },
+    where: { followingId: id },
     orderBy: { createdAt: 'desc' },
     select: { follower: { select: PUBLIC_USER_SELECT } },
   })
   return c.json(await withFollowState(me, rows.map((r) => r.follower)))
 })
 
-// GET /users/:id/following -> a quienes sigue
+// GET /users/:id/following -> a quienes sigue. 403 si no puede verla.
 userRoutes.get('/:id/following', async (c) => {
   const me = c.get('userId')
+  const id = resolveId(c.req.param('id'), me)
+  if (!(await canView(id, me))) return c.json(PRIVATE_ACCOUNT, 403)
   const rows = await prisma.follow.findMany({
-    where: { followerId: resolveId(c.req.param('id'), me) },
+    where: { followerId: id },
     orderBy: { createdAt: 'desc' },
     select: { following: { select: PUBLIC_USER_SELECT } },
   })

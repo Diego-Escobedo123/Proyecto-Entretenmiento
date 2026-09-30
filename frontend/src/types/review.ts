@@ -122,10 +122,17 @@ export interface PublicProfile {
   memberSince: number | null
   isPublic: boolean
   isSelf: boolean
-  /** El usuario actual lo sigue. */
+  /** El usuario actual lo sigue (en una cuenta privada: le aceptó la solicitud). */
   isFollowing: boolean
-  followers: number
-  following: number
+  /** El usuario actual le mandó una solicitud que sigue pendiente. */
+  requested: boolean
+  /** Puede ver el perfil completo: es el propio, es público o lo sigue. */
+  canView: boolean
+  /** En el propio: cuántas solicitudes para seguirlo esperan respuesta (0 en los demás). */
+  pendingRequests: number
+  /** `null` si no puede verla (privada y no la sigue): no se muestra cuántos la siguen ni a cuántos sigue. */
+  followers: number | null
+  following: number | null
   /** Con perfil privado (y si no es el propio), `works` y `finishedThisYear` vienen en 0. */
   counts: { works: number; finishedThisYear: number; lists: number }
   /** Sus 5 favoritas, en el orden que eligió. */

@@ -24,7 +24,7 @@ const emit = defineEmits<{ navigate: [] }>()
       <span v-if="detail" class="person-row__detail">{{ detail }}</span>
     </div>
     <span v-if="person.isSelf" class="person-row__self">Tú</span>
-    <FollowButton v-else :user-id="person.id" :following="person.isFollowing" size="sm" />
+    <FollowButton v-else :user-id="person.id" :following="person.isFollowing" :requested="person.requested" size="sm" />
   </div>
 </template>
 

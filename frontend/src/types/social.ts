@@ -7,8 +7,19 @@ import type { PublicUser } from './review'
 export interface Person extends PublicUser {
   /** El usuario actual ya la sigue. */
   isFollowing: boolean
+  /** El usuario actual le mandó una solicitud (cuenta privada) que sigue pendiente. */
+  requested: boolean
   isSelf: boolean
 }
+
+/** Alguien que pidió seguirme (mi cuenta es privada). */
+export interface FollowRequestPerson extends Person {
+  /** Cuándo la mandó (ISO). */
+  requestedAt: string
+}
+
+/** Relación con otra persona tras seguir / dejar de seguir. */
+export type FollowStatus = 'following' | 'requested' | 'none'
 
 export interface SuggestedPerson extends Person {
   /** Obras en común con el usuario actual, y hasta 3 títulos de ejemplo. */

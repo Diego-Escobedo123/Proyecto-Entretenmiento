@@ -11,6 +11,7 @@ import BaseSpinner from '../components/BaseSpinner.vue'
 import EmptyState from '../components/EmptyState.vue'
 import PersonRow from '../components/social/PersonRow.vue'
 import { socialService } from '../services/socialService'
+import { ApiError } from '../lib/api'
 import type { PublicProfile } from '../types/review'
 import type { Person } from '../types/social'
 
@@ -22,12 +23,15 @@ const profile = ref<PublicProfile | null>(null)
 const people = ref<Person[]>([])
 const loading = ref(true)
 const failed = ref(false)
+/** La cuenta es privada y no es la propia: sus listas no se muestran. */
+const isPrivate = ref(false)
 
 watch(
   [userId, tab],
   async ([id, t], [prevId]) => {
     loading.value = true
     failed.value = false
+    isPrivate.value = false
     try {
       const [p, list] = await Promise.all([
         id !== prevId || !profile.value ? socialService.publicProfile(id) : Promise.resolve(profile.value),
@@ -35,8 +39,13 @@ watch(
       ])
       profile.value = p
       people.value = list
-    } catch {
-      failed.value = true
+    } catch (e) {
+      if (e instanceof ApiError && e.status === 403) {
+        isPrivate.value = true
+        profile.value = await socialService.publicProfile(id).catch(() => null)
+      } else {
+        failed.value = true
+      }
     } finally {
       loading.value = false
     }
@@ -58,14 +67,20 @@ const EMPTY = {
 
     <nav class="follows__tabs" aria-label="Seguidores y seguidos">
       <RouterLink :to="`/users/${userId}/followers`" class="follows__tab" :class="{ 'is-active': tab === 'followers' }">
-        Seguidores<template v-if="profile"> · {{ profile.followers }}</template>
+        Seguidores<template v-if="profile?.followers != null"> · {{ profile.followers }}</template>
       </RouterLink>
       <RouterLink :to="`/users/${userId}/following`" class="follows__tab" :class="{ 'is-active': tab === 'following' }">
-        Seguidos<template v-if="profile"> · {{ profile.following }}</template>
+        Seguidos<template v-if="profile?.following != null"> · {{ profile.following }}</template>
       </RouterLink>
     </nav>
 
     <p v-if="loading" class="follows__hint"><BaseSpinner size="sm" /> Cargando…</p>
+    <EmptyState
+      v-else-if="isPrivate"
+      icon="lock"
+      title="Esta cuenta es privada"
+      text="Sólo sus seguidores ven a quién sigue y quién la sigue. Envíale una solicitud desde su perfil."
+    />
     <EmptyState v-else-if="failed" icon="person-x" title="No se pudo cargar la lista." />
     <EmptyState
       v-else-if="!people.length"

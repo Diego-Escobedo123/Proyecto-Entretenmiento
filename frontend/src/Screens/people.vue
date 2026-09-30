@@ -1,13 +1,16 @@
 <script setup lang="ts">
 /**
  * Personas — encontrar gente para seguir: buscador por nombre o @usuario y
- * sugerencias según las obras que tienen en común contigo.
+ * sugerencias según las obras que tienen en común contigo. Arriba, las
+ * solicitudes para seguirme (cuenta privada): confirmar o eliminar.
  */
 import { computed, onMounted, ref, watch } from 'vue'
 import BaseIcon from '../components/BaseIcon.vue'
 import BaseSpinner from '../components/BaseSpinner.vue'
 import EmptyState from '../components/EmptyState.vue'
 import PersonRow from '../components/social/PersonRow.vue'
+import FollowRequestRow from '../components/social/FollowRequestRow.vue'
+import { useFollowRequestsStore } from '../stores/followRequests'
 import { useDebouncedSearch } from '../composables/useDebouncedSearch'
 import { socialService } from '../services/socialService'
 import type { Person, SuggestedPerson } from '../types/social'
@@ -33,6 +36,10 @@ watch(debouncedQuery, async (q) => {
 })
 
 const hasQuery = computed(() => debouncedQuery.value.trim().length >= 2)
+
+// --- Solicitudes para seguirme ---
+const requests = useFollowRequestsStore()
+onMounted(() => void requests.load())
 
 const suggestions = ref<SuggestedPerson[]>([])
 const loadingSuggestions = ref(true)
@@ -69,6 +76,18 @@ function sharedDetail(p: SuggestedPerson): string | undefined {
         autocomplete="off"
       />
     </div>
+
+    <section v-if="requests.count || requests.accepted.length" class="people__section">
+      <h2 class="people__section-title">
+        <BaseIcon name="person-plus" /> Solicitudes
+        <span v-if="requests.count" class="people__count">{{ requests.count }}</span>
+      </h2>
+      <div class="people__list">
+        <FollowRequestRow v-for="p in requests.items" :key="p.id" :person="p" />
+        <!-- Aceptadas en esta sesión: para seguirlas de vuelta. -->
+        <PersonRow v-for="p in requests.accepted" :key="`ok-${p.id}`" :person="p" detail="Ahora te sigue." />
+      </div>
+    </section>
 
     <section v-if="hasQuery || isSearching" class="people__section">
       <h2 class="people__section-title">Resultados</h2>
@@ -147,6 +166,17 @@ function sharedDetail(p: SuggestedPerson): string | undefined {
   font-size: 1.125rem;
   font-weight: 700;
   color: var(--color-text);
+}
+
+.people__count {
+  min-width: 22px;
+  padding: 1px 7px;
+  border-radius: 999px;
+  background: var(--color-accent);
+  color: var(--color-accent-contrast);
+  font-size: 0.8125rem;
+  font-weight: 800;
+  text-align: center;
 }
 
 .people__hint {

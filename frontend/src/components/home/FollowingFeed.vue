@@ -27,7 +27,8 @@ onMounted(async () => {
     const [page, me] = await Promise.all([socialService.feed(), socialService.publicProfile('me')])
     items.value = page.items
     nextBefore.value = page.nextBefore
-    followsSomeone.value = me.following > 0
+    // El perfil propio siempre trae los contadores (sólo son null en cuentas privadas ajenas).
+    followsSomeone.value = (me.following ?? 0) > 0
     if (!page.items.length) suggestions.value = (await socialService.suggestions()).slice(0, 4)
   } catch {
     failed.value = true

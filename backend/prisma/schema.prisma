@@ -22,6 +22,9 @@ model User {
   /// A quién sigue y quién lo sigue (ver Follow).
   following    Follow[]     @relation("Following")
   followers    Follow[]     @relation("Followers")
+  /// Solicitudes para seguir cuentas privadas (ver FollowRequest).
+  sentFollowRequests     FollowRequest[] @relation("SentFollowRequests")
+  receivedFollowRequests FollowRequest[] @relation("ReceivedFollowRequests")
   createdAt    DateTime     @default(now())
   updatedAt    DateTime     @updatedAt
 }
@@ -169,8 +172,9 @@ model ListItem {
   @@index([listId, position])
 }
 
-/// `follower` sigue a `following` (como en Letterboxd: no requiere aprobación).
-/// Si el perfil seguido es privado, su actividad no aparece en el feed.
+/// `follower` sigue a `following`. Una cuenta pública se sigue directo; una
+/// privada, sólo después de aceptar la solicitud (FollowRequest). Quien sigue
+/// una cuenta privada ve todo su perfil y su actividad en el feed.
 model Follow {
   follower    User     @relation("Following", fields: [followerId], references: [id], onDelete: Cascade)
   followerId  String
@@ -180,4 +184,17 @@ model Follow {
 
   @@id([followerId, followingId])
   @@index([followingId])
+}
+
+/// Solicitud pendiente para seguir una cuenta privada (como en Instagram).
+/// Al aceptarla se crea el Follow y se borra; al rechazarla o cancelarla, sólo se borra.
+model FollowRequest {
+  requester   User     @relation("SentFollowRequests", fields: [requesterId], references: [id], onDelete: Cascade)
+  requesterId String
+  target      User     @relation("ReceivedFollowRequests", fields: [targetId], references: [id], onDelete: Cascade)
+  targetId    String
+  createdAt   DateTime @default(now())
+
+  @@id([requesterId, targetId])
+  @@index([targetId])
 }

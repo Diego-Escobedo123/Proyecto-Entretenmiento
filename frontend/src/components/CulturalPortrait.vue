@@ -9,11 +9,11 @@
  * El resumen del año sale de `yearStats`, igual que en Diario → Resumen del
  * año, así que ambos cuentan exactamente lo mismo.
  *
- * `hideShared`: con perfil público, ADN y Constancia ya se muestran en la
- * parte visible para todos, así que aquí se omiten.
+ * `hideShared`: cuando el perfil se ve completo, ADN y Constancia ya se muestran en la
+ * parte de arriba del perfil, así que aquí se omiten.
  *
  * Uso:
- *   <CulturalPortrait :hide-shared="perfil.isPublic" />
+ *   <CulturalPortrait :hide-shared="perfil.canView" />
  */
 import { computed, onMounted, ref } from 'vue'
 import { storeToRefs } from 'pinia'

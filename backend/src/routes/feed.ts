@@ -18,8 +18,8 @@ const USER_SELECT = { id: true, name: true, profile: { select: { handle: true, a
  * GET /feed?before=<ISO> -> { items, nextBefore }
  *
  * Actividad de la gente que sigue el usuario, lo más reciente primero:
- * - su diario (empezó / terminó / abandonó una obra), sólo si su perfil es
- *   público: con perfil privado su colección no se comparte;
+ * - su diario (empezó / terminó / abandonó una obra), también de cuentas
+ *   privadas: para seguirlas su dueño tuvo que aceptar la solicitud;
  * - sus listas públicas nuevas (cada lista decide su visibilidad).
  *
  * Paginado por fecha: `nextBefore` se manda como `before` para la siguiente
@@ -38,7 +38,8 @@ feedRoutes.get('/', async (c) => {
   const [logs, lists] = await Promise.all([
     prisma.logEntry.findMany({
       // updatedAt: terminar algo que ya estaba empezado actualiza la misma entrada.
-      where: { userId: { in: ids }, updatedAt: { lt: before }, user: { profile: { isPublic: true } } },
+      // Sin filtro de privacidad: seguir una cuenta privada exige que acepte la solicitud.
+      where: { userId: { in: ids }, updatedAt: { lt: before } },
       orderBy: { updatedAt: 'desc' },
       take: PAGE_SIZE + 1,
       include: {
