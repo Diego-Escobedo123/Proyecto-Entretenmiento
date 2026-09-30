@@ -3,7 +3,8 @@
  * Perfil público — lo que los demás ven de un usuario: sus obras, las
  * reseñas (siempre públicas) y sólo las notas que marcó como públicas.
  * Ruta: /users/:id  (`me` = el perfil propio tal como lo ven los demás).
- * Si el perfil es privado, sólo se muestran nombre y avatar.
+ * Si el perfil es privado, sólo se muestran nombre y avatar (y sus listas
+ * públicas: cada lista decide su visibilidad).
  */
 import { computed, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
@@ -12,6 +13,7 @@ import BaseButton from '../components/BaseButton.vue'
 import BaseSpinner from '../components/BaseSpinner.vue'
 import EmptyState from '../components/EmptyState.vue'
 import RatingStars from '../components/RatingStars.vue'
+import ListCard from '../components/lists/ListCard.vue'
 import { typeMeta } from '../lib/catalog'
 import { useUiStore } from '../stores/ui'
 import { useProfileStore } from '../stores/profile'
@@ -106,6 +108,13 @@ function formatDate(iso: string): string {
       <blockquote v-if="canSeeEntries && profile.quote" class="public-profile__quote">
         “{{ profile.quote }}”
       </blockquote>
+
+      <section v-if="profile.lists?.length">
+        <h2 class="public-profile__section-title">Listas</h2>
+        <div class="public-profile__lists">
+          <ListCard v-for="l in profile.lists" :key="l.id" :list="l" />
+        </div>
+      </section>
 
       <EmptyState
         v-if="!canSeeEntries"
@@ -252,6 +261,12 @@ function formatDate(iso: string): string {
   font-size: 1.25rem;
   font-weight: 700;
   color: var(--color-text);
+}
+
+.public-profile__lists {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  gap: var(--space-md);
 }
 
 .public-profile__list {

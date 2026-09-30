@@ -5,7 +5,9 @@ import RegisterScreen from '../Screens/register.vue'
 import HomeScreen from '../Screens/home.vue'
 import ExploreScreen from '../Screens/explore.vue'
 import CollectionScreen from '../Screens/collection.vue'
+import DiaryScreen from '../Screens/diary.vue'
 import ListsScreen from '../Screens/lists.vue'
+import ListDetailScreen from '../Screens/list-detail.vue'
 import ProfileScreen from '../Screens/profile.vue'
 import PublicProfileScreen from '../Screens/public-profile.vue'
 import NotFoundScreen from '../Screens/not-found.vue'
@@ -25,7 +27,9 @@ export const router = createRouter({
     { path: '/', name: 'home', component: HomeScreen },
     { path: '/explore', name: 'explore', component: ExploreScreen },
     { path: '/collection', name: 'collection', component: CollectionScreen },
+    { path: '/diary', name: 'diary', component: DiaryScreen },
     { path: '/lists', name: 'lists', component: ListsScreen },
+    { path: '/lists/:id', name: 'list-detail', component: ListDetailScreen },
     { path: '/profile', name: 'profile', component: ProfileScreen },
     { path: '/users/:id', name: 'public-profile', component: PublicProfileScreen },
     { path: '/:pathMatch(.*)*', name: 'not-found', component: NotFoundScreen },

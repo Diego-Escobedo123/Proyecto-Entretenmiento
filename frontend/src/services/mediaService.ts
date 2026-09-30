@@ -10,11 +10,17 @@ import type { MediaEntry, MediaEntryInput } from '../types/media'
 import { apiFetch, ApiError } from '../lib/api'
 import { delay, makeId, readJson, writeJson } from './storage'
 
+/** Datos que acompañan a un guardado sin ser parte de la obra. */
+export interface MediaWriteOptions {
+  /** Día del cambio de estado para el diario ("YYYY-MM-DD"). Por defecto, hoy. */
+  logDate?: string
+}
+
 export interface MediaService {
   list(): Promise<MediaEntry[]>
   get(id: string): Promise<MediaEntry | null>
-  create(input: MediaEntryInput): Promise<MediaEntry>
-  update(id: string, patch: Partial<MediaEntryInput>): Promise<MediaEntry>
+  create(input: MediaEntryInput, options?: MediaWriteOptions): Promise<MediaEntry>
+  update(id: string, patch: Partial<MediaEntryInput>, options?: MediaWriteOptions): Promise<MediaEntry>
   remove(id: string): Promise<void>
 }
 
@@ -33,12 +39,12 @@ class HttpMediaService implements MediaService {
     }
   }
 
-  create(input: MediaEntryInput): Promise<MediaEntry> {
-    return apiFetch<MediaEntry>('/media', { method: 'POST', body: input })
+  create(input: MediaEntryInput, options?: MediaWriteOptions): Promise<MediaEntry> {
+    return apiFetch<MediaEntry>('/media', { method: 'POST', body: { ...input, ...options } })
   }
 
-  update(id: string, patch: Partial<MediaEntryInput>): Promise<MediaEntry> {
-    return apiFetch<MediaEntry>(`/media/${id}`, { method: 'PATCH', body: patch })
+  update(id: string, patch: Partial<MediaEntryInput>, options?: MediaWriteOptions): Promise<MediaEntry> {
+    return apiFetch<MediaEntry>(`/media/${id}`, { method: 'PATCH', body: { ...patch, ...options } })
   }
 
   remove(id: string): Promise<void> {

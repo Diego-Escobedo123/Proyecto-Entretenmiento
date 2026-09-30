@@ -3,6 +3,7 @@
  * públicos. Nunca incluyen notas privadas.
  */
 import type { MediaStatus, MediaType } from './media'
+import type { ListSummary } from './list'
 
 /** Lo que otro usuario deja ver de sí mismo. */
 export interface PublicUser {
@@ -60,4 +61,6 @@ export interface PublicProfile {
   isPublic: boolean
   isSelf: boolean
   entries: PublicEntry[]
+  /** Sus listas públicas (visibles aunque el perfil sea privado). */
+  lists: ListSummary[]
 }

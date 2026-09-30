@@ -5,7 +5,11 @@
 
 export type MediaType = 'movie' | 'series' | 'book' | 'game' | 'music'
 
-export type MediaStatus = 'want' | 'in-progress' | 'completed'
+/**
+ * `mastered` (100%) sólo aplica a juegos y `abandoned` a series, libros y
+ * juegos; los estados válidos de cada tipo están en `lib/catalog.ts`.
+ */
+export type MediaStatus = 'want' | 'in-progress' | 'completed' | 'mastered' | 'abandoned'
 
 export interface MediaEntry {
   id: string
@@ -16,10 +20,22 @@ export interface MediaEntry {
   status: MediaStatus
   /** Año de estreno/publicación. `null` si el usuario no lo indica. Alimenta la stat de décadas. */
   year: number | null
-  /** 0–5. `null` cuando el usuario todavía no la califica. */
+  /** 0.5–5 en medios puntos. `null` cuando el usuario todavía no la califica. */
   rating: number | null
-  /** 0–100. Sólo relevante para status `in-progress`; `null` en otro caso. */
+  /**
+   * 0–100. Sólo relevante para status `in-progress`/`abandoned`; `null` en
+   * otro caso. En libros y series se deriva de páginas/episodios.
+   */
   progress: number | null
+  /** Libros: página actual y total. */
+  pagesRead: number | null
+  pagesTotal: number | null
+  /** Series: temporada y episodio por el que va. */
+  season: number | null
+  episode: number | null
+  /** Juegos: horas jugadas y plataforma. */
+  hoursPlayed: number | null
+  platform: string | null
   favorite: boolean
   genres: string[]
   /** Comentario que acompaña la calificación. Siempre público (reseñas de la obra). */

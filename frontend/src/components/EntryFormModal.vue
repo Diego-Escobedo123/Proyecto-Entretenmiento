@@ -11,10 +11,15 @@ import BaseIcon from './BaseIcon.vue'
 import AppField from './AppField.vue'
 import RatingStars from './RatingStars.vue'
 import CommunityReviews from './CommunityReviews.vue'
-import { MEDIA_STATUSES, MEDIA_TYPES, typeMeta } from '../lib/catalog'
+import EntryHistory from './EntryHistory.vue'
+import { MEDIA_TYPES, isFinished, statusLabel, statusMeta, statusesFor, typeMeta } from '../lib/catalog'
+import { todayISO } from '../lib/dates'
+import { bookProgress, seriesProgress } from '../lib/progress'
 import { useMediaStore } from '../stores/media'
 import { useUiStore } from '../stores/ui'
 import { searchService } from '../services/searchService'
+import { detailsService, hasDetails } from '../services/detailsService'
+import type { WorkDetails } from '../types/details'
 import type { MediaEntryInput, MediaStatus, MediaType } from '../types/media'
 import type { ExternalSearchResult } from '../types/search'
 
@@ -38,6 +43,12 @@ interface FormShape {
   status: MediaStatus
   rating: number
   progress: number
+  pagesRead: number | null
+  pagesTotal: number | null
+  season: number | null
+  episode: number | null
+  hoursPlayed: number | null
+  platform: string
   favorite: boolean
   genres: string
   cover: string
@@ -56,6 +67,12 @@ function blank(): FormShape {
     status: 'want',
     rating: 0,
     progress: 0,
+    pagesRead: null,
+    pagesTotal: null,
+    season: null,
+    episode: null,
+    hoursPlayed: null,
+    platform: '',
     favorite: false,
     genres: '',
     cover: '',
@@ -117,13 +134,23 @@ async function runSearch(query: string) {
   }
 }
 
+/** Día en que empezó/terminó/abandonó, para el diario. Hoy por defecto. */
+const logDate = ref(todayISO())
+/** El usuario pidió "volver a leerlo": al guardar se abre una entrada nueva. */
+const restarting = ref(false)
+
 // Rellena el formulario cuando cambia la obra en edición (o lo limpia en alta).
-// `watch` (no `watchEffect`) a propósito: sólo debe depender de `editing`,
-// nunca de `form.title` — si no, cada tecla que el usuario escribe dispara
-// este handler y `Object.assign(form, blank())` borra lo que acaba de teclear.
+// `watch` (no `watchEffect`) a propósito: sólo debe depender del id de la
+// obra, nunca de `form.title` — si no, cada tecla que el usuario escribe
+// dispara este handler y `Object.assign(form, blank())` borra lo que acaba de
+// teclear. Tampoco del objeto `editing`: el store lo reemplaza al refrescar
+// la obra (p. ej. tras registrarla otra vez) y se perderían los cambios sin guardar.
 watch(
-  editing,
-  (e) => {
+  () => editing.value?.id,
+  () => {
+    const e = editing.value
+    logDate.value = todayISO()
+    restarting.value = false
     suppressNextSearch = true
     picked.value = false
     manualMode.value = false
@@ -136,6 +163,12 @@ watch(
         status: e.status,
         rating: e.rating ?? 0,
         progress: e.progress ?? 0,
+        pagesRead: e.pagesRead,
+        pagesTotal: e.pagesTotal,
+        season: e.season,
+        episode: e.episode,
+        hoursPlayed: e.hoursPlayed,
+        platform: e.platform ?? '',
         favorite: e.favorite,
         genres: e.genres.join(', '),
         cover: e.cover ?? '',
@@ -169,7 +202,99 @@ watch(
 )
 
 const creatorLabel = computed(() => typeMeta(form.type).creatorLabel)
-const showProgress = computed(() => form.status === 'in-progress')
+
+// --- Diario: fecha del cambio de estado y "volver a verla/leerla" ---
+
+
+const statusChanged = computed(() =>
+  editing.value ? form.status !== editing.value.status : form.status !== 'want',
+)
+const logDateLabel = computed(() =>
+  form.status === 'in-progress' ? 'Empezaste el' : `${statusLabel(form.type, form.status)} el`,
+)
+
+/** Series, libros y juegos: la vuelve a empezar desde cero. */
+function restart() {
+  form.status = 'in-progress'
+  form.pagesRead = 0
+  form.season = seasons.value[0]?.number ?? 1
+  form.episode = null
+  restarting.value = true
+}
+
+/** Se registró otra vez desde el historial: la calificación de la obra pasa a ser la de esa vez. */
+async function onHistoryChanged() {
+  if (!editing.value) return
+  await media.reloadEntry(editing.value.id)
+  form.rating = editing.value?.rating ?? 0
+}
+
+// --- Estado y avance, propios de cada tipo (páginas, episodios, horas…) ---
+
+/** Estados del tipo; si la obra trae uno que ya no aplica (datos viejos), se conserva como opción. */
+const statusOptions = computed(() => {
+  const options = statusesFor(form.type)
+  if (!options.some((o) => o.value === form.status)) {
+    options.push({ value: form.status, label: statusMeta(form.status).label })
+  }
+  return options
+})
+
+// En un alta, al cambiar de tipo se vuelve a un estado válido para el nuevo tipo.
+watch(
+  () => form.type,
+  (type) => {
+    if (!editing.value && !statusesFor(type).some((o) => o.value === form.status)) form.status = 'want'
+  },
+)
+
+/** A medias: en curso o abandonada en algún punto. */
+const isMidway = computed(() => form.status === 'in-progress' || form.status === 'abandoned')
+/** En juegos las horas y la plataforma importan también al terminarlo. */
+const showProgress = computed(() => isMidway.value || (form.type === 'game' && form.status !== 'want'))
+
+/** Ficha del catálogo: total de páginas, episodios por temporada y plataformas del juego. */
+const trackingDetails = ref<WorkDetails | null>(null)
+const TRACKED_TYPES: MediaType[] = ['book', 'series', 'game']
+
+watch(
+  () => [form.type, form.externalId, workLocked.value] as const,
+  async ([type, externalId, locked]) => {
+    trackingDetails.value = null
+    if (!locked || !TRACKED_TYPES.includes(type) || !hasDetails(externalId)) return
+    try {
+      const details = await detailsService.get(externalId)
+      if (form.externalId !== externalId) return
+      trackingDetails.value = details
+      if (details?.pages && form.pagesTotal == null) form.pagesTotal = details.pages
+    } catch {
+      // Sin ficha: los campos se llenan a mano.
+    }
+  },
+  { immediate: true },
+)
+
+const seasons = computed(() => trackingDetails.value?.seasons ?? [])
+const episodesInSeason = computed(() => seasons.value.find((s) => s.number === form.season)?.episodes ?? null)
+const platformOptions = computed(() => {
+  const list = trackingDetails.value?.platforms ?? []
+  return form.platform && !list.includes(form.platform) ? [...list, form.platform] : list
+})
+
+/** `v-model.number` deja '' cuando el campo se vacía. */
+function num(value: unknown): number | null {
+  return typeof value === 'number' && Number.isFinite(value) && value >= 0 ? value : null
+}
+
+function computeProgress(): number | null {
+  if (!isMidway.value) return null
+  if (form.type === 'book') return bookProgress(num(form.pagesRead), num(form.pagesTotal))
+  if (form.type === 'series') {
+    return seriesProgress(seasons.value, num(form.season), num(form.episode)) ?? editing.value?.progress ?? null
+  }
+  if (form.type === 'game') return null
+  return form.progress
+}
 
 watch(
   () => form.title,
@@ -252,7 +377,19 @@ function toInput(): MediaEntryInput {
     year: form.year.trim() ? Number(form.year) : null,
     status: form.status,
     rating: form.rating > 0 ? form.rating : null,
-    progress: form.status === 'in-progress' ? form.progress : null,
+    progress: computeProgress(),
+    // Un libro terminado se da por leído completo.
+    pagesRead:
+      form.type !== 'book'
+        ? null
+        : form.status === 'completed' && num(form.pagesTotal)
+          ? num(form.pagesTotal)
+          : num(form.pagesRead),
+    pagesTotal: form.type === 'book' ? num(form.pagesTotal) : null,
+    season: form.type === 'series' ? num(form.season) : null,
+    episode: form.type === 'series' ? num(form.episode) : null,
+    hoursPlayed: form.type === 'game' ? num(form.hoursPlayed) : null,
+    platform: form.type === 'game' ? form.platform.trim() || null : null,
     favorite: form.favorite,
     genres,
     cover: form.cover.trim() || null,
@@ -273,10 +410,11 @@ async function submit() {
   if (!validate() || submitting.value) return
   submitting.value = true
   try {
+    const options = statusChanged.value ? { logDate: logDate.value || todayISO() } : undefined
     if (editing.value) {
-      await media.editEntry(editing.value.id, toInput())
+      await media.editEntry(editing.value.id, toInput(), options)
     } else {
-      await media.addEntry(toInput())
+      await media.addEntry(toInput(), options)
     }
     closeAnimated()
   } catch (e) {
@@ -399,7 +537,7 @@ async function submit() {
       <div class="entry-form__row">
         <AppField v-slot="{ id }" label="Estado">
           <select :id="id" v-model="form.status" class="app-select">
-            <option v-for="s in MEDIA_STATUSES" :key="s.value" :value="s.value">{{ s.label }}</option>
+            <option v-for="s in statusOptions" :key="s.value" :value="s.value">{{ s.label }}</option>
           </select>
         </AppField>
 
@@ -408,20 +546,91 @@ async function submit() {
         </AppField>
       </div>
 
-      <AppField v-if="showProgress" v-slot="{ id }" label="Progreso">
-        <div class="entry-form__progress">
-          <input
-            :id="id"
-            v-model.number="form.progress"
-            type="range"
-            min="0"
-            max="100"
-            step="5"
-            class="entry-form__range"
-          />
-          <span class="entry-form__progress-value">{{ form.progress }}%</span>
-        </div>
+      <!-- Para el diario: cuándo empezó/terminó (sólo si cambia el estado) -->
+      <AppField
+        v-if="statusChanged"
+        v-slot="{ id }"
+        :label="logDateLabel"
+        :hint="restarting ? 'Se registrará en tu diario como una vez más' : 'Queda registrado en tu diario'"
+      >
+        <input :id="id" v-model="logDate" type="date" :max="todayISO()" class="app-input entry-form__date" />
       </AppField>
+
+      <!-- Avance: específico de cada tipo -->
+      <template v-if="showProgress">
+        <div v-if="form.type === 'book'" class="entry-form__row">
+          <AppField v-slot="{ id }" :label="form.status === 'abandoned' ? 'Lo dejaste en la página' : 'Página actual'">
+            <input
+              :id="id"
+              v-model.number="form.pagesRead"
+              type="number"
+              min="0"
+              :max="form.pagesTotal ?? undefined"
+              inputmode="numeric"
+              class="app-input"
+            />
+          </AppField>
+          <AppField
+            v-slot="{ id }"
+            label="Páginas totales"
+            :hint="trackingDetails?.pages ? 'Según la edición del catálogo' : undefined"
+          >
+            <input :id="id" v-model.number="form.pagesTotal" type="number" min="1" inputmode="numeric" class="app-input" />
+          </AppField>
+        </div>
+
+        <div v-else-if="form.type === 'series'" class="entry-form__row">
+          <AppField v-slot="{ id }" label="Temporada">
+            <select v-if="seasons.length" :id="id" v-model.number="form.season" class="app-select">
+              <option :value="null" disabled>Elige…</option>
+              <option v-for="s in seasons" :key="s.number" :value="s.number">
+                Temporada {{ s.number }} · {{ s.episodes }} ep.
+              </option>
+            </select>
+            <input v-else :id="id" v-model.number="form.season" type="number" min="1" inputmode="numeric" class="app-input" />
+          </AppField>
+          <AppField v-slot="{ id }" label="Episodio" :hint="episodesInSeason ? `de ${episodesInSeason}` : undefined">
+            <input
+              :id="id"
+              v-model.number="form.episode"
+              type="number"
+              min="1"
+              :max="episodesInSeason ?? undefined"
+              inputmode="numeric"
+              class="app-input"
+            />
+          </AppField>
+        </div>
+
+        <div v-else-if="form.type === 'game'" class="entry-form__row">
+          <AppField v-slot="{ id }" label="Horas jugadas" hint="Opcional">
+            <input :id="id" v-model.number="form.hoursPlayed" type="number" min="0" step="0.5" class="app-input" />
+          </AppField>
+          <AppField v-slot="{ id }" label="Plataforma" hint="Opcional">
+            <select v-if="platformOptions.length" :id="id" v-model="form.platform" class="app-select">
+              <option value="">Sin especificar</option>
+              <option v-for="pl in platformOptions" :key="pl" :value="pl">{{ pl }}</option>
+            </select>
+            <input v-else :id="id" v-model="form.platform" class="app-input" placeholder="PC, PS5, Switch…" />
+          </AppField>
+        </div>
+
+        <!-- Películas/álbumes con un avance guardado antes de este cambio -->
+        <AppField v-else v-slot="{ id }" label="Progreso">
+          <div class="entry-form__progress">
+            <input
+              :id="id"
+              v-model.number="form.progress"
+              type="range"
+              min="0"
+              max="100"
+              step="5"
+              class="entry-form__range"
+            />
+            <span class="entry-form__progress-value">{{ form.progress }}%</span>
+          </div>
+        </AppField>
+      </template>
 
       <!-- Comentario público: acompaña a la calificación -->
       <Transition name="entry-form-reveal">
@@ -476,6 +685,16 @@ async function submit() {
         Marcar como favorita
       </label>
 
+      <!-- Diario de esta obra: fechas, repeticiones, volver a verla -->
+      <EntryHistory
+        v-if="editing"
+        :entry-id="editing.id"
+        :type="editing.type"
+        :finished="isFinished(editing.status)"
+        @restart="restart"
+        @changed="onHistoryChanged"
+      />
+
       <!-- Reseñas de los demás (sólo cuando la obra ya está identificada) -->
       <CommunityReviews
         v-if="workLocked"
@@ -495,6 +714,10 @@ async function submit() {
 </template>
 
 <style scoped>
+.entry-form__date {
+  max-width: 220px;
+}
+
 .entry-form {
   display: flex;
   flex-direction: column;

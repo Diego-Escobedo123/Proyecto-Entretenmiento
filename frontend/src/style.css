@@ -54,3 +54,34 @@ button {
 img {
   max-width: 100%;
 }
+
+/* Controles de formulario compartidos: dentro de <AppField> o sueltos
+   (selector de año del diario, fechas del historial, metas del reto). */
+.app-input,
+.app-select,
+.app-textarea {
+  width: 100%;
+  background: var(--color-bg);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  color: var(--color-text);
+  font: inherit;
+  padding: 10px var(--space-md);
+  outline: none;
+}
+
+.app-input:focus,
+.app-select:focus,
+.app-textarea:focus {
+  border-color: var(--color-accent);
+}
+
+.app-textarea {
+  min-height: 80px;
+  resize: vertical;
+}
+
+/* El ícono del calendario sigue el tema (claro/oscuro). */
+.app-input[type='date'] {
+  color-scheme: light dark;
+}

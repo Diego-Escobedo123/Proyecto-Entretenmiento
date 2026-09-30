@@ -13,10 +13,18 @@ import BaseBadge from './BaseBadge.vue'
 import BaseIcon from './BaseIcon.vue'
 import RatingStars from './RatingStars.vue'
 import ProgressBar from './ProgressBar.vue'
-import { statusMeta, typeMeta } from '../lib/catalog'
+import { computed } from 'vue'
+import { statusLabel, statusMeta, typeMeta } from '../lib/catalog'
+import { progressSummary } from '../lib/progress'
 import type { MediaEntry } from '../types/media'
 
-defineProps<{ entry: MediaEntry }>()
+const props = defineProps<{ entry: MediaEntry }>()
+
+/** "p. 120 de 300", "T2 · E5", "12 h · PS5". */
+const summary = computed(() => progressSummary(props.entry))
+const showProgress = computed(
+  () => props.entry.status === 'in-progress' && (props.entry.progress != null || summary.value != null),
+)
 
 const emit = defineEmits<{ open: []; 'toggle-favorite': []; edit: []; delete: [] }>()
 </script>
@@ -57,14 +65,17 @@ const emit = defineEmits<{ open: []; 'toggle-favorite': []; edit: []; delete: []
       <p v-if="entry.creator" class="media-card__subtitle">{{ entry.creator }}</p>
 
       <div class="media-card__footer">
-        <RatingStars v-if="entry.rating != null" :value="entry.rating" />
-        <ProgressBar v-else-if="entry.status === 'in-progress' && entry.progress != null" :percent="entry.progress" />
+        <div v-if="showProgress" class="media-card__progress">
+          <ProgressBar v-if="entry.progress != null" :percent="entry.progress" />
+          <span class="media-card__progress-text">{{ summary ?? `${entry.progress}%` }}</span>
+        </div>
+        <RatingStars v-else-if="entry.rating != null" :value="entry.rating" />
         <span
           v-else
           class="media-card__status"
           :style="{ color: statusMeta(entry.status).color }"
         >
-          {{ statusMeta(entry.status).label }}
+          {{ statusLabel(entry.type, entry.status) }}
         </span>
       </div>
 
@@ -107,10 +118,11 @@ const emit = defineEmits<{ open: []; 'toggle-favorite': []; edit: []; delete: []
   background: var(--color-surface-2);
 }
 
+/* Ocupa la portada sin alterar su proporción 3:4 (la imagen no la estira). */
 .media-card__open {
+  position: absolute;
+  inset: 0;
   display: block;
-  width: 100%;
-  height: 100%;
   padding: 0;
   border: none;
   background: none;
@@ -201,6 +213,19 @@ const emit = defineEmits<{ open: []; 'toggle-favorite': []; edit: []; delete: []
 .media-card__status {
   font-size: 0.8125rem;
   font-weight: 600;
+}
+
+.media-card__progress {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.media-card__progress-text {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--color-text-muted);
 }
 
 /* Acciones siempre visibles, pegadas al fondo (el body es flex: 1) para que
