@@ -96,6 +96,21 @@ export interface ProfileInsightsData {
   } | null
   /** La obra más vieja respecto de cuándo la vio. */
   timeTravel: { title: string; type: MediaType; year: number; seenYear: number; years: number } | null
+  /** La obra que más veces terminó. */
+  rewatch: { title: string; type: MediaType; times: number } | null
+  /** El tipo que peor califica frente al que mejor. */
+  harsherWith: {
+    strict: { type: MediaType; average: number; count: number }
+    soft: { type: MediaType; average: number; count: number }
+  } | null
+  /** Qué parte de lo que registra salió en los últimos `recentYears` años. */
+  era: { recentPercent: number; total: number; recentYears: number } | null
+  /** Géneros distintos de la colección y los que aparecieron por primera vez este año. */
+  explorer: { genres: number; newThisYear: string[] } | null
+  /** Obras en la wishlist y meses para vaciarla al ritmo del último año (null si no terminó nada). */
+  backlog: { pending: number; months: number | null } | null
+  /** Con quién de los que sigue comparte más obras, y la diferencia promedio de notas. */
+  affinity: { name: string; shared: number; ratingGap: number | null } | null
 }
 
 /** GET /users/:id */

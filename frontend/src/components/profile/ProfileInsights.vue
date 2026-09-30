@@ -12,6 +12,14 @@
  *   constancy   Constancia: qué parte de lo que empieza termina.
  *   ratings     Calificaciones: cuántas de sus notas son de 4★ o más.
  *   day         Su día más intenso del último año.
+ *   rewatch     Vuelves a…: la obra que más veces terminó.           (servidor)
+ *   affinity    Afinidad: con quién de los que sigue comparte más.   (servidor)
+ *   harsher     Más exigente con…: su tipo peor calificado.          (servidor)
+ *   era         ¿Presente o pasado?: cuánto de lo que ve es reciente. (servidor)
+ *   explorer    Explorador: cuántos géneros cruza.                   (servidor)
+ *   backlog     Su pila de pendientes: meses para vaciar la wishlist. (servidor)
+ *   streak      Racha: más semanas seguidas con registros.
+ *   weekday     Eres de martes: el día de la semana con más registros.
  *
  * Se adapta al ancho del contenedor (container queries de `.ov`, en DnaOverview).
  */
@@ -35,6 +43,12 @@ const props = defineProps<{
 const v = (tu: string, el: string) => (props.self ? tu : el)
 
 const decimal = (n: number) => n.toLocaleString('es', { maximumFractionDigits: 1 })
+/** Registros mínimos y parte mínima para "Eres de martes". */
+const MIN_WEEKDAY_EVENTS = 5
+const MIN_WEEKDAY_SHARE = 0.3
+/** Semanas seguidas mínimas para "Racha". */
+const MIN_STREAK = 3
+
 const NUMBER_WORDS = ['', 'un', 'dos', 'tres', 'cuatro', 'cinco']
 
 /** "una serie", "dos películas", "un álbum"… */
@@ -150,14 +164,148 @@ const busiestDay = computed(() => {
   }
 })
 
+// --- Vuelves a… ---
+const rewatch = computed(() => {
+  const r = props.insights?.rewatch
+  if (!r) return null
+  const [tu, el] = SEEN[r.type]
+  return { ...r, seen: v(tu, el) }
+})
+
+// --- Más exigente con… ---
+const harsher = computed(() => {
+  const h = props.insights?.harsherWith
+  if (!h) return null
+  const soft = typeMeta(h.soft.type)
+  return {
+    ...h,
+    strictLabel: typeMeta(h.strict.type).plural,
+    softLabel: `${soft.gender === 'f' ? 'las' : 'los'} ${soft.plural.toLowerCase()}`,
+  }
+})
+
+// --- ¿Presente o pasado? ---
+const era = computed(() => {
+  const e = props.insights?.era
+  if (!e) return null
+  const verdict =
+    e.recentPercent >= 65
+      ? `${v('Vives', 'Vive')} en el presente.`
+      : e.recentPercent <= 25
+        ? `Lo ${v('tuyo', 'suyo')} son los clásicos.`
+        : `${v('Mezclas', 'Mezcla')} estrenos y clásicos.`
+  return { ...e, verdict, extreme: e.recentPercent >= 65 || e.recentPercent <= 25 }
+})
+
+// --- Explorador ---
+const explorer = computed(() => {
+  const x = props.insights?.explorer
+  if (!x) return null
+  const fresh = x.newThisYear.slice(0, 2).map((g) => g.toLowerCase())
+  const detail = fresh.length
+    ? `Este año ${v('sumaste', 'sumó')} ${joinList(fresh)}${x.newThisYear.length > 2 ? ' y más' : ''}.`
+    : props.dna.topGenres[0]
+      ? `${props.dna.topGenres[0].name} va a la cabeza.`
+      : ''
+  return { ...x, detail, squares: Math.min(x.genres, 20) }
+})
+
+// --- Tu pila de pendientes ---
+const backlog = computed(() => props.insights?.backlog ?? null)
+
+// --- Afinidad ---
+const affinity = computed(() => {
+  const a = props.insights?.affinity
+  if (!a) return null
+  const notes =
+    a.ratingGap == null
+      ? ''
+      : a.ratingGap <= 0.5
+        ? 'Y casi siempre coinciden en las notas.'
+        : a.ratingGap >= 1.5
+          ? 'Aunque rara vez coinciden en las notas.'
+          : 'Y sus notas se parecen bastante.'
+  return { ...a, initial: a.name.trim().charAt(0).toUpperCase(), notes }
+})
+
+// --- Eres de martes: el día de la semana con más registros ---
+const WEEKDAYS = ['domingo', 'lunes', 'martes', 'miércoles', 'jueves', 'viernes', 'sábado']
+const WEEKDAY_INITIALS = ['D', 'L', 'M', 'X', 'J', 'V', 'S']
+/** Lunes primero, como en el calendario de acá. */
+const WEEK_ORDER = [1, 2, 3, 4, 5, 6, 0]
+
+const weekday = computed(() => {
+  if (props.activity.length < MIN_WEEKDAY_EVENTS) return null
+  const counts = Array.from({ length: 7 }, () => 0)
+  for (const e of props.activity) counts[parseISODay(e.date).getDay()]++
+  const top = counts.indexOf(Math.max(...counts))
+  const share = counts[top] / props.activity.length
+  if (share < MIN_WEEKDAY_SHARE) return null
+  const name = WEEKDAYS[top]
+  const max = counts[top]
+  return {
+    name,
+    plural: name.endsWith('s') ? name : `${name}s`,
+    percent: Math.round(share * 100),
+    columns: WEEK_ORDER.map((d) => ({ initial: WEEKDAY_INITIALS[d], height: (counts[d] / max) * 100, top: d === top })),
+  }
+})
+
+// --- Racha: más semanas seguidas con algún registro ---
+const WEEK = 7 * 86_400_000
+const streak = computed(() => {
+  /** Semana (de domingo a sábado) de cada registro, como número. */
+  const weekOf = (date: string) => {
+    const d = parseISODay(date)
+    d.setDate(d.getDate() - d.getDay())
+    return Math.round(d.getTime() / WEEK)
+  }
+  const weeks = [...new Set(props.activity.map((e) => weekOf(e.date)))].sort((a, b) => a - b)
+  let best = { length: 0, start: 0 }
+  let run = { length: 0, start: 0 }
+  weeks.forEach((w, i) => {
+    run = i > 0 && w === weeks[i - 1] + 1 ? { length: run.length + 1, start: run.start } : { length: 1, start: w }
+    if (run.length >= best.length) best = run
+  })
+  if (best.length < MIN_STREAK) return null
+  const month = (week: number) => new Date(week * WEEK).toLocaleDateString('es', { month: 'long' })
+  const from = month(best.start)
+  const to = month(best.start + best.length - 1)
+  return { weeks: best.length, when: from === to ? `en ${from}` : `de ${from} a ${to}`, pills: Math.min(best.length, 12) }
+})
+
 // --- El banco: puntaje = qué tan llamativo es; se muestran los 3 mejores ---
-type InsightKey = 'against' | 'speed' | 'timeTravel' | 'constancy' | 'ratings' | 'day'
+type InsightKey =
+  | 'against'
+  | 'speed'
+  | 'timeTravel'
+  | 'rewatch'
+  | 'affinity'
+  | 'harsher'
+  | 'era'
+  | 'explorer'
+  | 'streak'
+  | 'weekday'
+  | 'backlog'
+  | 'constancy'
+  | 'ratings'
+  | 'day'
 
 const shown = computed<InsightKey[]>(() => {
   const candidates: { key: InsightKey; score: number }[] = []
   if (against.value) candidates.push({ key: 'against', score: 5 + Math.abs(against.value.gap) })
   if (speed.value) candidates.push({ key: 'speed', score: 3.5 })
   if (timeTravel.value) candidates.push({ key: 'timeTravel', score: 3 + timeTravel.value.years / 25 })
+  if (rewatch.value) candidates.push({ key: 'rewatch', score: 3 + rewatch.value.times * 0.3 })
+  if (affinity.value) candidates.push({ key: 'affinity', score: 2.5 + affinity.value.shared / 10 })
+  if (harsher.value) candidates.push({ key: 'harsher', score: 2 + (harsher.value.soft.average - harsher.value.strict.average) })
+  if (streak.value) candidates.push({ key: 'streak', score: 2 + streak.value.weeks / 8 })
+  if (era.value) candidates.push({ key: 'era', score: era.value.extreme ? 2.4 : 1.2 })
+  if (explorer.value) {
+    candidates.push({ key: 'explorer', score: 1.6 + Math.min(1, explorer.value.genres / 20) + explorer.value.newThisYear.length * 0.3 })
+  }
+  if (weekday.value) candidates.push({ key: 'weekday', score: 1.5 + weekday.value.percent / 50 })
+  if (backlog.value) candidates.push({ key: 'backlog', score: 1.4 })
   if (hasCollection.value) {
     const extreme = completion.value >= 90 || completion.value <= 30
     candidates.push({ key: 'constancy', score: extreme ? 3 : 2 })
@@ -172,15 +320,23 @@ const shown = computed<InsightKey[]>(() => {
     .map((c) => c.key)
 })
 
-const KICKERS: Record<InsightKey, string> = {
-  against: 'Contra la corriente',
-  speed: 'Velocidad',
-  timeTravel: 'Viaje en el tiempo',
-  constancy: 'Constancia',
-  ratings: 'Calificaciones',
-  day: 'día más intenso',
-}
-const kicker = (key: InsightKey) => (key === 'day' ? `${v('Tu', 'Su')} ${KICKERS.day}` : KICKERS[key])
+const kicker = (key: InsightKey): string =>
+  ({
+    against: 'Contra la corriente',
+    speed: 'Velocidad',
+    timeTravel: 'Viaje en el tiempo',
+    rewatch: v('Vuelves a…', 'Vuelve a…'),
+    affinity: 'Afinidad',
+    harsher: 'Más exigente con…',
+    era: '¿Presente o pasado?',
+    explorer: 'Explorador',
+    streak: 'Racha',
+    weekday: weekday.value ? `${v('Eres', 'Es')} de ${weekday.value.plural}` : '',
+    backlog: `${v('Tu', 'Su')} pila de pendientes`,
+    constancy: 'Constancia',
+    ratings: 'Calificaciones',
+    day: `${v('Tu', 'Su')} día más intenso`,
+  })[key]
 </script>
 
 <template>
@@ -235,6 +391,104 @@ const kicker = (key: InsightKey) => (key === 'day' ? `${v('Tu', 'Su')} ${KICKERS
           <p class="insight__text">
             separan <em>{{ timeTravel.title }}</em> ({{ timeTravel.year }}) del día en que {{ timeTravel.seen }}.
           </p>
+        </template>
+
+        <!-- Vuelves a… -->
+        <template v-else-if="key === 'rewatch' && rewatch">
+          <div class="icons" aria-hidden="true">
+            <BaseIcon v-for="n in Math.min(rewatch.times, 6)" :key="n" name="arrow-repeat" />
+          </div>
+          <p class="insight__value">{{ rewatch.times }} veces</p>
+          <p class="insight__text">
+            {{ rewatch.seen }} <em>{{ rewatch.title }}</em>. Ya es parte de {{ v('ti', 'su historia') }}.
+          </p>
+        </template>
+
+        <!-- Afinidad -->
+        <template v-else-if="key === 'affinity' && affinity">
+          <div class="pair" aria-hidden="true">
+            <span class="pair__circle"><BaseIcon name="person-fill" /></span>
+            <span class="pair__circle pair__circle--other">{{ affinity.initial }}</span>
+          </div>
+          <p class="insight__value">{{ affinity.shared }} obras</p>
+          <p class="insight__text">{{ v('compartes', 'comparte') }} con {{ affinity.name }}. {{ affinity.notes }}</p>
+        </template>
+
+        <!-- Más exigente con… -->
+        <template v-else-if="key === 'harsher' && harsher">
+          <div class="bars" aria-hidden="true">
+            <span class="bars__label">{{ harsher.strictLabel }}</span>
+            <span class="bars__bar bars__bar--record" :style="{ width: `${(harsher.strict.average / 5) * 100}%` }" />
+            <span class="bars__label">{{ typeMeta(harsher.soft.type).plural }}</span>
+            <span class="bars__bar bars__bar--avg" :style="{ width: `${(harsher.soft.average / 5) * 100}%` }" />
+          </div>
+          <p class="insight__value">{{ harsher.strictLabel }}</p>
+          <p class="insight__text">
+            {{ v('Les das', 'Les da') }} {{ decimal(harsher.strict.average) }}★ en promedio, contra
+            {{ decimal(harsher.soft.average) }}★ a {{ harsher.softLabel }}.
+          </p>
+        </template>
+
+        <!-- ¿Presente o pasado? -->
+        <template v-else-if="key === 'era' && era">
+          <div class="split" aria-hidden="true">
+            <span class="split__part" :style="{ width: `${era.recentPercent}%` }" />
+          </div>
+          <p class="legend" aria-hidden="true">
+            <span><span class="legend__key legend__key--fill" /> Recientes</span>
+            <span><span class="legend__key legend__key--ring" /> Anteriores</span>
+          </p>
+          <p class="insight__value">{{ era.recentPercent }}%</p>
+          <p class="insight__text">
+            de lo que {{ v('registras', 'registra') }} salió en los últimos {{ era.recentYears }} años. {{ era.verdict }}
+          </p>
+        </template>
+
+        <!-- Explorador -->
+        <template v-else-if="key === 'explorer' && explorer">
+          <div class="squares" aria-hidden="true">
+            <span v-for="n in explorer.squares" :key="n" class="squares__square" />
+          </div>
+          <p class="insight__value">{{ explorer.genres }} géneros</p>
+          <p class="insight__text">cruzan {{ v('tu', 'su') }} colección. {{ explorer.detail }}</p>
+        </template>
+
+        <!-- Racha -->
+        <template v-else-if="key === 'streak' && streak">
+          <div class="pills" aria-hidden="true">
+            <span v-for="n in streak.pills" :key="n" class="pills__pill" />
+          </div>
+          <p class="insight__value">{{ streak.weeks }} semanas</p>
+          <p class="insight__text">seguidas registrando algo, {{ streak.when }}.</p>
+        </template>
+
+        <!-- Eres de martes -->
+        <template v-else-if="key === 'weekday' && weekday">
+          <div class="week" aria-hidden="true">
+            <span v-for="c in weekday.columns" :key="c.initial" class="week__day" :class="{ 'is-top': c.top }">
+              <span class="week__bar" :style="{ height: `${Math.max(8, c.height)}%` }" />
+              <span class="week__initial">{{ c.initial }}</span>
+            </span>
+          </div>
+          <p class="insight__value">{{ weekday.percent }}%</p>
+          <p class="insight__text">de {{ v('tus', 'sus') }} registros caen en {{ weekday.name }}.</p>
+        </template>
+
+        <!-- Pila de pendientes -->
+        <template v-else-if="key === 'backlog' && backlog">
+          <div class="icons" aria-hidden="true">
+            <BaseIcon v-for="n in Math.min(backlog.pending, 8)" :key="n" name="bookmark-fill" />
+          </div>
+          <template v-if="backlog.months">
+            <p class="insight__value">{{ backlog.months }} {{ backlog.months === 1 ? 'mes' : 'meses' }}</p>
+            <p class="insight__text">
+              para vaciar {{ v('tu', 'su') }} wishlist de {{ backlog.pending }} obras al ritmo del último año.
+            </p>
+          </template>
+          <template v-else>
+            <p class="insight__value">{{ backlog.pending }} obras</p>
+            <p class="insight__text">esperan su turno en {{ v('tu', 'su') }} wishlist.</p>
+          </template>
         </template>
 
         <!-- Constancia -->
@@ -308,16 +562,19 @@ const kicker = (key: InsightKey) => (key === 'day' ? `${v('Tu', 'Su')} ${KICKERS
 .insight--1 {
   --mark: var(--color-accent);
   --mark-muted: var(--color-text-subtle);
-  background: color-mix(in srgb, var(--burnt-copper) 14%, var(--color-surface-2));
+  --insight-bg: color-mix(in srgb, var(--burnt-copper) 14%, var(--color-surface-2));
+  background: var(--insight-bg);
   color: var(--color-text);
 }
 
 .insight--2 {
-  background: var(--color-accent);
+  --insight-bg: var(--color-accent);
+  background: var(--insight-bg);
 }
 
 .insight--3 {
-  background: var(--rose);
+  --insight-bg: var(--rose);
+  background: var(--insight-bg);
 }
 
 .insight__kicker {
@@ -515,6 +772,125 @@ const kicker = (key: InsightKey) => (key === 'day' ? `${v('Tu', 'Su')} ${KICKERS
   height: 2px;
   border-radius: 999px;
   background: linear-gradient(to right, var(--mark-muted), var(--mark));
+}
+
+/* Íconos repetidos (vueltas, pendientes). */
+.icons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  font-size: 0.9375rem;
+  color: var(--mark);
+}
+
+/* Dos círculos que se tocan: la persona y con quién comparte. */
+.pair {
+  display: flex;
+}
+
+.pair__circle {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  border: 2px solid var(--mark);
+  font-family: var(--font-sans);
+  font-size: 0.75rem;
+  font-weight: 800;
+  color: var(--mark);
+}
+
+.pair__circle--other {
+  margin-left: -8px;
+  background: var(--mark);
+  color: var(--insight-bg);
+}
+
+/* Barra partida: recientes (llena) vs. anteriores. */
+.split {
+  height: 8px;
+  border-radius: 999px;
+  overflow: hidden;
+  background: var(--mark-muted);
+}
+
+.split__part {
+  display: block;
+  height: 100%;
+  background: var(--mark);
+}
+
+/* Un cuadrito por género. */
+.squares {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 3px;
+}
+
+.squares__square {
+  width: 9px;
+  height: 9px;
+  border-radius: 2px;
+  background: var(--mark);
+}
+
+.squares__square:nth-child(3n + 2) {
+  opacity: 0.7;
+}
+
+.squares__square:nth-child(3n) {
+  opacity: 0.45;
+}
+
+/* Una píldora por semana de la racha. */
+.pills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 3px;
+}
+
+.pills__pill {
+  width: 14px;
+  height: 7px;
+  border-radius: 999px;
+  background: var(--mark);
+}
+
+/* Semana de lunes a domingo, con el día fuerte resaltado. */
+.week {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 3px;
+  height: 36px;
+}
+
+.week__day {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 2px;
+  min-width: 0;
+  height: 100%;
+}
+
+.week__bar {
+  width: min(100%, 10px);
+  border-radius: 3px 3px 0 0;
+  background: var(--mark-muted);
+}
+
+.week__day.is-top .week__bar {
+  background: var(--mark);
+}
+
+.week__initial {
+  font-family: var(--font-sans);
+  font-size: 0.5625rem;
+  font-weight: 700;
+  line-height: 1;
 }
 
 /* Escritorio: los tres en fila, con tamaños que siguen el ancho de la tarjeta. */
