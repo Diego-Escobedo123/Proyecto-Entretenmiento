@@ -24,6 +24,19 @@ export function formatDay(day: string): string {
   return parseISODay(day).toLocaleDateString('es', { day: 'numeric', month: 'short', year: 'numeric' })
 }
 
+/** "hace 5 min", "hace 3 h", "ayer", "hace 4 días"; más atrás, la fecha ("12 ago 2026"). */
+export function relativeTime(iso: string): string {
+  const minutes = Math.floor((Date.now() - new Date(iso).getTime()) / 60_000)
+  if (minutes < 1) return 'ahora'
+  if (minutes < 60) return `hace ${minutes} min`
+  const hours = Math.floor(minutes / 60)
+  if (hours < 24) return `hace ${hours} h`
+  const days = Math.floor(hours / 24)
+  if (days === 1) return 'ayer'
+  if (days < 7) return `hace ${days} días`
+  return new Date(iso).toLocaleDateString('es', { day: 'numeric', month: 'short', year: 'numeric' })
+}
+
 /** "Septiembre de 2026" */
 export function formatMonth(day: string): string {
   const text = parseISODay(day).toLocaleDateString('es', { month: 'long', year: 'numeric' })

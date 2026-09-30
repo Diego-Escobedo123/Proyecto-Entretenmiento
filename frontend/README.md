@@ -19,6 +19,16 @@ bun run preview  # sirve el build
 Necesita el backend corriendo (ver `../backend`). La URL se configura con
 `VITE_API_URL` (default en `.env`: `http://localhost:3000`).
 
+## Íconos
+
+- **Bootstrap Icons** es la fuente principal: `<BaseIcon name="house" />`
+  ([catálogo](https://icons.getbootstrap.com/)).
+- **Font Awesome Free** sólo para los que Bootstrap Icons no tiene (hoy: `dna`):
+  `<FaIcon :icon="faDna" />`, importando cada ícono de
+  `@fortawesome/free-solid-svg-icons`. Al build entra sólo lo que se importa.
+
+Nada de emojis en la interfaz: siempre un ícono de estas dos fuentes.
+
 ## Arquitectura
 
 Flujo de datos en una sola dirección: **screen → store → service → backend**.
@@ -61,3 +71,9 @@ vuelve a modo `localStorage`.
   hay endpoints todavía.
 - Inicio con Google (OAuth).
 - Comunidad / social.
+
+## Créditos
+
+- Íconos de [Bootstrap Icons](https://icons.getbootstrap.com/), licencia MIT.
+- Íconos de [Font Awesome Free](https://fontawesome.com/), licencia
+  [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/).

@@ -19,6 +19,12 @@ model User {
   logs         LogEntry[]
   goals        Goal[]
   lists        List[]
+  /// A quién sigue y quién lo sigue (ver Follow).
+  following    Follow[]     @relation("Following")
+  followers    Follow[]     @relation("Followers")
+  /// Solicitudes para seguir cuentas privadas (ver FollowRequest).
+  sentFollowRequests     FollowRequest[] @relation("SentFollowRequests")
+  receivedFollowRequests FollowRequest[] @relation("ReceivedFollowRequests")
   createdAt    DateTime     @default(now())
   updatedAt    DateTime     @updatedAt
 }
@@ -30,8 +36,12 @@ model Profile {
   userId      String   @unique
   handle      String   @default("")
   avatar      String?
-  tagline     String   @default("Tu identidad cultural")
-  quote       String   @default("Cada obra cuenta una historia. Juntas cuentan la tuya.")
+  /// Frase y cita del perfil. Vacías hasta que el usuario las escriba (antes
+  /// traían un texto por defecto que parecía escrito por él).
+  tagline     String   @default("")
+  quote       String   @default("")
+  /// "Tus 5 favoritas": ids de MediaEntry del propio usuario, en orden.
+  topPicks    String[] @default([])
   memberSince Int?
   /// Visibilidad del perfil público (GET /users/:id). Si es `false`, los demás
   /// sólo ven nombre y avatar; las reseñas siguen visibles en cada obra.
@@ -100,6 +110,8 @@ model LogEntry {
   /// Se dejó a medias: `finishedAt` es cuándo se abandonó.
   abandoned  Boolean    @default(false)
   createdAt  DateTime   @default(now())
+  /// Último cambio (empezó → terminó, fechas corregidas): ordena el feed.
+  updatedAt  DateTime   @default(now()) @updatedAt
 
   @@index([userId, finishedAt])
   @@index([entryId])
@@ -158,4 +170,31 @@ model ListItem {
   addedAt    DateTime @default(now())
 
   @@index([listId, position])
+}
+
+/// `follower` sigue a `following`. Una cuenta pública se sigue directo; una
+/// privada, sólo después de aceptar la solicitud (FollowRequest). Quien sigue
+/// una cuenta privada ve todo su perfil y su actividad en el feed.
+model Follow {
+  follower    User     @relation("Following", fields: [followerId], references: [id], onDelete: Cascade)
+  followerId  String
+  following   User     @relation("Followers", fields: [followingId], references: [id], onDelete: Cascade)
+  followingId String
+  createdAt   DateTime @default(now())
+
+  @@id([followerId, followingId])
+  @@index([followingId])
+}
+
+/// Solicitud pendiente para seguir una cuenta privada (como en Instagram).
+/// Al aceptarla se crea el Follow y se borra; al rechazarla o cancelarla, sólo se borra.
+model FollowRequest {
+  requester   User     @relation("SentFollowRequests", fields: [requesterId], references: [id], onDelete: Cascade)
+  requesterId String
+  target      User     @relation("ReceivedFollowRequests", fields: [targetId], references: [id], onDelete: Cascade)
+  targetId    String
+  createdAt   DateTime @default(now())
+
+  @@id([requesterId, targetId])
+  @@index([targetId])
 }

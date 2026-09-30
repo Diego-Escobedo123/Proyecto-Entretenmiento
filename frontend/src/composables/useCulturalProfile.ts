@@ -1,8 +1,9 @@
 /**
- * Deriva el contenido "cultural" del perfil: identidad, ADN, obras
- * esenciales y logros salen de las obras de la colección; la constancia
- * (heatmap) y la evolución salen del diario, igual que el resumen del año,
- * para que todas las pantallas cuenten lo mismo. Sin datos inventados.
+ * Deriva el contenido "cultural" del perfil propio: identidad, ADN, obras
+ * esenciales y logros salen de las obras de la colección; la evolución sale
+ * del diario, igual que el resumen del año, para que todas las pantallas
+ * cuenten lo mismo. Sin datos inventados. (La constancia la arma
+ * ConstancyCard con los días del diario.)
  */
 import { computed, type Ref } from 'vue'
 import { storeToRefs } from 'pinia'
@@ -17,11 +18,6 @@ function pct(part: number, total: number): number {
   return total === 0 ? 0 : Math.round((part / total) * 100)
 }
 
-/** Días del diario con actividad: cuándo se empezó o terminó algo. */
-function activityDays(logs: LogEntry[]): string[] {
-  return logs.flatMap((l) => [l.startedAt, l.finishedAt].filter((d): d is string => Boolean(d)))
-}
-
 export function useCulturalProfile(logs: Ref<LogEntry[]>) {
   const store = useMediaStore()
   const { entries, countByType } = storeToRefs(store)
@@ -32,8 +28,9 @@ export function useCulturalProfile(logs: Ref<LogEntry[]>) {
     const tally = new Map<string, number>()
     for (const e of entries.value) for (const g of e.genres) tally.set(g, (tally.get(g) ?? 0) + 1)
     const total = [...tally.values()].reduce((a, b) => a + b, 0)
+    // Desempates fijos (iguales a los de backend/src/lib/dna.ts): géneros por nombre.
     return [...tally.entries()]
-      .sort((a, b) => b[1] - a[1])
+      .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0], 'es'))
       .slice(0, 3)
       .map(([name, count]) => ({ name, count, percent: pct(count, total) }))
   })
@@ -54,7 +51,7 @@ export function useCulturalProfile(logs: Ref<LogEntry[]>) {
     }
     if (decades.size === 0) return null
     const withYear = [...decades.values()].reduce((a, b) => a + b, 0)
-    const [decade, count] = [...decades.entries()].sort((a, b) => b[1] - a[1])[0]
+    const [decade, count] = [...decades.entries()].sort((a, b) => b[1] - a[1] || b[0] - a[0])[0]
     return { decade, percent: pct(count, withYear) }
   })
 
@@ -138,30 +135,6 @@ export function useCulturalProfile(logs: Ref<LogEntry[]>) {
     }
   })
 
-  /** Constancia: días con actividad en el diario (últimas ~53 semanas, alineado a domingo). */
-  const activityHeatmap = computed(() => {
-    const countByDay = new Map<string, number>()
-    for (const day of activityDays(logs.value)) countByDay.set(day, (countByDay.get(day) ?? 0) + 1)
-
-    const today = new Date()
-    today.setHours(0, 0, 0, 0)
-    const start = new Date(today)
-    start.setDate(start.getDate() - 370)
-    start.setDate(start.getDate() - start.getDay()) // retrocede al domingo
-
-    const days: { date: string; count: number; label: string }[] = []
-    for (const cursor = new Date(start); cursor <= today; cursor.setDate(cursor.getDate() + 1)) {
-      const key = isoDay(cursor)
-      days.push({
-        date: key,
-        count: countByDay.get(key) ?? 0,
-        label: cursor.toLocaleDateString('es', { day: 'numeric', month: 'short', year: 'numeric' }),
-      })
-    }
-    const max = Math.max(1, ...days.map((d) => d.count))
-    return days.map((d) => ({ ...d, level: d.count === 0 ? 0 : Math.min(4, Math.ceil((d.count / max) * 4)) }))
-  })
-
   return {
     worksLogged,
     topGenres,
@@ -169,7 +142,6 @@ export function useCulturalProfile(logs: Ref<LogEntry[]>) {
     favoriteDecade,
     completionRate,
     identitySentence,
-    activityHeatmap,
     essentialWorks,
     unlockedAchievements,
     nextAchievement,

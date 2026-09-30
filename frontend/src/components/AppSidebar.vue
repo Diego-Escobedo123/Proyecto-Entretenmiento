@@ -14,11 +14,13 @@ import { NAV_ITEMS } from '../lib/navigation'
 import { useProfileStore } from '../stores/profile'
 import { useUiStore } from '../stores/ui'
 import { useAuthStore } from '../stores/auth'
+import { useFollowRequestsStore } from '../stores/followRequests'
 
 const route = useRoute()
 const router = useRouter()
 const ui = useUiStore()
 const auth = useAuthStore()
+const followRequests = useFollowRequestsStore()
 const { profile } = storeToRefs(useProfileStore())
 
 /** Activo en su ruta y en las que cuelgan de ella (/lists/:id marca "Listas"). */
@@ -102,6 +104,13 @@ watch(
       >
         <span class="app-sidebar__icon"><BaseIcon :name="item.icon" /></span>
         {{ item.label }}
+        <span
+          v-if="item.to === '/people' && followRequests.count"
+          class="app-sidebar__badge"
+          :aria-label="`${followRequests.count} solicitudes para seguirte`"
+        >
+          {{ followRequests.count }}
+        </span>
       </RouterLink>
     </nav>
 
@@ -224,6 +233,19 @@ watch(
   flex-direction: column;
   gap: 2px;
   flex: 1;
+}
+
+/* Solicitudes pendientes para seguirme, junto a "Personas". */
+.app-sidebar__badge {
+  margin-left: auto;
+  min-width: 20px;
+  padding: 1px 6px;
+  border-radius: 999px;
+  background: var(--color-accent);
+  color: var(--color-accent-contrast);
+  font-size: 0.75rem;
+  font-weight: 800;
+  text-align: center;
 }
 
 .app-sidebar__link {

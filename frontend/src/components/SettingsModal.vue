@@ -61,11 +61,25 @@ async function save() {
       <AppField v-slot="{ id }" label="Usuario" hint="Sin @">
         <input :id="id" v-model="form.handle" class="app-input" autocomplete="off" />
       </AppField>
-      <AppField v-slot="{ id }" label="Frase" hint="Aparece en tu perfil">
-        <input :id="id" v-model="form.tagline" class="app-input" autocomplete="off" />
+      <AppField v-slot="{ id }" label="Frase" hint="Opcional. Aparece bajo tu nombre">
+        <input
+          :id="id"
+          v-model="form.tagline"
+          class="app-input"
+          maxlength="80"
+          placeholder="Ciencia ficción, jazz y RPGs largos"
+          autocomplete="off"
+        />
       </AppField>
-      <AppField v-slot="{ id }" label="Cita personal">
-        <input :id="id" v-model="form.quote" class="app-input" autocomplete="off" />
+      <AppField v-slot="{ id }" label="Cita personal" hint="Opcional">
+        <input
+          :id="id"
+          v-model="form.quote"
+          class="app-input"
+          maxlength="200"
+          placeholder="Una frase de un libro, película o canción"
+          autocomplete="off"
+        />
       </AppField>
       <AppField v-slot="{ id }" label="Avatar (URL)" hint="Opcional">
         <input :id="id" v-model="form.avatar" class="app-input" placeholder="https://..." autocomplete="off" />
@@ -75,7 +89,9 @@ async function save() {
         <div class="settings-visibility__text">
           <span class="settings-visibility__label">Perfil público</span>
           <span class="settings-visibility__hint">
-            Guarda tu preferencia. Por ahora no existe una vista pública que otros puedan ver.
+            Los demás ven tu colección, tu actividad y tus favoritas, y tu actividad aparece en el feed de quienes
+            te siguen. Si es privado, para seguirte tienen que mandarte una solicitud: sólo quienes aceptes ven tu
+            colección y tu actividad.
           </span>
         </div>
         <button

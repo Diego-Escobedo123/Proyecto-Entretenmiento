@@ -4,6 +4,7 @@
  */
 import type { MediaStatus, MediaType } from './media'
 import type { ListSummary } from './list'
+import type { LogEntry } from './log'
 
 /** Lo que otro usuario deja ver de sí mismo. */
 export interface PublicUser {
@@ -43,6 +44,8 @@ export interface WorkStats {
   /** Veces que se terminó (según los diarios) y cuántas de ellas fueron repeticiones. */
   finishes: number
   repeats: number
+  /** Quiénes de los que sigue el usuario la tienen (sólo perfiles públicos). */
+  following: { user: PublicUser; status: MediaStatus; rating: number | null }[]
 }
 
 /** Identifica una obra entre usuarios: por id de catálogo o, si no hay, por tipo + título. */
@@ -63,19 +66,96 @@ export interface PublicEntry {
   rating: number | null
   genres: string[]
   cover: string | null
+  /** Id de catálogo, para abrir la ficha de la obra. */
+  externalId: string | null
   review: string
   /** Sólo presente si el dueño marcó sus notas como públicas. */
   notes: string | null
   updatedAt: string
 }
 
+/** Un inicio o un final del diario, con los datos de la obra. */
+export interface ActivityEvent {
+  /** "YYYY-MM-DD" */
+  date: string
+  title: string
+  type: MediaType
+  genres: string[]
+}
+
+/** Insights del perfil calculados en el servidor; cada uno null si no hay datos suficientes. */
+export interface ProfileInsightsData {
+  /** La obra donde su nota más se aleja del promedio de Mosaic. */
+  against: { title: string; type: MediaType; rating: number; community: number; voters: number } | null
+  /** Cuánto tarda en terminar algo: de un tipo (si hay ≥ 2) o en general, y su récord. */
+  speed: {
+    type: MediaType | null
+    averageDays: number
+    count: number
+    fastest: { title: string; type: MediaType; days: number }
+  } | null
+  /** La obra más vieja respecto de cuándo la vio. */
+  timeTravel: { title: string; type: MediaType; year: number; seenYear: number; years: number } | null
+  /** La obra que más veces terminó. */
+  rewatch: { title: string; type: MediaType; times: number } | null
+  /** El tipo que peor califica frente al que mejor. */
+  harsherWith: {
+    strict: { type: MediaType; average: number; count: number }
+    soft: { type: MediaType; average: number; count: number }
+  } | null
+  /** Qué parte de lo que registra salió en los últimos `recentYears` años. */
+  era: { recentPercent: number; total: number; recentYears: number } | null
+  /** Géneros distintos de la colección y los que aparecieron por primera vez este año. */
+  explorer: { genres: number; newThisYear: string[] } | null
+  /** Obras en la wishlist y meses para vaciarla al ritmo del último año (null si no terminó nada). */
+  backlog: { pending: number; months: number | null } | null
+  /** Con quién de los que sigue comparte más obras, y la diferencia promedio de notas. */
+  affinity: { name: string; shared: number; ratingGap: number | null } | null
+}
+
 /** GET /users/:id */
 export interface PublicProfile {
   user: PublicUser
+  /** Vacíos si la persona no los escribió. */
   tagline: string
   quote: string
+  memberSince: number | null
   isPublic: boolean
   isSelf: boolean
+  /** El usuario actual lo sigue (en una cuenta privada: le aceptó la solicitud). */
+  isFollowing: boolean
+  /** El usuario actual le mandó una solicitud que sigue pendiente. */
+  requested: boolean
+  /** Puede ver el perfil completo: es el propio, es público o lo sigue. */
+  canView: boolean
+  /** En el propio: cuántas solicitudes para seguirlo esperan respuesta (0 en los demás). */
+  pendingRequests: number
+  /** `null` si no puede verla (privada y no la sigue): no se muestra cuántos la siguen ni a cuántos sigue. */
+  followers: number | null
+  following: number | null
+  /** Con perfil privado (y si no es el propio), `works` y `finishedThisYear` vienen en 0. */
+  counts: { works: number; finishedThisYear: number; lists: number }
+  /** Sus 5 favoritas, en el orden que eligió. */
+  favorites: PublicEntry[]
+  /** Sus últimas entradas del diario (con los datos de la obra). */
+  recent: LogEntry[]
+  /** Cómo califica: promedio e histograma de ½ a 5. */
+  ratings: { average: number | null; count: number; histogram: number[] }
+  /** ADN cultural (vacío con perfil privado ajeno). */
+  dna: {
+    topGenres: { name: string; count: number; percent: number }[]
+    favoriteDecade: { decade: number; percent: number } | null
+    dominantType: MediaType | null
+    /** Qué parte de la colección es de cada tipo, de mayor a menor. */
+    typeShares: { type: MediaType; percent: number }[]
+    completionRate: number
+  }
+  /** Cada vez que empezó o terminó algo en el último año, con la obra ("Tu año en obras"). */
+  activity: ActivityEvent[]
+  /** Última obra que dejó sin terminar, o null. */
+  lastAbandoned: string | null
+  /** Insights que calcula el servidor (null con perfil privado ajeno). */
+  insights: ProfileInsightsData | null
   entries: PublicEntry[]
   /** Sus listas públicas (visibles aunque el perfil sea privado). */
   lists: ListSummary[]

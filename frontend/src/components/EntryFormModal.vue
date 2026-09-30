@@ -651,13 +651,24 @@ async function submit() {
       </Transition>
 
       <!-- Notas: privadas por defecto; si son públicas sólo se ven en el perfil -->
-      <AppField v-slot="{ id }" label="Notas personales" hint="Opcional">
-        <textarea
-          :id="id"
-          v-model="form.notes"
-          class="app-textarea"
-          :placeholder="form.notesPublic ? 'Se verán en tu perfil público…' : 'Sólo tú las verás…'"
-        />
+      <AppField label="Notas personales" hint="Opcional">
+        <!-- Candado cerrado: privadas. Abierto: públicas en el perfil. -->
+        <template #label>
+          Notas personales
+          <BaseIcon
+            :name="form.notesPublic ? 'unlock-fill' : 'lock-fill'"
+            class="entry-form__notes-lock"
+            :title="form.notesPublic ? 'Públicas en tu perfil' : 'Privadas'"
+          />
+        </template>
+        <template #default="{ id }">
+          <textarea
+            :id="id"
+            v-model="form.notes"
+            class="app-textarea"
+            :placeholder="form.notesPublic ? 'Se verán en tu perfil público…' : 'Sólo tú las verás…'"
+          />
+        </template>
       </AppField>
       <div class="entry-form__visibility">
         <button
@@ -676,7 +687,7 @@ async function submit() {
           :aria-pressed="form.notesPublic"
           @click="form.notesPublic = true"
         >
-          <BaseIcon name="globe2" /> Públicas en mi perfil
+          <BaseIcon name="unlock-fill" /> Públicas en mi perfil
         </button>
       </div>
 
@@ -938,6 +949,16 @@ async function submit() {
 
 .entry-form__review {
   min-height: 80px;
+}
+
+/* Candado junto a "Notas personales": cerrado (privadas) o abierto y dorado (públicas). */
+.entry-form__notes-lock {
+  margin-left: 4px;
+  font-size: 0.75rem;
+}
+
+.entry-form__notes-lock.bi-unlock-fill {
+  color: var(--color-accent);
 }
 
 .entry-form__visibility {

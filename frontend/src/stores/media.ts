@@ -8,6 +8,9 @@ import { computed, ref } from 'vue'
 import { mediaService, type MediaWriteOptions } from '../services/mediaService'
 import type { MediaEntry, MediaEntryInput, MediaType } from '../types/media'
 
+/** Datos de catálogo de una obra (lo mismo que `CatalogWork` del store de UI). */
+type CatalogWorkInput = Pick<MediaEntryInput, 'type' | 'title' | 'creator' | 'year' | 'genres' | 'cover' | 'externalId'>
+
 export const useMediaStore = defineStore('media', () => {
   const entries = ref<MediaEntry[]>([])
   const loading = ref(false)
@@ -61,6 +64,34 @@ export const useMediaStore = defineStore('media', () => {
     await editEntry(id, { favorite: !entry.favorite })
   }
 
+  /**
+   * Wishlist: obras de la colección en estado "Quiero verla/leerlo/…"
+   * (`want`), las agregadas más recientemente primero.
+   */
+  const wishlist = computed(() =>
+    entries.value.filter((e) => e.status === 'want').sort((a, b) => b.createdAt.localeCompare(a.createdAt)),
+  )
+
+  /** Agrega una obra del catálogo directo a la wishlist (sin pasar por el formulario). */
+  async function addToWishlist(work: CatalogWorkInput): Promise<MediaEntry> {
+    return addEntry({
+      ...work,
+      status: 'want',
+      rating: null,
+      progress: null,
+      pagesRead: null,
+      pagesTotal: null,
+      season: null,
+      episode: null,
+      hoursPlayed: null,
+      platform: null,
+      favorite: false,
+      review: '',
+      notes: '',
+      notesPublic: false,
+    })
+  }
+
   const isEmpty = computed(() => loaded.value && entries.value.length === 0)
 
   const countByType = computed<Record<MediaType, number>>(() => {
@@ -100,6 +131,8 @@ export const useMediaStore = defineStore('media', () => {
     reloadEntry,
     deleteEntry,
     toggleFavorite,
+    wishlist,
+    addToWishlist,
     getById,
     findByTitle,
   }

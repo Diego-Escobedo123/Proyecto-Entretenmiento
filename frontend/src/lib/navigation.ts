@@ -14,5 +14,6 @@ export const NAV_ITEMS: readonly NavItem[] = [
   { label: 'Mi colección', icon: 'collection', to: '/collection' },
   { label: 'Diario', icon: 'journal-bookmark', to: '/diary' },
   { label: 'Listas', icon: 'card-list', to: '/lists' },
+  { label: 'Personas', icon: 'people', to: '/people' },
   { label: 'Perfil', icon: 'person', to: '/profile' },
 ] as const
