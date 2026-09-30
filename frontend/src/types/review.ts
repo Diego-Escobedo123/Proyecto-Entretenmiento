@@ -83,6 +83,21 @@ export interface ActivityEvent {
   genres: string[]
 }
 
+/** Insights del perfil calculados en el servidor; cada uno null si no hay datos suficientes. */
+export interface ProfileInsightsData {
+  /** La obra donde su nota más se aleja del promedio de Mosaic. */
+  against: { title: string; type: MediaType; rating: number; community: number; voters: number } | null
+  /** Cuánto tarda en terminar algo: de un tipo (si hay ≥ 2) o en general, y su récord. */
+  speed: {
+    type: MediaType | null
+    averageDays: number
+    count: number
+    fastest: { title: string; type: MediaType; days: number }
+  } | null
+  /** La obra más vieja respecto de cuándo la vio. */
+  timeTravel: { title: string; type: MediaType; year: number; seenYear: number; years: number } | null
+}
+
 /** GET /users/:id */
 export interface PublicProfile {
   user: PublicUser
@@ -117,6 +132,8 @@ export interface PublicProfile {
   activity: ActivityEvent[]
   /** Última obra que dejó sin terminar, o null. */
   lastAbandoned: string | null
+  /** Insights que calcula el servidor (null con perfil privado ajeno). */
+  insights: ProfileInsightsData | null
   entries: PublicEntry[]
   /** Sus listas públicas (visibles aunque el perfil sea privado). */
   lists: ListSummary[]

@@ -6,6 +6,7 @@ import { LIST_SUMMARY_INCLUDE, toListSummaryDTO } from './lists'
 import { toLogDTO } from '../lib/logs'
 import { ratingSummary } from '../lib/ratings'
 import { culturalDna } from '../lib/dna'
+import { profileInsights } from '../lib/insights'
 
 export const userRoutes = new Hono<AuthEnv>()
 
@@ -173,7 +174,7 @@ userRoutes.get('/:id', async (c) => {
   const yearStart = new Date(`${new Date().getFullYear()}-01-01T00:00:00Z`)
 
   const yearAgo = new Date(Date.now() - 371 * 86_400_000)
-  const [entries, lists, follow, works, finishedThisYear, listCount, favorites, recent, rated, collection, activityLogs, lastAbandoned] = await Promise.all([
+  const [entries, lists, follow, works, finishedThisYear, listCount, favorites, recent, rated, collection, activityLogs, lastAbandoned, insights] = await Promise.all([
     canSee
       ? prisma.mediaEntry.findMany({ where: { userId: id }, orderBy: { updatedAt: 'desc' }, take: MAX_ENTRIES })
       : Promise.resolve([]),
@@ -222,6 +223,7 @@ userRoutes.get('/:id', async (c) => {
           select: { title: true },
         })
       : Promise.resolve(null),
+    canSee ? profileInsights(id) : Promise.resolve(null),
   ])
 
   const day = (d: Date | null) => (d && d >= yearAgo ? d.toISOString().slice(0, 10) : null)
@@ -254,6 +256,7 @@ userRoutes.get('/:id', async (c) => {
         .map((date) => ({ date, title: l.entry.title, type: l.entry.type, genres: l.entry.genres })),
     ),
     lastAbandoned: lastAbandoned?.title ?? null,
+    insights,
     entries: entries.map(toPublicEntryDTO),
     lists: lists.map(toListSummaryDTO),
   })

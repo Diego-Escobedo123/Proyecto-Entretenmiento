@@ -2,27 +2,27 @@
 /**
  * DnaOverview — "ADN cultural" completo del perfil público: dona de géneros,
  * década favorita sobre una línea de tiempo, formato dominante con el resto
- * de los tipos, y tres insights (constancia, calificaciones y el día más
- * intenso del último año). `self` pasa los textos a segunda persona.
+ * de los tipos, y los insights (ver ProfileInsights). `self` pasa los textos
+ * a segunda persona.
  * Se adapta al ancho de su tarjeta (container queries), no al de la ventana.
  *
  * Uso:
  *   <DnaOverview :dna="profile.dna" :ratings="profile.ratings" :activity="profile.activity"
- *                :last-abandoned="profile.lastAbandoned" self />
+ *                :last-abandoned="profile.lastAbandoned" :insights="profile.insights" self />
  */
 import { computed } from 'vue'
 import BaseIcon from '../BaseIcon.vue'
+import ProfileInsights from './ProfileInsights.vue'
 import { typeMeta } from '../../lib/catalog'
-import { parseISODay } from '../../lib/dates'
 import { GENRE_COLORS, OTHER_GENRES_COLOR, OTHER_GENRES_LABEL } from '../../lib/genreColors'
-import type { ActivityEvent, PublicProfile } from '../../types/review'
-import type { MediaType } from '../../types/media'
+import type { ActivityEvent, ProfileInsightsData, PublicProfile } from '../../types/review'
 
 const props = defineProps<{
   dna: PublicProfile['dna']
   ratings: PublicProfile['ratings']
   activity: ActivityEvent[]
   lastAbandoned: string | null
+  insights: ProfileInsightsData | null
   self?: boolean
 }>()
 
@@ -71,67 +71,6 @@ const decades = computed(() => {
 const dominant = computed(() => props.dna.typeShares[0] ?? null)
 const secondaryTypes = computed(() => props.dna.typeShares.slice(1, 3))
 
-// --- Insight: constancia ---
-const completion = computed(() => props.dna.completionRate)
-const completionDots = computed(() => Math.round(completion.value / 10))
-const completionText = computed(() => {
-  const r = completion.value
-  if (r >= 90) return `${v('Terminas', 'Termina')} casi todo lo que ${v('empiezas', 'empieza')}.`
-  if (r >= 60) return `${v('Terminas', 'Termina')} la mayoría de lo que ${v('empiezas', 'empieza')}.`
-  if (r >= 40) return `${v('Completas', 'Completa')} ${r === 50 ? 'la' : 'cerca de la'} mitad de lo que ${v('empiezas', 'empieza')}.`
-  return `${v('Dejas', 'Deja')} a medias buena parte de lo que ${v('empiezas', 'empieza')}.`
-})
-
-// --- Insight: calificaciones (histograma de ½ a 5; índices 7–9 = 4, 4½ y 5) ---
-const highRatings = computed(() => props.ratings.histogram.slice(7).reduce((a, b) => a + b, 0))
-const ratingVerdict = computed(() => {
-  const share = highRatings.value / props.ratings.count
-  if (share >= 0.7) return `${v('Eres', 'Es')} de mano generosa.`
-  if (share <= 0.3) return `${v('Eres', 'Es')} de estrellas difíciles.`
-  return `${v('Repartes', 'Reparte')} las estrellas con equilibrio.`
-})
-/** Estrellas del promedio, de a media. */
-const averageStars = computed(() => {
-  const avg = props.ratings.average ?? 0
-  return Array.from({ length: 5 }, (_, i) => (avg >= i + 1 ? 'star-fill' : avg >= i + 0.5 ? 'star-half' : 'star'))
-})
-
-// --- Insight: día más intenso ---
-const NUMBER_WORDS = ['', 'un', 'dos', 'tres', 'cuatro', 'cinco']
-
-/** "una serie", "dos películas", "un álbum"… */
-function countType(type: MediaType, n: number): string {
-  const meta = typeMeta(type)
-  if (n === 1) return `${meta.gender === 'f' ? 'una' : 'un'} ${meta.label.toLowerCase()}`
-  return `${NUMBER_WORDS[n] ?? n} ${meta.plural.toLowerCase()}`
-}
-
-function joinList(items: string[]): string {
-  return items.length < 2 ? (items[0] ?? '') : `${items.slice(0, -1).join(', ')} y ${items[items.length - 1]}`
-}
-
-const busiestDay = computed(() => {
-  const byDay = new Map<string, Map<string, MediaType>>()
-  for (const e of props.activity) {
-    const works = byDay.get(e.date) ?? new Map<string, MediaType>()
-    works.set(e.title, e.type)
-    byDay.set(e.date, works)
-  }
-  // El que tenga más obras distintas; si empatan, el más reciente.
-  const [date, works] =
-    [...byDay.entries()].sort((a, b) => b[1].size - a[1].size || b[0].localeCompare(a[0]))[0] ?? []
-  if (!date || !works) return null
-
-  const byType = new Map<MediaType, number>()
-  for (const type of works.values()) byType.set(type, (byType.get(type) ?? 0) + 1)
-  const d = parseISODay(date)
-  return {
-    month: d.toLocaleDateString('es', { month: 'short' }).replace('.', '').slice(0, 3).toUpperCase(),
-    day: d.getDate(),
-    count: works.size,
-    detail: joinList([...byType.entries()].map(([type, n]) => countType(type, n))),
-  }
-})
 </script>
 
 <template>
@@ -203,56 +142,14 @@ const busiestDay = computed(() => {
         </div>
       </div>
 
-      <h3 class="ov__subtitle">Insights</h3>
-      <div class="ov__insights">
-        <article class="insight insight--constancy">
-          <h4 class="insight__kicker">Constancia</h4>
-          <div class="insight__dots" aria-hidden="true">
-            <span v-for="n in 10" :key="n" class="insight__dot" :class="{ 'is-on': n <= completionDots }" />
-          </div>
-          <p class="insight__value">{{ completion }}%</p>
-          <p class="insight__text">
-            {{ completionText }}
-            <template v-if="lastAbandoned">Último abandono: <em>{{ lastAbandoned }}</em>.</template>
-          </p>
-        </article>
-
-        <article class="insight insight--ratings">
-          <h4 class="insight__kicker">Calificaciones</h4>
-          <div class="insight__stars" aria-hidden="true">
-            <BaseIcon v-for="(icon, i) in averageStars" :key="i" :name="icon" />
-          </div>
-          <template v-if="ratings.count">
-            <p class="insight__value">{{ highRatings }} de {{ ratings.count }}</p>
-            <p class="insight__text">
-              de {{ v('tus', 'sus') }} notas son de 4<BaseIcon name="star-fill" class="insight__inline-star" /> o más.
-              {{ ratingVerdict }}
-            </p>
-          </template>
-          <template v-else>
-            <p class="insight__value">—</p>
-            <p class="insight__text">Todavía no hay calificaciones.</p>
-          </template>
-        </article>
-
-        <article class="insight insight--day">
-          <h4 class="insight__kicker">{{ v('Tu', 'Su') }} día más intenso</h4>
-          <template v-if="busiestDay">
-            <div class="insight__calendar" aria-hidden="true">
-              <span class="insight__calendar-month">{{ busiestDay.month }}</span>
-              <span class="insight__calendar-day">{{ busiestDay.day }}</span>
-            </div>
-            <p class="insight__value">{{ busiestDay.count }} {{ busiestDay.count === 1 ? 'obra' : 'obras' }}</p>
-            <p class="insight__text">
-              {{ busiestDay.count === 1 ? 'ese día' : 'en un solo día' }}: {{ busiestDay.detail }}.
-            </p>
-          </template>
-          <template v-else>
-            <p class="insight__value">—</p>
-            <p class="insight__text">Sin registros en el último año.</p>
-          </template>
-        </article>
-      </div>
+      <ProfileInsights
+        :dna="dna"
+        :ratings="ratings"
+        :activity="activity"
+        :last-abandoned="lastAbandoned"
+        :insights="insights"
+        :self="self"
+      />
     </div>
   </div>
 </template>
@@ -295,8 +192,8 @@ const busiestDay = computed(() => {
 /*
  * Teléfono (tarjeta angosta): todo en una columna.
  * Escritorio (desde 400px de tarjeta): como el diseño, dona | década | formato
- * y los tres insights en fila; tamaños y rellenos se escalan con el ancho
- * de la tarjeta (cqi) para que quepa igual a 1280px que a 1920px.
+ * (los insights en fila los acomoda ProfileInsights); tamaños y rellenos se
+ * escalan con el ancho de la tarjeta (cqi) para que quepa igual a 1280px que a 1920px.
  */
 .ov__top {
   display: grid;
@@ -406,8 +303,7 @@ const busiestDay = computed(() => {
   background: color-mix(in srgb, var(--color-surface-2) 60%, var(--color-surface));
 }
 
-.ov__kicker,
-.insight__kicker {
+.ov__kicker {
   margin: 0 0 var(--space-sm);
   font-size: 0.6875rem;
   font-weight: 700;
@@ -515,139 +411,10 @@ const busiestDay = computed(() => {
   font-weight: 700;
 }
 
-/* --- Insights --- */
-.ov__subtitle {
-  margin: var(--space-xs) 0 0;
-  font-size: 1rem;
-  font-weight: 700;
-  color: var(--color-text);
-}
-
-.ov__insights {
-  display: grid;
-  grid-template-columns: 1fr;
-  gap: var(--space-md);
-}
-
-
-.insight {
-  display: flex;
-  flex-direction: column;
-  min-width: 0;
-  padding: 12px;
-  border-radius: var(--radius-md);
-}
-
-.insight--constancy {
-  background: color-mix(in srgb, var(--burnt-copper) 14%, var(--color-surface-2));
-  color: var(--color-text);
-}
-
-.insight--constancy .insight__kicker {
-  color: var(--color-accent);
-}
-
-.insight--ratings {
-  background: var(--color-accent);
-  color: var(--color-accent-contrast);
-}
-
-.insight--day {
-  background: var(--rose);
-  color: var(--color-accent-contrast);
-}
-
-.insight--ratings .insight__kicker,
-.insight--day .insight__kicker {
-  color: color-mix(in srgb, var(--color-accent-contrast) 75%, transparent);
-}
-
-.insight__dots {
-  display: grid;
-  grid-template-columns: repeat(5, 11px);
-  gap: 5px;
-}
-
-.insight__dot {
-  width: 11px;
-  height: 11px;
-  border-radius: 50%;
-  border: 1.5px solid var(--color-text-subtle);
-}
-
-.insight__dot.is-on {
-  border-color: var(--color-accent);
-  background: var(--color-accent);
-}
-
-.insight__stars {
-  display: flex;
-  gap: 4px;
-  font-size: 0.9375rem;
-}
-
-.insight__calendar {
-  align-self: flex-start;
-  display: flex;
-  flex-direction: column;
-  width: 42px;
-  border-radius: var(--radius-sm);
-  overflow: hidden;
-  background: var(--fig-cream);
-  text-align: center;
-  box-shadow: 0 2px 6px rgb(0 0 0 / 0.15);
-}
-
-.insight__calendar-month {
-  padding: 1px 0;
-  background: var(--deep-raspberry);
-  color: var(--fig-cream);
-  font-size: 0.5625rem;
-  font-weight: 700;
-  letter-spacing: 0.08em;
-}
-
-.insight__calendar-day {
-  padding: 1px 0 3px;
-  color: var(--fig-purple);
-  font-size: 1.125rem;
-  font-weight: 800;
-  line-height: 1.1;
-}
-
-.insight__value {
-  font-family: var(--font-sans);
-  margin: auto 0 2px;
-  padding-top: var(--space-sm);
-  font-size: 1.625rem;
-  font-weight: 800;
-  line-height: 1.1;
-}
-
-.insight__text {
-  margin: 0;
-  font-family: var(--font-serif);
-  font-size: 0.75rem;
-  line-height: 1.45;
-}
-
-.insight__inline-star {
-  font-size: 0.7em;
-  vertical-align: 0.1em;
-}
-
 /* Escritorio: al final para ganarle a las reglas base (misma especificidad). */
 @container (min-width: 400px) {
-  .ov__insights {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-    gap: clamp(8px, 2cqi, 16px);
-  }
 
   .ov__fact {
-    padding: clamp(8px, 1.9cqi, 12px);
-  }
-
-  .insight {
     padding: clamp(8px, 1.9cqi, 12px);
   }
 
@@ -663,32 +430,13 @@ const busiestDay = computed(() => {
     font-size: clamp(0.625rem, 1.7cqi, 0.75rem);
   }
 
-  .insight__text {
-    font-size: clamp(0.625rem, 1.7cqi, 0.75rem);
-  }
-
   .ov__type-icon {
     font-size: clamp(1.25rem, 3.8cqi, 1.75rem);
   }
 
-  .ov__kicker,
-  .insight__kicker {
+  .ov__kicker {
     font-size: clamp(0.5625rem, 1.6cqi, 0.6875rem);
     letter-spacing: 0.08em;
-  }
-
-  .insight__value {
-    font-size: clamp(1.0625rem, 3.7cqi, 1.625rem);
-  }
-
-  .insight__dots {
-    grid-template-columns: repeat(5, clamp(8px, 1.8cqi, 11px));
-    gap: clamp(3px, 0.8cqi, 5px);
-  }
-
-  .insight__dot {
-    width: clamp(8px, 1.8cqi, 11px);
-    height: clamp(8px, 1.8cqi, 11px);
   }
 
   .timeline__stop {

@@ -304,6 +304,7 @@ const averageText = computed(() =>
               :ratings="profile.ratings"
               :activity="profile.activity"
               :last-abandoned="profile.lastAbandoned"
+              :insights="profile.insights"
               :self="isSelf"
             />
             <YearInWorks
