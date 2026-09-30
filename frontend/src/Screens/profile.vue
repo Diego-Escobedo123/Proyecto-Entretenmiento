@@ -585,12 +585,15 @@ a.profile-stats__item:hover {
   min-width: 0;
 }
 
-/* Público: columna angosta (actividad, calificaciones) y ancha (ADN, constancia). */
+/*
+ * Público: tarjeta angosta + ancha en cada fila, con 12 columnas para que
+ * cada fila tenga su proporción: Actividad 5 | ADN 7, Cómo califica 4 | Constancia 8.
+ */
 .profile-columns--public {
-  grid-template-columns: minmax(0, 2fr) minmax(0, 3fr);
+  grid-template-columns: repeat(12, minmax(0, 1fr));
   grid-template-areas:
-    'recent dna'
-    'rating constancy';
+    'recent recent recent recent recent dna dna dna dna dna dna dna'
+    'rating rating rating rating constancy constancy constancy constancy constancy constancy constancy constancy';
 }
 
 .profile-columns__recent {
