@@ -8,6 +8,7 @@ import CollectionScreen from '../Screens/collection.vue'
 import DiaryScreen from '../Screens/diary.vue'
 import ListsScreen from '../Screens/lists.vue'
 import ListDetailScreen from '../Screens/list-detail.vue'
+import WishlistScreen from '../Screens/wishlist.vue'
 import ProfileScreen from '../Screens/profile.vue'
 import PeopleScreen from '../Screens/people.vue'
 import FollowsScreen from '../Screens/follows.vue'
@@ -30,6 +31,7 @@ export const router = createRouter({
     { path: '/collection', name: 'collection', component: CollectionScreen },
     { path: '/diary', name: 'diary', component: DiaryScreen },
     { path: '/lists', name: 'lists', component: ListsScreen },
+    { path: '/lists/wishlist', name: 'wishlist', component: WishlistScreen },
     { path: '/lists/:id', name: 'list-detail', component: ListDetailScreen },
     { path: '/profile', name: 'profile', component: ProfileScreen },
     // Una sola página de perfil: /users/me es el propio (misma vista que /profile).

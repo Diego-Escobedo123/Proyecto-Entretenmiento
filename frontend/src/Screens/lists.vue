@@ -2,13 +2,14 @@
 /**
  * Listas — las listas del usuario (como las de Letterboxd). Se crean aquí o
  * desde la ficha de cualquier obra ("Agregar a lista"). La búsqueda global
- * filtra por nombre o descripción.
+ * filtra por nombre o descripción. La wishlist va siempre primero, fija.
  */
 import { computed, onMounted, ref } from 'vue'
 import { storeToRefs } from 'pinia'
 import { useRouter } from 'vue-router'
 import SectionHeader from '../components/SectionHeader.vue'
 import ListCard from '../components/lists/ListCard.vue'
+import WishlistCard from '../components/lists/WishlistCard.vue'
 import ListFormModal from '../components/lists/ListFormModal.vue'
 import EmptyState from '../components/EmptyState.vue'
 import BaseButton from '../components/BaseButton.vue'
@@ -44,6 +45,12 @@ const filteredLists = computed(() => {
   )
 })
 
+/** La wishlist se oculta al buscar, salvo que se busque por su nombre. */
+const showWishlist = computed(() => {
+  const q = debouncedQuery.value.trim().toLowerCase()
+  return !q || 'wishlist'.includes(q)
+})
+
 const creating = ref(false)
 
 /** Recién creada: se abre para empezar a llenarla. */
@@ -63,25 +70,29 @@ function onCreated(list: ListSummary) {
 
     <p v-else-if="failed" class="lists-screen__searching">No se pudieron cargar tus listas.</p>
 
-    <EmptyState
-      v-else-if="!lists.length"
-      icon="card-list"
-      title="Aún no tienes listas"
-      text="Arma listas de lo que quieras: pendientes para vacaciones, tus 10 favoritos, sagas completas… Pueden incluir obras que todavía no has visto."
-    >
-      <BaseButton @click="creating = true">Crear mi primera lista</BaseButton>
-    </EmptyState>
+    <template v-else>
+      <div v-if="showWishlist || filteredLists.length" class="lists-screen__grid">
+        <WishlistCard v-if="showWishlist" />
+        <ListCard v-for="list in filteredLists" :key="list.id" :list="list" />
+      </div>
 
-    <EmptyState
-      v-else-if="!filteredLists.length"
-      icon="search"
-      title="Sin resultados"
-      text="No encontramos ninguna lista que coincida con tu búsqueda."
-    />
+      <EmptyState
+        v-if="!lists.length"
+        compact
+        icon="card-list"
+        title="Aún no tienes listas propias"
+        text="Arma listas de lo que quieras: pendientes para vacaciones, tus 10 favoritos, sagas completas… Pueden incluir obras que todavía no has visto."
+      >
+        <BaseButton @click="creating = true">Crear mi primera lista</BaseButton>
+      </EmptyState>
 
-    <div v-else class="lists-screen__grid">
-      <ListCard v-for="list in filteredLists" :key="list.id" :list="list" />
-    </div>
+      <EmptyState
+        v-else-if="!filteredLists.length && !showWishlist"
+        icon="search"
+        title="Sin resultados"
+        text="No encontramos ninguna lista que coincida con tu búsqueda."
+      />
+    </template>
 
     <ListFormModal v-if="creating" @close="creating = false" @saved="onCreated" />
   </div>
