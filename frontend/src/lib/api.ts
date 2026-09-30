@@ -12,11 +12,14 @@ const TOKEN_KEY = 'mosaic:token'
 
 export class ApiError extends Error {
   readonly status: number
+  /** Campo del formulario al que se refiere el error, si el backend lo indica. */
+  readonly field: string | null
 
-  constructor(message: string, status: number) {
+  constructor(message: string, status: number, field: string | null = null) {
     super(message)
     this.name = 'ApiError'
     this.status = status
+    this.field = field
   }
 }
 
@@ -70,7 +73,8 @@ export async function apiFetch<T>(path: string, options: RequestOptions = {}): P
       (data && typeof data === 'object' && 'message' in data && typeof data.message === 'string'
         ? data.message
         : null) ?? `Error ${response.status}`
-    throw new ApiError(message, response.status)
+    const field = data && typeof data === 'object' && 'field' in data && typeof data.field === 'string' ? data.field : null
+    throw new ApiError(message, response.status, field)
   }
 
   return data as T
