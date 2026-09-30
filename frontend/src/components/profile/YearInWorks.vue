@@ -13,14 +13,12 @@
  */
 import { computed, ref } from 'vue'
 import { faDna } from '@fortawesome/free-solid-svg-icons'
+import FaIcon from '../FaIcon.vue'
 import { isoDay, parseISODay } from '../../lib/dates'
 import { GENRE_COLORS, OTHER_GENRES_COLOR, OTHER_GENRES_LABEL } from '../../lib/genreColors'
 import type { ActivityEvent } from '../../types/review'
 
 const props = defineProps<{ activity: ActivityEvent[]; topGenres: string[]; self?: boolean }>()
-
-/** Ícono "dna" de Font Awesome (Bootstrap Icons no trae uno): [ancho, alto, …, path]. */
-const [DNA_WIDTH, DNA_HEIGHT, , , DNA_PATH] = faDna.icon
 
 /** Género de un registro: el mejor ubicado en el top del ADN, o "Otros". */
 function genreIndex(e: ActivityEvent): number {
@@ -145,9 +143,8 @@ const ariaWeek = (w: Week) =>
   <div class="card year">
     <div class="card__header">
       <h2 class="card__title">
-        <svg class="card__icon" :viewBox="`0 0 ${DNA_WIDTH} ${DNA_HEIGHT}`" aria-hidden="true">
-          <path :d="String(DNA_PATH)" />
-        </svg>
+        <!-- Bootstrap Icons no trae uno de ADN: va el de Font Awesome. -->
+        <FaIcon :icon="faDna" />
         {{ self ? 'Tu' : 'Su' }} año en obras
       </h2>
       <p class="year__summary">
@@ -232,13 +229,6 @@ const ariaWeek = (w: Week) =>
   justify-content: space-between;
   flex-wrap: wrap;
   gap: var(--space-xs) var(--space-md);
-}
-
-.card__icon {
-  height: 1em;
-  width: auto;
-  flex-shrink: 0;
-  fill: currentColor;
 }
 
 .card__title {
