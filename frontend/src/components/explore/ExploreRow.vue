@@ -173,7 +173,6 @@ function scroll(direction: -1 | 1) {
   overflow-x: auto;
   scroll-snap-type: x proximity;
   padding-bottom: var(--space-sm);
-  scrollbar-width: thin;
 }
 
 .explore-row__card {
