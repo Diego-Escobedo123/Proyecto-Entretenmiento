@@ -289,51 +289,45 @@ const busiestDay = computed(() => {
   gap: var(--space-md);
 }
 
+/*
+ * Teléfono (tarjeta angosta): todo en una columna.
+ * Escritorio (desde 400px de tarjeta): como el diseño, dona | década | formato
+ * y los tres insights en fila; tamaños y rellenos se escalan con el ancho
+ * de la tarjeta (cqi) para que quepa igual a 1280px que a 1920px.
+ */
 .ov__top {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: 1fr;
   gap: var(--space-md);
 }
 
 .ov__genres {
-  grid-column: 1 / -1;
   display: flex;
+  flex-direction: column;
   align-items: center;
-  justify-content: center;
-  gap: var(--space-lg);
+  gap: var(--space-md);
 }
 
-@container (min-width: 600px) {
+@container (min-width: 400px) {
   .ov__top {
-    grid-template-columns: minmax(170px, 1fr) 1fr 1fr;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: clamp(8px, 2cqi, 16px);
   }
 
-  .ov__genres {
-    grid-column: auto;
-    flex-direction: column;
-    gap: var(--space-md);
-  }
-
-  /* Columna angosta: la leyenda en una sola columna. */
   .ov__genres .donut__legend {
     grid-template-columns: auto;
-  }
-}
-
-@container (max-width: 420px) {
-  .ov__top {
-    grid-template-columns: 1fr;
+    font-size: clamp(0.6875rem, 1.9cqi, 0.8125rem);
   }
 
-  .ov__genres {
-    flex-direction: column;
+  .ov__genres .donut__legend li {
+    white-space: normal;
   }
 }
 
 /* --- Dona --- */
 .donut {
-  width: 150px;
-  height: 150px;
+  width: min(150px, 100%);
+  aspect-ratio: 1;
   flex-shrink: 0;
   border-radius: 50%;
   position: relative;
@@ -341,7 +335,7 @@ const busiestDay = computed(() => {
 
 .donut__hole {
   position: absolute;
-  inset: 20px;
+  inset: 13%;
   border-radius: 50%;
   background: var(--color-surface);
   display: flex;
@@ -516,15 +510,10 @@ const busiestDay = computed(() => {
 
 .ov__insights {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: 1fr;
   gap: var(--space-md);
 }
 
-@container (max-width: 560px) {
-  .ov__insights {
-    grid-template-columns: 1fr;
-  }
-}
 
 .insight {
   display: flex;
@@ -630,5 +619,72 @@ const busiestDay = computed(() => {
 .insight__inline-star {
   font-size: 0.7em;
   vertical-align: 0.1em;
+}
+
+/* Escritorio: al final para ganarle a las reglas base (misma especificidad). */
+@container (min-width: 400px) {
+  .ov__insights {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: clamp(8px, 2cqi, 16px);
+  }
+
+  .ov__fact,
+  .insight {
+    padding: clamp(10px, 2.4cqi, 16px);
+  }
+
+  .ov__big {
+    font-size: clamp(1.125rem, 4cqi, 1.75rem);
+  }
+
+  .ov__big--accent {
+    font-size: clamp(1.75rem, 6.5cqi, 3rem);
+  }
+
+  .ov__caption,
+  .insight__text {
+    font-size: clamp(0.6875rem, 1.9cqi, 0.8125rem);
+  }
+
+  .ov__type-icon {
+    font-size: clamp(1.5rem, 5cqi, 2.25rem);
+  }
+
+  .ov__kicker,
+  .insight__kicker {
+    font-size: clamp(0.5625rem, 1.6cqi, 0.6875rem);
+    letter-spacing: 0.08em;
+  }
+
+  .insight__value {
+    font-size: clamp(1.25rem, 4.6cqi, 2rem);
+  }
+
+  .insight__dots {
+    grid-template-columns: repeat(5, clamp(10px, 2.2cqi, 14px));
+    gap: clamp(4px, 1cqi, 6px);
+  }
+
+  .insight__dot {
+    width: clamp(10px, 2.2cqi, 14px);
+    height: clamp(10px, 2.2cqi, 14px);
+  }
+
+  .timeline__stop {
+    font-size: clamp(0.5625rem, 1.6cqi, 0.6875rem);
+  }
+
+  .ov__types {
+    flex-direction: column;
+    font-size: clamp(0.6875rem, 1.9cqi, 0.8125rem);
+  }
+}
+
+/* Tarjeta de década angosta: 4 décadas en vez de 6 (sin tocar la favorita). */
+@container (min-width: 400px) and (max-width: 560px) {
+  .timeline__stop:first-child:not(.is-current),
+  .timeline__stop:last-child:not(.is-current) {
+    display: none;
+  }
 }
 </style>

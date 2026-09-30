@@ -591,17 +591,23 @@ a.profile-stats__item:hover {
 
 .rating-head {
   display: flex;
+  flex-wrap: wrap;
   align-items: flex-start;
   justify-content: space-between;
-  gap: var(--space-md);
+  gap: var(--space-xs) var(--space-md);
 }
 
+.rating-head .profile-section__title {
+  white-space: nowrap;
+}
+
+/* Si no cabe al lado del título, el promedio baja y queda a la derecha. */
 .rating-head__average {
   font-family: var(--font-sans);
   display: flex;
   flex-direction: column;
   align-items: flex-end;
-  margin: 0;
+  margin: 0 0 0 auto;
   line-height: 1.1;
 }
 
@@ -639,7 +645,7 @@ a.profile-stats__item:hover {
 /*
  * Público, con espacio: tarjeta angosta + ancha en cada fila, con 12 columnas
  * para que cada fila tenga su proporción: Actividad 5 | ADN 7, Cómo califica 4 | Año 8.
- * Con menos espacio el ADN va a todo lo ancho (ver media queries al final).
+ * En tablet y teléfono se apila en una columna (ver media queries al final).
  */
 .profile-columns--public {
   grid-template-columns: repeat(12, minmax(0, 1fr));
@@ -935,18 +941,8 @@ a.profile-stats__item:hover {
   }
 }
 
-/* Sin espacio para ADN al lado de la actividad: ADN arriba a todo lo ancho, y debajo actividad | cómo califica. */
-@media (max-width: 1499px) {
-  .profile-columns--public {
-    grid-template-columns: 1fr 1fr;
-    grid-template-areas:
-      'dna dna'
-      'recent rating'
-      'year year';
-  }
-}
-
-@media (max-width: 1000px) {
+/* Tablet y teléfono: una sola columna, en el mismo orden de lectura. */
+@media (max-width: 1179px) {
   .profile-columns--public {
     grid-template-columns: 1fr;
     grid-template-areas: 'recent' 'dna' 'rating' 'year';
