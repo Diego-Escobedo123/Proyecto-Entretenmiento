@@ -4,15 +4,26 @@
  * RAWG, iTunes) en Explorar. Si la obra ya está en la colección muestra
  * "En tu colección" (abre la edición); si no, "+ Agregar" (alta precargada).
  * Clic en la portada o el título abre la ficha con reseñas (`details`).
+ * `note` agrega una línea de contexto ("Sale el 15 oct", "Porque te gustó
+ * Dune") y `rating` (0–5) una estrella con su valor; `showType` antepone
+ * el tipo cuando la lista mezcla tipos.
  */
 import BaseIcon from '../BaseIcon.vue'
 import { typeMeta } from '../../lib/catalog'
 import type { MediaType } from '../../types/media'
 import type { ExternalSearchResult } from '../../types/search'
 
-withDefaults(defineProps<{ result: ExternalSearchResult; type: MediaType; owned?: boolean }>(), {
-  owned: false,
-})
+withDefaults(
+  defineProps<{
+    result: ExternalSearchResult
+    type: MediaType
+    owned?: boolean
+    note?: string
+    rating?: number
+    showType?: boolean
+  }>(),
+  { owned: false, note: undefined, rating: undefined, showType: false },
+)
 defineEmits<{ add: []; open: []; details: [] }>()
 </script>
 
@@ -32,7 +43,15 @@ defineEmits<{ add: []; open: []; details: [] }>()
       <span class="catalog-card__body">
         <span class="catalog-card__title" :title="result.title">{{ result.title }}</span>
         <span class="catalog-card__meta">
-          {{ [result.creator, result.year].filter(Boolean).join(' · ') || ' ' }}
+          <BaseIcon v-if="showType" :name="typeMeta(type).icon" class="catalog-card__type" />
+          {{ [result.creator, result.year].filter(Boolean).join(' · ') || (showType ? typeMeta(type).label : ' ') }}
+        </span>
+        <span v-if="note || rating != null" class="catalog-card__note" :title="note">
+          {{ note }}<template v-if="note && rating != null"> · </template>
+          <template v-if="rating != null">
+            <BaseIcon name="star-fill" />
+            {{ rating.toLocaleString('es', { minimumFractionDigits: 1, maximumFractionDigits: 1 }) }}
+          </template>
         </span>
       </span>
     </button>
@@ -118,6 +137,21 @@ defineEmits<{ add: []; open: []; details: [] }>()
   margin: 2px 0 0;
   font-size: 0.8125rem;
   color: var(--color-text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.catalog-card__type {
+  margin-right: 2px;
+}
+
+.catalog-card__note {
+  display: block;
+  margin: 2px 0 0;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--color-accent);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;

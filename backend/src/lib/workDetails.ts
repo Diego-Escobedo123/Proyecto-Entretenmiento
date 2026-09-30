@@ -8,9 +8,11 @@
  * Fuentes, según el prefijo del `externalId`:
  * - tmdb / tmdb-tv  TMDB          (películas / series)
  * - googlebooks     Google Books  (libros)
+ * - openlibrary     Open Library  (libros que vienen de Explorar → Tendencias)
  * - rawg            RAWG          (juegos)
  * - itunes          iTunes        (álbumes)
  */
+import { fetchJson } from './http'
 
 export interface CastMember {
   name: string
@@ -53,23 +55,10 @@ export interface WorkDetails {
   } | null
 }
 
-const TIMEOUT_MS = 6000
 const CACHE_TTL_MS = 6 * 60 * 60 * 1000
 const MAX_CAST = 8
 
 const cache = new Map<string, { at: number; value: WorkDetails | null }>()
-
-async function fetchJson(url: string): Promise<unknown> {
-  const controller = new AbortController()
-  const timeout = setTimeout(() => controller.abort(), TIMEOUT_MS)
-  try {
-    const res = await fetch(url, { signal: controller.signal })
-    if (!res.ok) throw new Error(`${url} -> ${res.status}`)
-    return await res.json()
-  } finally {
-    clearTimeout(timeout)
-  }
-}
 
 const q = encodeURIComponent
 
@@ -303,6 +292,55 @@ async function bookDetails(id: string, region: string): Promise<WorkDetails> {
   }
 }
 
+// ---- Open Library (libros de Explorar → Tendencias) --------------------
+
+async function openLibraryDetails(id: string, region: string): Promise<WorkDetails> {
+  const base = `https://openlibrary.org/works/${q(id)}`
+  const [work, editions] = await Promise.all([
+    fetchJson(`${base}.json`) as Promise<{
+      title?: string
+      description?: string | { value?: string }
+      subjects?: string[]
+    }>,
+    // Las páginas y el ISBN viven en las ediciones, no en la obra.
+    (fetchJson(`${base}/editions.json?limit=20`) as Promise<{
+      entries?: { number_of_pages?: number; isbn_13?: string[]; isbn_10?: string[] }[]
+    }>).catch(() => ({ entries: [] as { number_of_pages?: number; isbn_13?: string[]; isbn_10?: string[] }[] })),
+  ])
+
+  const description = typeof work.description === 'string' ? work.description : work.description?.value ?? ''
+  const pages = editions.entries?.find((e) => e.number_of_pages)?.number_of_pages ?? null
+  const isbn = editions.entries?.flatMap((e) => [...(e.isbn_13 ?? []), ...(e.isbn_10 ?? [])])[0]
+  const searchTerm = isbn ?? work.title ?? ''
+  const amazon = AMAZON_DOMAIN[region] ?? 'amazon.com'
+
+  return {
+    // Las descripciones de Open Library traen a veces enlaces en Markdown y notas "([source]…)".
+    overview: description.replace(/\[([^\]]+)\]\([^)]*\)/g, '$1').replace(/\r/g, '').trim(),
+    facts: pages ? [plural(pages, 'página', 'páginas')] : [],
+    people: [],
+    cast: [],
+    tracks: [],
+    pages,
+    seasons: [],
+    platforms: [],
+    where: {
+      region: null,
+      groups: [
+        {
+          label: 'Comprar o leer',
+          items: [
+            { name: 'Open Library', logo: favicon('openlibrary.org'), url: `https://openlibrary.org/works/${q(id)}` },
+            { name: 'Amazon', logo: favicon(amazon), url: `https://www.${amazon}/s?k=${q(searchTerm)}&i=stripbooks` },
+            { name: 'Goodreads', logo: favicon('goodreads.com'), url: `https://www.goodreads.com/search?q=${q(searchTerm)}` },
+          ],
+        },
+      ],
+      credit: null,
+    },
+  }
+}
+
 // ---- RAWG (juegos) ------------------------------------------------------
 
 async function gameDetails(id: string): Promise<WorkDetails | null> {
@@ -446,6 +484,7 @@ export async function getWorkDetails(externalId: string, region: string): Promis
     if (source === 'tmdb') value = await tmdbDetails('movie', id, region)
     else if (source === 'tmdb-tv') value = await tmdbDetails('tv', id, region)
     else if (source === 'googlebooks') value = await bookDetails(id, region)
+    else if (source === 'openlibrary') value = await openLibraryDetails(id, region)
     else if (source === 'rawg') value = await gameDetails(id)
     else if (source === 'itunes') value = await albumDetails(id, region)
   }

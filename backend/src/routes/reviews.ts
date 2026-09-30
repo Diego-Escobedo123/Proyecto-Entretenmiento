@@ -12,6 +12,72 @@ const VALID_TYPES = new Set(['movie', 'series', 'book', 'game', 'music'])
 const MAX_REVIEWS = 30
 
 /**
+ * GET /reviews/stats?type=movie&externalId=tmdb:123&title=Dune
+ *   -> { people, byStatus, rating: { average, count, histogram }, finishes, repeats }
+ *
+ * Números de la obra en todo Mosaic (incluido el usuario actual): cuánta gente
+ * la tiene y en qué estado, la distribución de estrellas (10 barras, de ½ a 5)
+ * y, desde el diario, cuántas veces se terminó y cuántas se repitió.
+ *
+ * La obra se reconoce por su id de catálogo; también cuentan las ingresadas a
+ * mano (sin id) con el mismo tipo y título. Dos obras distintas con el mismo
+ * título (Dune de 1984 y de 2021) no se mezclan porque sus ids difieren.
+ */
+reviewRoutes.get('/stats', async (c) => {
+  const type = c.req.query('type') ?? ''
+  const externalId = c.req.query('externalId')?.trim() || null
+  const title = c.req.query('title')?.trim() || ''
+
+  if (!VALID_TYPES.has(type)) {
+    return c.json({ message: 'Tipo inválido. Usa movie, series, book, game o music.' }, 400)
+  }
+  if (!externalId && !title) {
+    return c.json({ message: 'Falta externalId o title.' }, 400)
+  }
+
+  const manualSameTitle: Prisma.MediaEntryWhereInput = {
+    externalId: null,
+    title: { equals: title, mode: 'insensitive' },
+  }
+  const where: Prisma.MediaEntryWhereInput = {
+    type,
+    OR: externalId ? [{ externalId }, ...(title ? [manualSameTitle] : [])] : [manualSameTitle],
+  }
+
+  const [entries, finishedLogs] = await Promise.all([
+    prisma.mediaEntry.findMany({ where, select: { userId: true, status: true, rating: true } }),
+    prisma.logEntry.findMany({
+      where: { entry: where, finishedAt: { not: null }, abandoned: false },
+      select: { repeat: true },
+    }),
+  ])
+
+  const byStatus = { want: 0, inProgress: 0, finished: 0, abandoned: 0 }
+  for (const e of entries) {
+    if (e.status === 'want') byStatus.want++
+    else if (e.status === 'in-progress') byStatus.inProgress++
+    else if (e.status === 'abandoned') byStatus.abandoned++
+    else byStatus.finished++ // completed y mastered
+  }
+
+  // Barra i = (i + 1) medias estrellas: 0 → ½, 9 → 5.
+  const histogram = Array.from({ length: 10 }, () => 0)
+  const ratings = entries.map((e) => e.rating).filter((r): r is number => r != null && r > 0)
+  for (const r of ratings) histogram[Math.min(9, Math.max(0, Math.round(r * 2) - 1))]++
+  const average = ratings.length
+    ? Math.round((ratings.reduce((sum, r) => sum + r, 0) / ratings.length) * 10) / 10
+    : null
+
+  return c.json({
+    people: new Set(entries.map((e) => e.userId)).size,
+    byStatus,
+    rating: { average, count: ratings.length, histogram },
+    finishes: finishedLogs.length,
+    repeats: finishedLogs.filter((l) => l.repeat).length,
+  })
+})
+
+/**
  * GET /reviews?type=movie&externalId=tmdb:123&title=Dune
  *   -> { average, ratingCount, reviews: [{ id, rating, review, updatedAt, user }] }
  *

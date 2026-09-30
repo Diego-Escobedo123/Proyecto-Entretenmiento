@@ -143,6 +143,12 @@ const collectionOption = computed(() => options.value.find((o) => o.kind === 'co
 const showDropdown = computed(() => open.value && canSearch.value)
 const hasAnyResult = computed(() => options.value.length > 0)
 
+/** Vacía el buscador y deja el foco en él para escribir otra cosa. */
+function clearSearch() {
+  searchQuery.value = ''
+  inputEl.value?.focus()
+}
+
 function close() {
   open.value = false
   activeIndex.value = -1
@@ -226,6 +232,17 @@ onBeforeUnmount(() => {
         @focus="open = true"
         @keydown="onKeydown"
       />
+      <!-- Botón propio (el del navegador para type="search" está oculto): mismo ícono en todos los navegadores. -->
+      <button
+        v-if="searchQuery"
+        type="button"
+        class="global-search__clear"
+        aria-label="Borrar búsqueda"
+        title="Borrar búsqueda"
+        @click="clearSearch"
+      >
+        <BaseIcon name="x-circle-fill" />
+      </button>
     </div>
 
     <Transition name="global-search">
@@ -336,6 +353,35 @@ onBeforeUnmount(() => {
 
 .global-search__input::placeholder {
   color: var(--color-text-subtle);
+}
+
+/* Oculta la "X" nativa de type="search" (Chrome, Edge, Safari): usamos la nuestra. */
+.global-search__input::-webkit-search-cancel-button,
+.global-search__input::-webkit-search-decoration {
+  -webkit-appearance: none;
+  appearance: none;
+  display: none;
+}
+
+.global-search__clear {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border: none;
+  border-radius: 50%;
+  background: none;
+  color: var(--color-text-subtle);
+  font-size: 1rem;
+  cursor: pointer;
+}
+
+.global-search__clear:hover,
+.global-search__clear:focus-visible {
+  color: var(--color-text);
 }
 
 .global-search__panel {
