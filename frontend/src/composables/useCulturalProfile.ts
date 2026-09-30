@@ -1,13 +1,15 @@
 /**
- * Deriva TODO el contenido "cultural" del perfil a partir de las obras reales
- * del usuario: identidad, stats, diario, ADN, obras esenciales, logros y la
- * serie de evolución. Sin datos inventados: si no hay obras, todo viene vacío.
+ * Deriva el contenido "cultural" del perfil: identidad, ADN, obras
+ * esenciales y logros salen de las obras de la colección; la constancia
+ * (heatmap) y la evolución salen del diario, igual que el resumen del año,
+ * para que todas las pantallas cuenten lo mismo. Sin datos inventados.
  */
-import { computed } from 'vue'
+import { computed, type Ref } from 'vue'
 import { storeToRefs } from 'pinia'
 import { MEDIA_TYPES, isFinished, typeMeta } from '../lib/catalog'
+import { isoDay } from '../lib/dates'
 import { useMediaStore } from '../stores/media'
-import type { MediaEntry } from '../types/media'
+import type { LogEntry } from '../types/log'
 
 const MONTH_LABELS = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic']
 
@@ -15,25 +17,16 @@ function pct(part: number, total: number): number {
   return total === 0 ? 0 : Math.round((part / total) * 100)
 }
 
-export function useCulturalProfile() {
+/** Días del diario con actividad: cuándo se empezó o terminó algo. */
+function activityDays(logs: LogEntry[]): string[] {
+  return logs.flatMap((l) => [l.startedAt, l.finishedAt].filter((d): d is string => Boolean(d)))
+}
+
+export function useCulturalProfile(logs: Ref<LogEntry[]>) {
   const store = useMediaStore()
   const { entries, countByType } = storeToRefs(store)
 
   const worksLogged = computed(() => entries.value.length)
-
-  const statsByType = computed(() => {
-    const now = new Date()
-    return MEDIA_TYPES.map((meta) => ({
-      icon: meta.icon,
-      label: meta.plural,
-      value: countByType.value[meta.value],
-      delta: entries.value.filter((e) => {
-        if (e.type !== meta.value) return false
-        const d = new Date(e.createdAt)
-        return d.getFullYear() === now.getFullYear() && d.getMonth() === now.getMonth()
-      }).length,
-    }))
-  })
 
   const topGenres = computed(() => {
     const tally = new Map<string, number>()
@@ -85,24 +78,6 @@ export function useCulturalProfile() {
     return parts.map((p) => p.replace(/^./, (c) => c.toUpperCase())).join('. ') + '.'
   })
 
-  const diary = computed(() =>
-    [...entries.value]
-      .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))
-      .slice(0, 5)
-      .map((e) => ({
-        id: e.id,
-        date: relativeDate(e.updatedAt),
-        title: `${diaryVerb(e)} ${e.title}`,
-        note: e.notes.trim() || `${typeMeta(e.type).label} · ${e.creator || 'sin autor'}`,
-        /** Visibilidad de la nota; `null` si no hay nota (se muestra el texto de relleno). */
-        noteVisibility: e.notes.trim() ? (e.notesPublic ? 'public' : 'private') : null,
-        review: e.review.trim(),
-        typeLabel: typeMeta(e.type).label,
-        rating: e.rating,
-        current: isToday(e.updatedAt),
-      })),
-  )
-
   const essentialWorks = computed(() => {
     const ranked = entries.value.some((e) => e.favorite)
       ? entries.value.filter((e) => e.favorite)
@@ -139,17 +114,18 @@ export function useCulturalProfile() {
   const unlockedAchievements = computed(() => achievements.value.filter((a) => a.done))
   const nextAchievement = computed(() => achievements.value.find((a) => !a.done) ?? null)
 
+  /** Obras terminadas por mes en los últimos 12 meses (del diario). */
   const evolution = computed(() => {
     const now = new Date()
     const buckets: { key: string; label: string; value: number }[] = []
     for (let i = 11; i >= 0; i--) {
       const d = new Date(now.getFullYear(), now.getMonth() - i, 1)
-      buckets.push({ key: `${d.getFullYear()}-${d.getMonth()}`, label: MONTH_LABELS[d.getMonth()], value: 0 })
+      buckets.push({ key: isoDay(d).slice(0, 7), label: MONTH_LABELS[d.getMonth()], value: 0 })
     }
     const indexByKey = new Map(buckets.map((b, i) => [b.key, i]))
-    for (const e of entries.value) {
-      const d = new Date(e.createdAt)
-      const idx = indexByKey.get(`${d.getFullYear()}-${d.getMonth()}`)
+    for (const log of logs.value) {
+      if (!log.finishedAt || log.abandoned) continue
+      const idx = indexByKey.get(log.finishedAt.slice(0, 7))
       if (idx != null) buckets[idx].value++
     }
     const firstHalf = buckets.slice(0, 6).reduce((a, b) => a + b.value, 0)
@@ -162,13 +138,10 @@ export function useCulturalProfile() {
     }
   })
 
-  /** Actividad diaria (últimos ~53 semanas, alineado a domingo) para el heatmap tipo GitHub. */
+  /** Constancia: días con actividad en el diario (últimas ~53 semanas, alineado a domingo). */
   const activityHeatmap = computed(() => {
     const countByDay = new Map<string, number>()
-    for (const e of entries.value) {
-      const key = new Date(e.createdAt).toISOString().slice(0, 10)
-      countByDay.set(key, (countByDay.get(key) ?? 0) + 1)
-    }
+    for (const day of activityDays(logs.value)) countByDay.set(day, (countByDay.get(day) ?? 0) + 1)
 
     const today = new Date()
     today.setHours(0, 0, 0, 0)
@@ -178,7 +151,7 @@ export function useCulturalProfile() {
 
     const days: { date: string; count: number; label: string }[] = []
     for (const cursor = new Date(start); cursor <= today; cursor.setDate(cursor.getDate() + 1)) {
-      const key = cursor.toISOString().slice(0, 10)
+      const key = isoDay(cursor)
       days.push({
         date: key,
         count: countByDay.get(key) ?? 0,
@@ -191,40 +164,15 @@ export function useCulturalProfile() {
 
   return {
     worksLogged,
-    statsByType,
     topGenres,
     dominantFormat,
     favoriteDecade,
     completionRate,
     identitySentence,
     activityHeatmap,
-    diary,
     essentialWorks,
     unlockedAchievements,
     nextAchievement,
     evolution,
   }
-}
-
-function diaryVerb(e: MediaEntry): string {
-  if (isFinished(e.status)) return 'Completaste'
-  if (e.status === 'abandoned') return 'Dejaste'
-  if (e.status === 'in-progress') return 'Avanzaste en'
-  return 'Agregaste a tu lista'
-}
-
-function isToday(iso: string): boolean {
-  const d = new Date(iso)
-  const now = new Date()
-  return d.toDateString() === now.toDateString()
-}
-
-function relativeDate(iso: string): string {
-  const diffMs = Date.now() - new Date(iso).getTime()
-  const days = Math.floor(diffMs / 86_400_000)
-  if (days <= 0) return 'Hoy'
-  if (days === 1) return 'Ayer'
-  if (days < 7) return `Hace ${days} días`
-  if (days < 30) return `Hace ${Math.floor(days / 7)} semana(s)`
-  return new Date(iso).toLocaleDateString('es', { day: 'numeric', month: 'short' })
 }

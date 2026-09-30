@@ -1,18 +1,30 @@
 <script setup lang="ts">
 /**
- * Perfil — retrato cultural del usuario, TODO derivado de sus obras reales
- * (ver `useCulturalProfile`). El nombre/frase salen del store de perfil y se
- * editan desde Ajustes.
+ * Perfil — retrato cultural del usuario ("¿quién soy?"): identidad, ADN,
+ * obras esenciales, constancia, evolución, logros y listas públicas. Todo
+ * derivado de datos reales (ver `useCulturalProfile`). El nombre/frase salen
+ * del store de perfil y se editan desde Ajustes.
+ *
+ * El resumen del año vive aquí como historia a pantalla completa (estilo
+ * Wrapped) y en el Diario como estadísticas; ambos salen de `yearStats`,
+ * así que cuentan exactamente lo mismo.
  */
-import { computed, ref } from 'vue'
+import { computed, nextTick, onMounted, ref, watch } from 'vue'
 import { storeToRefs } from 'pinia'
 import SectionHeader from '../components/SectionHeader.vue'
-import StatCard from '../components/StatCard.vue'
 import BaseIcon from '../components/BaseIcon.vue'
-import RatingStars from '../components/RatingStars.vue'
 import BaseButton from '../components/BaseButton.vue'
 import EmptyState from '../components/EmptyState.vue'
 import CulturalStory, { type StorySlide } from '../components/CulturalStory.vue'
+import ListCard from '../components/lists/ListCard.vue'
+import { MEDIA_TYPES } from '../lib/catalog'
+import { goalProgress, yearStats } from '../lib/yearStats'
+import { logService } from '../services/logService'
+import { goalService } from '../services/goalService'
+import { listService } from '../services/listService'
+import type { Goal } from '../types/goal'
+import type { ListSummary } from '../types/list'
+import type { LogEntry } from '../types/log'
 import { useMediaStore } from '../stores/media'
 import { useProfileStore } from '../stores/profile'
 import { useUiStore } from '../stores/ui'
@@ -20,30 +32,64 @@ import { useCulturalProfile } from '../composables/useCulturalProfile'
 
 const media = useMediaStore()
 const ui = useUiStore()
-const { isEmpty, loading } = storeToRefs(media)
+const { isEmpty, loading, entries } = storeToRefs(media)
 const { profile } = storeToRefs(useProfileStore())
+
+const currentYear = new Date().getFullYear()
+
+// Diario, metas y listas: alimentan la constancia, la evolución, el año y las listas públicas.
+const logs = ref<LogEntry[]>([])
+const goals = ref<Goal[]>([])
+const publicLists = ref<ListSummary[]>([])
+
+onMounted(async () => {
+  const [l, g, lists] = await Promise.allSettled([
+    logService.list(),
+    goalService.list(currentYear),
+    listService.mine(),
+  ])
+  if (l.status === 'fulfilled') logs.value = l.value
+  if (g.status === 'fulfilled') goals.value = g.value
+  if (lists.status === 'fulfilled') publicLists.value = lists.value.filter((x) => x.isPublic)
+})
 
 const {
   worksLogged,
-  statsByType,
   topGenres,
   dominantFormat,
   favoriteDecade,
   completionRate,
   identitySentence,
-  diary,
   essentialWorks,
   unlockedAchievements,
   nextAchievement,
   evolution,
   activityHeatmap,
-} = useCulturalProfile()
+} = useCulturalProfile(logs)
 
-const currentYear = new Date().getFullYear()
+/** El año en curso, calculado igual que en Diario → Resumen del año. */
+const year = computed(() => yearStats(logs.value, currentYear, entries.value))
+const MONTH_NAMES = [
+  'enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio',
+  'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre',
+]
+
 const storyOpen = ref(false)
 
-// --- Historia cultural estilo "Wrapped" (a partir de los mismos datos reales) ---
+// Si el heatmap no cabe, arranca mostrando los días más recientes (a la derecha).
+const heatmapEl = ref<HTMLElement | null>(null)
+watch(
+  [heatmapEl, activityHeatmap],
+  async () => {
+    await nextTick()
+    if (heatmapEl.value) heatmapEl.value.scrollLeft = heatmapEl.value.scrollWidth
+  },
+  { flush: 'post' },
+)
+
+// --- Historia cultural estilo "Wrapped": el año en curso, desde el diario ---
 const storySlides = computed<StorySlide[]>(() => {
+  const s = year.value
   const slides: StorySlide[] = []
   const g1 = 'linear-gradient(135deg, var(--fig-purple), var(--deep-raspberry))'
   const g2 = 'linear-gradient(135deg, var(--deep-raspberry), var(--burnt-copper))'
@@ -55,64 +101,103 @@ const storySlides = computed<StorySlide[]>(() => {
   slides.push({
     eyebrow: `Tu ${currentYear}`,
     title: `Hola, ${profile.value.name.split(' ')[0] || profile.value.name}`,
-    caption: 'Así fue tu año cultural en Mosaic.',
+    caption: 'Así va tu año cultural en Mosaic.',
     background: g1,
   })
 
+  if (!s.total) {
+    slides.push({
+      eyebrow: 'Por ahora',
+      title: `Aún no terminas nada en ${currentYear}`,
+      caption: 'Cuando termines algo quedará en tu diario, y tu historia se armará sola.',
+      background: g2,
+    })
+    return slides
+  }
+
   slides.push({
     eyebrow: 'En total',
-    value: String(worksLogged.value),
-    title: worksLogged.value === 1 ? 'obra registrada' : 'obras registradas',
+    value: String(s.total),
+    title: s.total === 1 ? 'obra terminada este año' : 'obras terminadas este año',
     caption: 'Cada una suma a tu mosaico cultural.',
     background: g2,
   })
 
-  if (topGenres.value[0]) {
+  const dominant = MEDIA_TYPES.map((t) => ({ t, n: s.byType[t.value] })).sort((a, b) => b.n - a.n)[0]
+  if (dominant?.n) {
     slides.push({
-      eyebrow: 'Tu género favorito',
-      value: `${topGenres.value[0].percent}%`,
-      title: topGenres.value[0].name,
-      caption: 'Fue el género que más se repitió en lo que registraste.',
-      background: g3,
-    })
-  }
-
-  if (dominantFormat.value) {
-    const count = statsByType.value.find((s) => s.label === dominantFormat.value?.plural)?.value ?? 0
-    slides.push({
-      eyebrow: 'Tu formato dominante',
-      value: String(count),
-      title: dominantFormat.value.plural.toLowerCase(),
+      eyebrow: 'Tu formato del año',
+      value: String(dominant.n),
+      title: dominant.t.plural.toLowerCase(),
       caption: 'Es donde pasaste la mayor parte de tu tiempo cultural.',
       background: g4,
     })
   }
 
-  if (favoriteDecade.value) {
+  const genre = s.topGenres[0]
+  if (genre) {
     slides.push({
-      eyebrow: 'Tu década favorita',
-      value: `${favoriteDecade.value.decade}s`,
-      title: `${favoriteDecade.value.percent}% de tus obras con año`,
-      caption: 'El pasado al que más volviste.',
+      eyebrow: 'Tu género del año',
+      value: String(genre.count),
+      title: genre.name,
+      caption: genre.count === 1 ? 'obra de este género.' : 'obras de este género, más que cualquier otro.',
+      background: g3,
+    })
+  }
+
+  const peak = s.perMonth.indexOf(Math.max(...s.perMonth))
+  if (s.perMonth[peak] > 1) {
+    slides.push({
+      eyebrow: 'Tu mes más intenso',
+      value: String(s.perMonth[peak]),
+      title: `en ${MONTH_NAMES[peak]}`,
+      caption: 'El mes en que más obras terminaste.',
       background: g5,
     })
   }
 
-  slides.push({
-    eyebrow: 'Constancia',
-    value: `${completionRate.value}%`,
-    title: 'de finalización',
-    caption: 'De las obras que empezaste, este porcentaje las completaste.',
-    background: g1,
-  })
-
-  if (unlockedAchievements.value.length) {
+  if (s.pages || s.hours) {
+    const pages = s.pages ? `${s.pages.toLocaleString('es')} páginas` : ''
+    const hours = s.hours ? `${s.hours.toLocaleString('es', { maximumFractionDigits: 1 })} horas de juego` : ''
     slides.push({
-      eyebrow: 'Logros',
-      value: String(unlockedAchievements.value.length),
-      title: unlockedAchievements.value.length === 1 ? 'logro desbloqueado' : 'logros desbloqueados',
-      caption: 'Sigue registrando obras para desbloquear más.',
+      eyebrow: 'Tiempo invertido',
+      value: pages ? s.pages.toLocaleString('es') : s.hours.toLocaleString('es', { maximumFractionDigits: 1 }),
+      title: pages ? 'páginas leídas' : 'horas jugadas',
+      caption: pages && hours ? `Y además, ${hours}.` : 'Y valió cada minuto.',
+      background: g6,
+    })
+  }
+
+  const best = s.topRated[0]
+  if (best) {
+    slides.push({
+      eyebrow: 'Tu favorita del año',
+      image: best.log.entry?.cover ?? undefined,
+      title: best.log.entry?.title ?? '',
+      caption: `La calificaste con ${best.rating.toLocaleString('es')} de 5 estrellas.`,
+      background: g1,
+    })
+  }
+
+  const goal = goals.value.find((g) => g.type === 'all') ?? goals.value[0]
+  if (goal) {
+    const done = goalProgress(logs.value, currentYear, goal.type)
+    slides.push({
+      eyebrow: `Reto ${currentYear}`,
+      value: `${done}/${goal.target}`,
+      title: done >= goal.target ? '¡Meta cumplida!' : `Vas por el ${Math.round((done / goal.target) * 100)}%`,
+      caption: done >= goal.target ? 'Te pusiste una meta y la cumpliste.' : 'Todavía queda año para lograrlo.',
       background: g4,
+    })
+  }
+
+  if (s.repeats) {
+    slides.push({
+      eyebrow: 'Lo que no pudiste soltar',
+      value: String(s.repeats),
+      title: s.repeats === 1 ? 'vez que volviste a algo' : 'veces que volviste a algo',
+      caption: 'Algunas obras merecen otra vuelta.',
+      background: g3,
     })
   }
 
@@ -239,47 +324,7 @@ const donutGradient = computed(() => {
       <p class="identity__text">{{ identitySentence }}</p>
     </section>
 
-    <section class="stats-grid">
-      <StatCard
-        v-for="stat in statsByType"
-        :key="stat.label"
-        :icon="stat.icon"
-        :value="stat.value"
-        :label="stat.label"
-        :delta="stat.delta"
-      />
-    </section>
-
     <section class="two-col">
-      <div class="card">
-        <div class="card__header">
-          <h2 class="card__title">Diario cultural</h2>
-          <span class="card__header-label">Tus últimas obras</span>
-        </div>
-        <ul class="diary">
-          <li v-for="entry in diary" :key="entry.id" class="diary__entry">
-            <span class="diary__marker" :class="{ 'diary__marker--current': entry.current }" />
-            <div class="diary__body">
-              <p class="diary__date">{{ entry.date }}</p>
-              <h3 class="diary__title">{{ entry.title }}</h3>
-              <span class="diary__tag">{{ entry.typeLabel }}</span>
-              <p v-if="entry.review" class="diary__review">{{ entry.review }}</p>
-              <p class="diary__quote">
-                <span
-                  v-if="entry.noteVisibility"
-                  class="diary__visibility"
-                  :title="entry.noteVisibility === 'public' ? 'Nota pública: visible en tu perfil' : 'Nota privada: sólo tú la ves'"
-                >
-                  <BaseIcon :name="entry.noteVisibility === 'public' ? 'globe2' : 'lock-fill'" />
-                </span>
-                {{ entry.note }}
-              </p>
-            </div>
-            <RatingStars v-if="entry.rating != null" :value="entry.rating" />
-          </li>
-        </ul>
-      </div>
-
       <div class="card">
         <div class="card__header">
           <h2 class="card__title">ADN cultural</h2>
@@ -321,6 +366,23 @@ const donutGradient = computed(() => {
           </p>
         </div>
       </div>
+
+      <div class="card wrapup">
+        <span class="wrapup__eyebrow">Tu {{ currentYear }}</span>
+        <h2 class="wrapup__title">Resumen del año</h2>
+        <p v-if="year.total" class="wrapup__stat">
+          <strong>{{ year.total }}</strong> {{ year.total === 1 ? 'obra terminada' : 'obras terminadas' }}
+          <template v-if="year.topGenres[0]"> · sobre todo {{ year.topGenres[0].name }}</template>
+        </p>
+        <p v-else class="wrapup__hint">Aún no terminas nada este año.</p>
+        <button class="wrapup__cta" type="button" @click="storyOpen = true">
+          <BaseIcon name="play-circle-fill" />
+          Ver tu historia
+        </button>
+        <RouterLink to="/diary?tab=review" class="wrapup__link">
+          Ver en números <BaseIcon name="arrow-right" />
+        </RouterLink>
+      </div>
     </section>
 
     <section v-if="essentialWorks.length">
@@ -338,17 +400,17 @@ const donutGradient = computed(() => {
     <section class="two-col">
       <div class="card">
         <div class="card__header">
-          <h2 class="card__title">Diario Cultural</h2>
+          <h2 class="card__title">Constancia</h2>
           <span class="card__header-label">Últimos 365 días</span>
         </div>
         <div class="heatmap">
-          <div class="heatmap__grid">
+          <div ref="heatmapEl" class="heatmap__grid">
             <span
               v-for="day in activityHeatmap"
               :key="day.date"
               class="heatmap__cell"
               :class="`heatmap__cell--${day.level}`"
-              :title="`${day.count} obra(s) · ${day.label}`"
+              :title="`${day.count} ${day.count === 1 ? 'registro' : 'registros'} en tu diario · ${day.label}`"
             />
           </div>
           <div class="heatmap__legend">
@@ -363,20 +425,24 @@ const donutGradient = computed(() => {
         </div>
       </div>
 
-      <div class="card wrapup">
-        <span class="wrapup__eyebrow">Tu {{ currentYear }}</span>
-        <h2 class="wrapup__title">Resumen Cultural</h2>
-        <button class="wrapup__cta" type="button" @click="storyOpen = true">
-          <BaseIcon name="play-circle-fill" />
-          Ver tu historia
-        </button>
-        <p class="wrapup__hint">Descubre cómo evolucionaron tus gustos este año.</p>
+      <div class="card">
+        <h2 class="card__title"><BaseIcon name="trophy" /> Logros</h2>
+        <ul class="achievements">
+          <li v-for="a in unlockedAchievements" :key="a.label">
+            <span class="achievements__check"><BaseIcon name="check-lg" /></span>
+            {{ a.label }}
+          </li>
+          <li v-if="nextAchievement" class="achievements__next">
+            <span class="achievements__check achievements__check--locked"><BaseIcon name="circle" /></span>
+            Próximo: {{ nextAchievement.label }}
+          </li>
+        </ul>
       </div>
     </section>
 
     <CulturalStory v-if="storyOpen" :slides="storySlides" @close="storyOpen = false" />
 
-    <section class="two-col">
+    <section>
       <div class="card">
         <div class="card__header">
           <h2 class="card__title">Evolución</h2>
@@ -384,13 +450,13 @@ const donutGradient = computed(() => {
         </div>
         <p class="evolution__summary">
           <template v-if="evolution.trendPercent != null && evolution.trendPercent > 0">
-            Registraste un {{ evolution.trendPercent }}% más que el semestre anterior.
+            Terminaste un {{ evolution.trendPercent }}% más que el semestre anterior.
           </template>
           <template v-else-if="evolution.trendPercent != null && evolution.trendPercent < 0">
             Bajaste el ritmo un {{ Math.abs(evolution.trendPercent) }}% frente al semestre anterior.
           </template>
           <template v-else>
-            {{ evolution.total }} obras registradas en el último año.
+            {{ evolution.total }} {{ evolution.total === 1 ? 'obra terminada' : 'obras terminadas' }} en el último año.
           </template>
         </p>
 
@@ -424,19 +490,12 @@ const donutGradient = computed(() => {
           <span v-for="(m, i) in evolution.months" :key="i" v-show="i % 3 === 0">{{ m }}</span>
         </div>
       </div>
+    </section>
 
-      <div class="card">
-        <h2 class="card__title"><BaseIcon name="trophy" /> Logros</h2>
-        <ul class="achievements">
-          <li v-for="a in unlockedAchievements" :key="a.label">
-            <span class="achievements__check"><BaseIcon name="check-lg" /></span>
-            {{ a.label }}
-          </li>
-          <li v-if="nextAchievement" class="achievements__next">
-            <span class="achievements__check achievements__check--locked"><BaseIcon name="circle" /></span>
-            Próximo: {{ nextAchievement.label }}
-          </li>
-        </ul>
+    <section v-if="publicLists.length">
+      <SectionHeader title="Tus listas públicas" />
+      <div class="profile-lists">
+        <ListCard v-for="l in publicLists" :key="l.id" :list="l" />
       </div>
     </section>
   </template>
@@ -553,12 +612,6 @@ const donutGradient = computed(() => {
   margin: 0;
 }
 
-.stats-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-  gap: var(--space-md);
-}
-
 .two-col {
   display: grid;
   grid-template-columns: 2fr 1fr;
@@ -566,86 +619,9 @@ const donutGradient = computed(() => {
   align-items: start;
 }
 
-.diary {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-lg);
-  position: relative;
-}
-
-.diary::before {
-  content: '';
-  position: absolute;
-  left: 4px;
-  top: 6px;
-  bottom: 6px;
-  width: 1px;
-  background: var(--color-border);
-}
-
-.diary__entry {
-  display: flex;
-  align-items: flex-start;
-  gap: var(--space-md);
-  position: relative;
-  padding-left: var(--space-lg);
-}
-
-.diary__marker {
-  position: absolute;
-  left: 0;
-  top: 6px;
-  width: 9px;
-  height: 9px;
-  border-radius: 50%;
-  background: var(--color-surface-2);
-  border: 2px solid var(--color-text-subtle);
-}
-
-.diary__marker--current {
-  border-color: var(--color-accent);
-  background: var(--color-accent);
-  box-shadow: 0 0 0 4px var(--color-accent-bg);
-}
-
-.diary__body {
-  flex: 1;
+/* Sin esto el heatmap (ancho fijo) ensancha su columna y empuja la otra fuera de la página. */
+.two-col > * {
   min-width: 0;
-}
-
-.diary__date {
-  color: var(--color-text-subtle);
-  font-size: 0.8125rem;
-  margin: 0 0 var(--space-xs) 0;
-}
-
-.diary__title {
-  color: var(--color-text);
-  font-size: 1.0625rem;
-  font-weight: 700;
-  margin: 0;
-}
-
-.diary__quote {
-  color: var(--color-text-muted);
-  font-style: italic;
-  margin: var(--space-xs) 0 0 0;
-}
-
-.diary__review {
-  color: var(--color-text);
-  font-size: 0.875rem;
-  margin: var(--space-xs) 0 0 0;
-}
-
-.diary__visibility {
-  font-style: normal;
-  font-size: 0.75rem;
-  color: var(--color-text-subtle);
-  margin-right: 4px;
 }
 
 .profile-header__actions {
@@ -668,19 +644,6 @@ const donutGradient = computed(() => {
 
 .profile-header__public-link:hover {
   text-decoration: underline;
-}
-
-.diary__tag {
-  display: inline-block;
-  margin-top: var(--space-xs);
-  padding: 2px var(--space-sm);
-  border-radius: 999px;
-  background: var(--color-surface-2);
-  color: var(--color-text-subtle);
-  font-size: 0.6875rem;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.02em;
 }
 
 .dna {
@@ -865,6 +828,7 @@ const donutGradient = computed(() => {
 }
 
 .wrapup {
+  align-self: stretch;
   background: linear-gradient(135deg, var(--deep-raspberry), var(--fig-purple));
   display: flex;
   flex-direction: column;
@@ -905,6 +869,36 @@ const donutGradient = computed(() => {
 
 .wrapup__cta:hover {
   background: rgba(243, 231, 216, 0.2);
+}
+
+.wrapup__stat {
+  margin: 0;
+  color: var(--fig-cream);
+  font-size: 0.9375rem;
+}
+
+.wrapup__stat strong {
+  font-size: 1.5rem;
+  color: var(--color-accent);
+}
+
+.wrapup__link {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--rose);
+  font-size: 0.875rem;
+  font-weight: 600;
+}
+
+.wrapup__link:hover {
+  color: var(--fig-cream);
+}
+
+.profile-lists {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: var(--space-md);
 }
 
 .wrapup__hint {

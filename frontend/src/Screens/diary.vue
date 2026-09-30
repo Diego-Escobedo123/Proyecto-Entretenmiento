@@ -7,7 +7,8 @@
  * La pestaña "Resumen del año" muestra el reto anual (metas) y las
  * estadísticas del año elegido, calculadas desde el mismo diario.
  */
-import { computed, onMounted, ref } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
+import { useRoute } from 'vue-router'
 import BaseIcon from '../components/BaseIcon.vue'
 import BaseTag from '../components/BaseTag.vue'
 import BaseSpinner from '../components/BaseSpinner.vue'
@@ -36,6 +37,16 @@ const TABS: { value: Tab; label: string; icon: string }[] = [
   { value: 'review', label: 'Resumen del año', icon: 'bar-chart' },
 ]
 const tab = ref<Tab>('diary')
+
+// /diary?tab=review abre directo el resumen (enlaces desde Inicio y Perfil).
+const route = useRoute()
+watch(
+  () => route.query.tab,
+  (value) => {
+    tab.value = value === 'review' ? 'review' : 'diary'
+  },
+  { immediate: true },
+)
 
 onMounted(async () => {
   // Páginas y horas del resumen vienen de las obras de la colección.

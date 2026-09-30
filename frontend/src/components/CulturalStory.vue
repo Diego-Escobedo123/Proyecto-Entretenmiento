@@ -16,6 +16,8 @@ export interface StorySlide {
   eyebrow: string
   title: string
   value?: string
+  /** Portada opcional (p. ej. la obra favorita del año). */
+  image?: string
   caption: string
   background: string
 }
@@ -131,6 +133,7 @@ onBeforeUnmount(() => {
       >
         <div :key="index" class="story__content">
           <span class="story__eyebrow">{{ slides[index].eyebrow }}</span>
+          <img v-if="slides[index].image" :src="slides[index].image" alt="" class="story__image" draggable="false" />
           <strong v-if="slides[index].value" class="story__value">{{ slides[index].value }}</strong>
           <h2 class="story__title">{{ slides[index].title }}</h2>
           <p class="story__caption">{{ slides[index].caption }}</p>
@@ -233,6 +236,15 @@ onBeforeUnmount(() => {
   font-size: 0.8125rem;
   font-weight: 700;
   color: var(--rose);
+}
+
+.story__image {
+  width: min(180px, 45vw);
+  aspect-ratio: 2 / 3;
+  object-fit: cover;
+  border-radius: var(--radius-md);
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.35);
+  margin: var(--space-sm) 0;
 }
 
 .story__value {

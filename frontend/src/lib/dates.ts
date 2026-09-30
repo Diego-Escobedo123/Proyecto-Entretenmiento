@@ -3,10 +3,14 @@
  * zona horaria del usuario: "hoy" es su hoy, no el del servidor.
  */
 
+/** Una fecha como día local "YYYY-MM-DD". */
+export function isoDay(d: Date): string {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+}
+
 /** Hoy en la zona horaria local, "YYYY-MM-DD" (lo que espera un <input type="date">). */
 export function todayISO(): string {
-  const d = new Date()
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+  return isoDay(new Date())
 }
 
 /** "2026-09-29" -> Date local a medianoche (sin corrimiento por zona horaria). */
