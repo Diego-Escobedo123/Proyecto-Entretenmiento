@@ -33,8 +33,12 @@ model Profile {
   userId      String   @unique
   handle      String   @default("")
   avatar      String?
-  tagline     String   @default("Tu identidad cultural")
-  quote       String   @default("Cada obra cuenta una historia. Juntas cuentan la tuya.")
+  /// Frase y cita del perfil. Vacías hasta que el usuario las escriba (antes
+  /// traían un texto por defecto que parecía escrito por él).
+  tagline     String   @default("")
+  quote       String   @default("")
+  /// "Tus 4 favoritas": ids de MediaEntry del propio usuario, en orden.
+  topPicks    String[] @default([])
   memberSince Int?
   /// Visibilidad del perfil público (GET /users/:id). Si es `false`, los demás
   /// sólo ven nombre y avatar; las reseñas siguen visibles en cada obra.

@@ -3,6 +3,7 @@ import type { Prisma } from '@prisma/client'
 import { prisma } from '../lib/prisma'
 import { requireAuth, type AuthEnv } from '../middleware/auth'
 import { toPublicUserDTO } from '../lib/serialize'
+import { ratingSummary } from '../lib/ratings'
 
 export const reviewRoutes = new Hono<AuthEnv>()
 
@@ -76,18 +77,10 @@ reviewRoutes.get('/stats', async (c) => {
     else byStatus.finished++ // completed y mastered
   }
 
-  // Barra i = (i + 1) medias estrellas: 0 → ½, 9 → 5.
-  const histogram = Array.from({ length: 10 }, () => 0)
-  const ratings = entries.map((e) => e.rating).filter((r): r is number => r != null && r > 0)
-  for (const r of ratings) histogram[Math.min(9, Math.max(0, Math.round(r * 2) - 1))]++
-  const average = ratings.length
-    ? Math.round((ratings.reduce((sum, r) => sum + r, 0) / ratings.length) * 10) / 10
-    : null
-
   return c.json({
     people: new Set(entries.map((e) => e.userId)).size,
     byStatus,
-    rating: { average, count: ratings.length, histogram },
+    rating: ratingSummary(entries.map((e) => e.rating)),
     finishes: finishedLogs.length,
     repeats: finishedLogs.filter((l) => l.repeat).length,
     following: followed.map((f) => ({ user: toPublicUserDTO(f.user), status: f.status, rating: f.rating })),

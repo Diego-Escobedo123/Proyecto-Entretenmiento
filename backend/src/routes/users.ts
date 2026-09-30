@@ -3,6 +3,8 @@ import { prisma } from '../lib/prisma'
 import { requireAuth, type AuthEnv } from '../middleware/auth'
 import { toPublicEntryDTO, toPublicUserDTO } from '../lib/serialize'
 import { LIST_SUMMARY_INCLUDE, toListSummaryDTO } from './lists'
+import { toLogDTO } from '../lib/logs'
+import { ratingSummary } from '../lib/ratings'
 
 export const userRoutes = new Hono<AuthEnv>()
 
@@ -10,6 +12,19 @@ userRoutes.use('*', requireAuth)
 
 const MAX_ENTRIES = 60
 const MAX_PEOPLE = 30
+const MAX_RECENT = 6
+
+/** Datos de la obra que acompañan a cada entrada de "actividad reciente". */
+const LOG_ENTRY_SELECT = {
+  id: true,
+  type: true,
+  title: true,
+  creator: true,
+  cover: true,
+  externalId: true,
+  genres: true,
+  year: true,
+} as const
 
 const PUBLIC_USER_SELECT = {
   id: true,
@@ -120,24 +135,27 @@ userRoutes.get('/suggestions', async (c) => {
 })
 
 /**
- * GET /users/:id (o /users/me) -> perfil público de un usuario
- *   { user, tagline, quote, isPublic, isSelf, isFollowing, followers, following, entries, lists }
+ * GET /users/:id (o /users/me) -> el perfil de una persona, tal como se ve en
+ * su página (la misma para ella y para los demás):
+ *   { user, tagline, quote, memberSince, isPublic, isSelf, isFollowing,
+ *     followers, following, counts, favorites, recent, ratings, entries, lists }
  *
- * Si el perfil es privado (`Profile.isPublic = false`) y no es el propio,
- * `entries` viene vacío: sólo se muestran los datos básicos. Las notas de
- * cada obra sólo se incluyen si el dueño las marcó como públicas.
- * `lists` son sus listas públicas (visibles aunque el perfil sea privado).
+ * Con perfil privado (y si no es el propio) sólo viajan los datos básicos, los
+ * contadores de seguidores y sus listas públicas: nada de su colección
+ * (`favorites`, `recent`, `ratings` y `entries` vacíos, `counts.works` en 0).
+ * Las notas de cada obra sólo se incluyen si el dueño las marcó como públicas.
  */
 userRoutes.get('/:id', async (c) => {
   const me = c.get('userId')
-  // `/users/me` = cómo ven los demás el perfil propio.
   const id = resolveId(c.req.param('id'), me)
   const user = await prisma.user.findUnique({
     where: { id },
     select: {
       id: true,
       name: true,
-      profile: { select: { handle: true, avatar: true, tagline: true, quote: true, isPublic: true } },
+      profile: {
+        select: { handle: true, avatar: true, tagline: true, quote: true, isPublic: true, memberSince: true, topPicks: true },
+      },
       _count: { select: { followers: true, following: true } },
     },
   })
@@ -145,9 +163,12 @@ userRoutes.get('/:id', async (c) => {
 
   const isSelf = id === me
   const isPublic = user.profile?.isPublic ?? false
+  const canSee = isPublic || isSelf
+  const topPicks = user.profile?.topPicks ?? []
+  const yearStart = new Date(`${new Date().getFullYear()}-01-01T00:00:00Z`)
 
-  const [entries, lists, follow] = await Promise.all([
-    isPublic || isSelf
+  const [entries, lists, follow, works, finishedThisYear, listCount, favorites, recent, rated] = await Promise.all([
+    canSee
       ? prisma.mediaEntry.findMany({ where: { userId: id }, orderBy: { updatedAt: 'desc' }, take: MAX_ENTRIES })
       : Promise.resolve([]),
     // Las listas públicas se ven aunque el perfil sea privado: cada lista decide.
@@ -156,18 +177,51 @@ userRoutes.get('/:id', async (c) => {
       include: LIST_SUMMARY_INCLUDE,
       orderBy: { updatedAt: 'desc' },
     }),
-    isSelf ? Promise.resolve(null) : prisma.follow.findUnique({ where: { followerId_followingId: { followerId: me, followingId: id } } }),
+    isSelf
+      ? Promise.resolve(null)
+      : prisma.follow.findUnique({ where: { followerId_followingId: { followerId: me, followingId: id } } }),
+    canSee ? prisma.mediaEntry.count({ where: { userId: id } }) : Promise.resolve(0),
+    canSee
+      ? prisma.logEntry.count({ where: { userId: id, finishedAt: { gte: yearStart }, abandoned: false } })
+      : Promise.resolve(0),
+    // Uno mismo cuenta todas sus listas; los demás, sólo las públicas.
+    prisma.list.count({ where: { userId: id, ...(!isSelf && { isPublic: true }) } }),
+    canSee && topPicks.length
+      ? prisma.mediaEntry.findMany({ where: { id: { in: topPicks }, userId: id } })
+      : Promise.resolve([]),
+    canSee
+      ? prisma.logEntry.findMany({
+          where: { userId: id },
+          orderBy: { updatedAt: 'desc' },
+          take: MAX_RECENT,
+          include: { entry: { select: LOG_ENTRY_SELECT } },
+        })
+      : Promise.resolve([]),
+    canSee
+      ? prisma.mediaEntry.findMany({ where: { userId: id, rating: { not: null } }, select: { rating: true } })
+      : Promise.resolve([]),
   ])
+
+  // En el orden que eligió; si borró una obra de su colección, simplemente no aparece.
+  const favoriteById = new Map(favorites.map((f) => [f.id, f]))
 
   return c.json({
     user: toPublicUserDTO(user),
     tagline: user.profile?.tagline ?? '',
     quote: user.profile?.quote ?? '',
+    memberSince: user.profile?.memberSince ?? null,
     isPublic,
     isSelf,
     isFollowing: Boolean(follow),
     followers: user._count.followers,
     following: user._count.following,
+    counts: { works, finishedThisYear, lists: listCount },
+    favorites: topPicks.flatMap((pick) => {
+      const f = favoriteById.get(pick)
+      return f ? [toPublicEntryDTO(f)] : []
+    }),
+    recent: recent.map(toLogDTO),
+    ratings: ratingSummary(rated.map((r) => r.rating)),
     entries: entries.map(toPublicEntryDTO),
     lists: lists.map(toListSummaryDTO),
   })
