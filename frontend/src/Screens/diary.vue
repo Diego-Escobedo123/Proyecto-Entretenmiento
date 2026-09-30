@@ -6,9 +6,13 @@
  *
  * La pestaña "Resumen del año" muestra el reto anual (metas) y las
  * estadísticas del año elegido, calculadas desde el mismo diario.
+ *
+ * /diary?semana=YYYY-MM-DD (domingo de la semana; lo usa "Tu año en obras"
+ * del perfil) abre el diario en esa semana: elige el año, resalta lo que se
+ * empezó o terminó esos 7 días y baja hasta ahí.
  */
-import { computed, onMounted, ref, watch } from 'vue'
-import { useRoute } from 'vue-router'
+import { computed, nextTick, onMounted, ref, watch } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
 import BaseIcon from '../components/BaseIcon.vue'
 import BaseTag from '../components/BaseTag.vue'
 import BaseSpinner from '../components/BaseSpinner.vue'
@@ -17,7 +21,7 @@ import RatingStars from '../components/RatingStars.vue'
 import YearGoals from '../components/YearGoals.vue'
 import YearReview from '../components/YearReview.vue'
 import { MEDIA_TYPES, statusLabel, typeMeta } from '../lib/catalog'
-import { formatDay, formatMonth, parseISODay } from '../lib/dates'
+import { formatDay, formatMonth, isoDay, parseISODay } from '../lib/dates'
 import { logService } from '../services/logService'
 import { useMediaStore } from '../stores/media'
 import { useUiStore } from '../stores/ui'
@@ -103,6 +107,40 @@ function describe(log: LogEntry): string {
   return statusLabel(type, 'completed')
 }
 
+// --- Semana resaltada (?semana=) ---
+const router = useRouter()
+const week = computed(() => {
+  const start = route.query.semana
+  if (typeof start !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(start)) return null
+  const end = parseISODay(start)
+  end.setDate(end.getDate() + 6)
+  return { start, end: isoDay(end), label: formatDay(start) }
+})
+
+/** Se empezó o terminó dentro de la semana resaltada. */
+const inWeek = (log: LogEntry) =>
+  week.value != null &&
+  [log.startedAt, log.finishedAt].some((d) => d != null && d >= week.value!.start && d <= week.value!.end)
+
+/** Al llegar con ?semana=: diario, año de esa semana, sin filtros, y baja hasta la primera entrada. */
+watch(
+  [week, loading],
+  async ([w, isLoading]) => {
+    if (!w || isLoading) return
+    tab.value = 'diary'
+    typeFilter.value = 'all'
+    const first = logs.value.find(inWeek)
+    year.value = Number((first ? dayOf(first) : w.start).slice(0, 4))
+    await nextTick()
+    document.querySelector('.diary__row.is-week')?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+  },
+  { immediate: true },
+)
+
+function clearWeek() {
+  void router.replace({ query: { ...route.query, semana: undefined } })
+}
+
 function open(log: LogEntry) {
   const e = log.entry!
   ui.openWorkDetail({
@@ -159,6 +197,12 @@ function open(log: LogEntry) {
     </BaseTag>
   </div>
 
+  <p v-if="week" class="diary__week">
+    <BaseIcon name="calendar-week" />
+    <span>Semana del <strong>{{ week.label }}</strong>: lo que empezaste o terminaste esos días está resaltado.</span>
+    <button type="button" class="diary__week-clear" @click="clearWeek">Ver todo</button>
+  </p>
+
   <EmptyState
     v-if="!months.length"
     icon="journal-bookmark"
@@ -170,7 +214,7 @@ function open(log: LogEntry) {
     <h2 class="diary__month-title">{{ m.label }}</h2>
     <ul class="diary__list">
       <li v-for="log in m.items" :key="log.id">
-        <button type="button" class="diary__row" @click="open(log)">
+        <button type="button" class="diary__row" :class="{ 'is-week': inWeek(log) }" @click="open(log)">
           <span class="diary__day">{{ parseISODay(dayOf(log)).getDate() }}</span>
           <img v-if="log.entry!.cover" :src="log.entry!.cover" alt="" class="diary__cover" loading="lazy" />
           <span v-else class="diary__cover diary__cover--empty" aria-hidden="true">
@@ -306,6 +350,48 @@ function open(log: LogEntry) {
 .diary__row:hover,
 .diary__row:focus-visible {
   border-color: var(--color-border);
+}
+
+/* Entradas de la semana que se abrió desde el perfil. */
+.diary__row.is-week {
+  border-color: var(--color-accent);
+  background: var(--color-accent-bg);
+}
+
+.diary__week {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  margin: 0;
+  padding: var(--space-sm) var(--space-md);
+  border: 1px solid var(--color-accent);
+  border-radius: var(--radius-md);
+  background: var(--color-accent-bg);
+  color: var(--color-text-muted);
+  font-size: 0.875rem;
+}
+
+.diary__week > .bi {
+  color: var(--color-accent);
+}
+
+.diary__week > span {
+  flex: 1;
+}
+
+.diary__week strong {
+  color: var(--color-text);
+}
+
+.diary__week-clear {
+  flex-shrink: 0;
+  padding: 0;
+  border: none;
+  background: none;
+  color: var(--color-accent);
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
 }
 
 .diary__day {

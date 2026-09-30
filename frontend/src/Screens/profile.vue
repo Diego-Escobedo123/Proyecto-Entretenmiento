@@ -291,7 +291,7 @@ const averageText = computed(() =>
               :histogram="profile.ratings.histogram"
               :average="profile.ratings.average"
               :count="profile.ratings.count"
-              :bars-height="profile.isPublic ? 200 : 140"
+              :bars-height="profile.isPublic ? 120 : 140"
               hide-average
             />
             <p v-else class="profile__hint">Todavía no hay calificaciones.</p>
@@ -645,14 +645,14 @@ a.profile-stats__item:hover {
 
 /*
  * Público, con espacio: tarjeta angosta + ancha en cada fila, con 12 columnas
- * para que cada fila tenga su proporción: Actividad 5 | ADN 7, Cómo califica 4 | Año 8.
+ * para que cada fila tenga su proporción: Actividad 5 | ADN 7, Cómo califica 3 | Año 9.
  * En tablet y teléfono se apila en una columna (ver media queries al final).
  */
 .profile-columns--public {
   grid-template-columns: repeat(12, minmax(0, 1fr));
   grid-template-areas:
     'recent recent recent recent recent dna dna dna dna dna dna dna'
-    'rating rating rating rating year year year year year year year year';
+    'rating rating rating year year year year year year year year year';
 }
 
 .profile-columns__recent {

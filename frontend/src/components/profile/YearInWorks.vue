@@ -6,12 +6,14 @@
  * es el color. Las semanas con registros van con los tramos de los géneros
  * del ADN (mismos colores que la dona; el resto, "Otros"); las demás, en
  * gris. Tooltip por barra con cuántos registros hubo; arranca mostrando la
- * última semana con actividad.
+ * última semana con actividad. En el perfil propio (`self`), doble clic (o
+ * Enter) en una semana con registros abre el diario en esa semana.
  *
  * Uso:
  *   <YearInWorks :activity="profile.activity" :top-genres="['Drama', 'Comedia']" self />
  */
 import { computed, ref } from 'vue'
+import { useRouter } from 'vue-router'
 import { faDna } from '@fortawesome/free-solid-svg-icons'
 import FaIcon from '../FaIcon.vue'
 import { isoDay, parseISODay } from '../../lib/dates'
@@ -66,15 +68,13 @@ const weeks = computed<Week[]>(() => {
   return out
 })
 
-/** Alto de la barra en % del área (la más alta llega al 100%; ninguna con datos baja del 18%). */
 /**
- * Alto (%) de la barra de la semana i: una onda suave (dos cosenos), igual
- * haya o no registros. Es la forma del gráfico, no un dato.
+ * Alto (%) de la barra de la semana i, igual haya o no registros (es la forma
+ * del gráfico, no un dato): una hélice de ADN vista de costado, que se repite
+ * cada 8 barras (alta, casi alta, media, baja, mínima y vuelve a subir).
  */
-const waveHeight = (i: number) => {
-  const wave = 0.5 + 0.5 * Math.cos((2 * Math.PI * i) / 8.5) + 0.18 * Math.cos((2 * Math.PI * i) / 2.9)
-  return 22 + 78 * Math.min(1, Math.max(0, wave))
-}
+const HELIX_PERIOD = 8
+const waveHeight = (i: number) => 20 + 80 * Math.abs(Math.cos((Math.PI * i) / HELIX_PERIOD))
 
 /** Etiqueta de mes en la primera semana de cada mes (como Constancia). */
 const monthLabels = computed(() => {
@@ -127,13 +127,28 @@ const tooltip = computed(() => {
   const w = weeks.value[active.value]
   const titles = [...new Set(w.events.map((e) => e.title))]
   return {
-    heading: `${w.events.length} ${w.events.length === 1 ? 'registro' : 'registros'} · ${weekDateLabel(w)}`,
-    titles: titles.join(', '),
+    heading: w.events.length
+      ? `${w.events.length} ${w.events.length === 1 ? 'registro' : 'registros'} · ${weekDateLabel(w)}`
+      : 'Sin actividades',
+    // Semana vacía: debajo, de qué semana se trata.
+    titles: w.events.length ? titles.join(', ') : weekDateLabel(w),
+    hint: props.self && w.events.length > 0,
     /** Posición horizontal (%) y hacia qué lado se abre, para no salirse de la tarjeta. */
     left: ((active.value + 0.5) / weeks.value.length) * 100,
     align: active.value > weeks.value.length * 0.75 ? 'end' : active.value < weeks.value.length * 0.25 ? 'start' : 'center',
   }
 })
+
+// --- Doble clic: el diario en esa semana (sólo el propio; el de otros es privado) ---
+const router = useRouter()
+function openDiary(w: Week) {
+  if (!props.self || !w.events.length) return
+  void router.push({ path: '/diary', query: { semana: isoDay(w.start) } })
+}
+/** Enter/Espacio sobre la barra (el clic de teclado llega con detail 0); el mouse usa doble clic. */
+function onWeekClick(event: MouseEvent, w: Week) {
+  if (event.detail === 0) openDiary(w)
+}
 
 const ariaWeek = (w: Week) =>
   `${weekDateLabel(w)}: ${w.events.length} ${w.events.length === 1 ? 'registro' : 'registros'} (${[...new Set(w.events.map((e) => e.title))].join(', ')})`
@@ -169,6 +184,8 @@ const ariaWeek = (w: Week) =>
             @mouseenter="hovered = i"
             @focus="hovered = i"
             @blur="hovered = null"
+            @click="onWeekClick($event, w)"
+            @dblclick="openDiary(w)"
           >
             <span class="year__bar" :style="{ height: `${waveHeight(i)}%` }">
               <span
@@ -179,7 +196,14 @@ const ariaWeek = (w: Week) =>
               />
             </span>
           </button>
-          <span v-else class="year__week year__week--empty" aria-hidden="true">
+          <!-- Semana vacía: sólo con mouse ("Sin actividades"); el teclado recorre las que tienen datos. -->
+          <span
+            v-else
+            class="year__week year__week--empty"
+            :class="{ 'is-active': active === i }"
+            aria-hidden="true"
+            @mouseenter="hovered = i"
+          >
             <span class="year__stub" :style="{ height: `${waveHeight(i)}%` }" />
           </span>
         </template>
@@ -194,6 +218,7 @@ const ariaWeek = (w: Week) =>
       >
         <strong>{{ tooltip.heading }}</strong>
         <span>{{ tooltip.titles }}</span>
+        <span v-if="tooltip.hint" class="year__tip-hint">Doble clic para verla en tu diario</span>
       </div>
 
       <div class="year__months" :style="{ gridTemplateColumns: `repeat(${weeks.length}, minmax(0, 1fr))` }" aria-hidden="true">
@@ -262,17 +287,17 @@ const ariaWeek = (w: Week) =>
   flex: 1;
   display: flex;
   flex-direction: column;
-  min-height: 220px;
-  padding-top: 64px; /* lugar para el tooltip */
+  justify-content: center;
+  padding-top: 56px; /* lugar para el tooltip */
 }
 
 /* Barras centradas sobre una línea: la onda. */
 .year__bars {
   position: relative;
-  flex: 1;
   display: grid;
   gap: 2px;
-  min-height: 140px;
+  /* Alto fijo: la hélice se ve igual aunque la fila sea más alta. */
+  height: 110px;
 }
 
 .year__bars::before {
@@ -305,7 +330,10 @@ const ariaWeek = (w: Week) =>
   display: flex;
   flex-direction: column;
   gap: 2px;
-  width: min(100%, 10px);
+  /* Barras finas con aire entre ellas: ~40% del ancho de cada semana. */
+  width: 42%;
+  min-width: 3px;
+  max-width: 12px;
   border-radius: 999px;
   overflow: hidden;
   transition: opacity 0.15s ease;
@@ -316,7 +344,9 @@ const ariaWeek = (w: Week) =>
 }
 
 .year__stub {
-  width: min(100%, 10px);
+  width: 42%;
+  min-width: 3px;
+  max-width: 12px;
   border-radius: 999px;
   background: color-mix(in srgb, var(--color-text) 14%, var(--color-surface));
 }
@@ -325,7 +355,8 @@ const ariaWeek = (w: Week) =>
   opacity: 0.55;
 }
 
-.year__week.is-active .year__bar {
+.year__week.is-active .year__bar,
+.year__week.is-active .year__stub {
   outline: 2px solid var(--color-text);
   outline-offset: 2px;
 }
@@ -356,6 +387,11 @@ const ariaWeek = (w: Week) =>
   text-overflow: ellipsis;
   white-space: nowrap;
   color: color-mix(in srgb, var(--fig-purple) 75%, transparent);
+}
+
+.year__tip-hint {
+  font-size: 0.6875rem;
+  font-style: italic;
 }
 
 .year__tip--center {
