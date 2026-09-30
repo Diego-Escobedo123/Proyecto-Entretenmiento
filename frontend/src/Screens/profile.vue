@@ -1,524 +1,349 @@
 <script setup lang="ts">
 /**
- * Perfil — retrato cultural del usuario ("¿quién soy?"): identidad, ADN,
- * obras esenciales, constancia, evolución, logros y listas públicas. Todo
- * derivado de datos reales (ver `useCulturalProfile`). El nombre/frase salen
- * del store de perfil y se editan desde Ajustes.
+ * Perfil — una sola página para el perfil propio (/profile) y el de los
+ * demás (/users/:id), como en Letterboxd: todos ven lo mismo y su dueño,
+ * además, los botones para editar.
  *
- * El resumen del año vive aquí como historia a pantalla completa (estilo
- * Wrapped) y en el Diario como estadísticas; ambos salen de `yearStats`,
- * así que cuentan exactamente lo mismo.
+ * Arriba la identidad (frase y cita sólo si las escribió) con sus números;
+ * luego sus 4 favoritas (las elige él), actividad reciente, cómo califica,
+ * reseñas y listas públicas. Al final, sólo para su dueño, "Tu retrato
+ * cultural" (ADN, resumen del año, constancia, logros, evolución).
+ *
+ * Con perfil privado, los demás sólo ven nombre, contadores y listas públicas.
  */
-import { computed, nextTick, onMounted, ref, watch } from 'vue'
-import { storeToRefs } from 'pinia'
-import SectionHeader from '../components/SectionHeader.vue'
+import { computed, ref, watch } from 'vue'
+import { useRoute } from 'vue-router'
 import BaseIcon from '../components/BaseIcon.vue'
 import BaseButton from '../components/BaseButton.vue'
+import BaseSpinner from '../components/BaseSpinner.vue'
 import EmptyState from '../components/EmptyState.vue'
-import CulturalStory, { type StorySlide } from '../components/CulturalStory.vue'
+import RatingStars from '../components/RatingStars.vue'
+import RatingHistogram from '../components/RatingHistogram.vue'
+import CulturalPortrait from '../components/CulturalPortrait.vue'
 import ListCard from '../components/lists/ListCard.vue'
-import { MEDIA_TYPES } from '../lib/catalog'
-import { goalProgress, yearStats } from '../lib/yearStats'
-import { logService } from '../services/logService'
-import { goalService } from '../services/goalService'
-import { listService } from '../services/listService'
+import FollowButton from '../components/social/FollowButton.vue'
+import UserAvatar from '../components/social/UserAvatar.vue'
+import FavoritesPicker from '../components/profile/FavoritesPicker.vue'
+import { statusLabel, typeMeta } from '../lib/catalog'
+import { formatDay } from '../lib/dates'
+import { ApiError } from '../lib/api'
 import { socialService } from '../services/socialService'
-import type { Goal } from '../types/goal'
-import type { ListSummary } from '../types/list'
-import type { LogEntry } from '../types/log'
 import { useMediaStore } from '../stores/media'
 import { useProfileStore } from '../stores/profile'
 import { useUiStore } from '../stores/ui'
-import { useCulturalProfile } from '../composables/useCulturalProfile'
+import type { LogEntry } from '../types/log'
+import type { PublicEntry, PublicProfile } from '../types/review'
 
-const media = useMediaStore()
+const route = useRoute()
 const ui = useUiStore()
-const { isEmpty, loading, entries } = storeToRefs(media)
-const { profile } = storeToRefs(useProfileStore())
+const media = useMediaStore()
+const ownProfile = useProfileStore()
 
-const currentYear = new Date().getFullYear()
+/** /profile es el propio; /users/:id, el de cualquiera (también puede ser el propio). */
+const userId = computed(() => (route.name === 'profile' ? 'me' : String(route.params.id ?? '')))
 
-// Diario, metas y listas: alimentan la constancia, la evolución, el año y las listas públicas.
-const logs = ref<LogEntry[]>([])
-const goals = ref<Goal[]>([])
-const publicLists = ref<ListSummary[]>([])
-/** Seguidores y seguidos (del perfil público propio). */
-const follows = ref<{ followers: number; following: number } | null>(null)
+const profile = ref<PublicProfile | null>(null)
+const loading = ref(false)
+const error = ref<string | null>(null)
+let requestId = 0
 
-onMounted(async () => {
-  const [l, g, lists, me] = await Promise.allSettled([
-    logService.list(),
-    goalService.list(currentYear),
-    listService.mine(),
-    socialService.publicProfile('me'),
-  ])
-  if (l.status === 'fulfilled') logs.value = l.value
-  if (g.status === 'fulfilled') goals.value = g.value
-  if (lists.status === 'fulfilled') publicLists.value = lists.value.filter((x) => x.isPublic)
-  if (me.status === 'fulfilled') follows.value = { followers: me.value.followers, following: me.value.following }
-})
+async function load() {
+  const current = ++requestId
+  loading.value = true
+  error.value = null
+  try {
+    const res = await socialService.publicProfile(userId.value)
+    if (current === requestId) profile.value = res
+  } catch (e) {
+    if (current !== requestId) return
+    profile.value = null
+    error.value = e instanceof ApiError && e.status === 404 ? 'Este usuario no existe.' : 'No se pudo cargar el perfil.'
+  } finally {
+    if (current === requestId) loading.value = false
+  }
+}
 
-const {
-  worksLogged,
-  topGenres,
-  dominantFormat,
-  favoriteDecade,
-  completionRate,
-  identitySentence,
-  essentialWorks,
-  unlockedAchievements,
-  nextAchievement,
-  evolution,
-  activityHeatmap,
-} = useCulturalProfile(logs)
+watch(userId, load, { immediate: true })
 
-/** El año en curso, calculado igual que en Diario → Resumen del año. */
-const year = computed(() => yearStats(logs.value, currentYear, entries.value))
-const MONTH_NAMES = [
-  'enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio',
-  'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre',
-]
+const isSelf = computed(() => profile.value?.isSelf ?? false)
+/** Los demás no ven la colección de un perfil privado. */
+const canSeeCollection = computed(() => profile.value != null && (profile.value.isPublic || profile.value.isSelf))
 
-const storyOpen = ref(false)
-
-// Si el heatmap no cabe, arranca mostrando los días más recientes (a la derecha).
-const heatmapEl = ref<HTMLElement | null>(null)
+// El propio perfil se recarga cuando se edita desde Ajustes (nombre, frase, visibilidad…).
 watch(
-  [heatmapEl, activityHeatmap],
-  async () => {
-    await nextTick()
-    if (heatmapEl.value) heatmapEl.value.scrollLeft = heatmapEl.value.scrollWidth
+  () => ownProfile.profile,
+  () => {
+    if (isSelf.value) void load()
   },
-  { flush: 'post' },
+  { deep: true },
 )
 
-// --- Historia cultural estilo "Wrapped": el año en curso, desde el diario ---
-const storySlides = computed<StorySlide[]>(() => {
-  const s = year.value
-  const slides: StorySlide[] = []
-  const g1 = 'linear-gradient(135deg, var(--fig-purple), var(--deep-raspberry))'
-  const g2 = 'linear-gradient(135deg, var(--deep-raspberry), var(--burnt-copper))'
-  const g3 = 'linear-gradient(135deg, var(--fig-purple), var(--fig-stem-green))'
-  const g4 = 'linear-gradient(135deg, var(--burnt-copper), var(--fig-purple))'
-  const g5 = 'linear-gradient(135deg, var(--fig-stem-green), var(--fig-purple))'
-  const g6 = 'linear-gradient(135deg, var(--deep-raspberry), var(--fig-purple))'
-
-  slides.push({
-    eyebrow: `Tu ${currentYear}`,
-    title: `Hola, ${profile.value.name.split(' ')[0] || profile.value.name}`,
-    caption: 'Así va tu año cultural en Mosaic.',
-    background: g1,
-  })
-
-  if (!s.total) {
-    slides.push({
-      eyebrow: 'Por ahora',
-      title: `Aún no terminas nada en ${currentYear}`,
-      caption: 'Cuando termines algo quedará en tu diario, y tu historia se armará sola.',
-      background: g2,
-    })
-    return slides
-  }
-
-  slides.push({
-    eyebrow: 'En total',
-    value: String(s.total),
-    title: s.total === 1 ? 'obra terminada este año' : 'obras terminadas este año',
-    caption: 'Cada una suma a tu mosaico cultural.',
-    background: g2,
-  })
-
-  const dominant = MEDIA_TYPES.map((t) => ({ t, n: s.byType[t.value] })).sort((a, b) => b.n - a.n)[0]
-  if (dominant?.n) {
-    slides.push({
-      eyebrow: 'Tu formato del año',
-      value: String(dominant.n),
-      title: dominant.t.plural.toLowerCase(),
-      caption: 'Es donde pasaste la mayor parte de tu tiempo cultural.',
-      background: g4,
-    })
-  }
-
-  const genre = s.topGenres[0]
-  if (genre) {
-    slides.push({
-      eyebrow: 'Tu género del año',
-      value: String(genre.count),
-      title: genre.name,
-      caption: genre.count === 1 ? 'obra de este género.' : 'obras de este género, más que cualquier otro.',
-      background: g3,
-    })
-  }
-
-  const peak = s.perMonth.indexOf(Math.max(...s.perMonth))
-  if (s.perMonth[peak] > 1) {
-    slides.push({
-      eyebrow: 'Tu mes más intenso',
-      value: String(s.perMonth[peak]),
-      title: `en ${MONTH_NAMES[peak]}`,
-      caption: 'El mes en que más obras terminaste.',
-      background: g5,
-    })
-  }
-
-  if (s.pages || s.hours) {
-    const pages = s.pages ? `${s.pages.toLocaleString('es')} páginas` : ''
-    const hours = s.hours ? `${s.hours.toLocaleString('es', { maximumFractionDigits: 1 })} horas de juego` : ''
-    slides.push({
-      eyebrow: 'Tiempo invertido',
-      value: pages ? s.pages.toLocaleString('es') : s.hours.toLocaleString('es', { maximumFractionDigits: 1 }),
-      title: pages ? 'páginas leídas' : 'horas jugadas',
-      caption: pages && hours ? `Y además, ${hours}.` : 'Y valió cada minuto.',
-      background: g6,
-    })
-  }
-
-  const best = s.topRated[0]
-  if (best) {
-    slides.push({
-      eyebrow: 'Tu favorita del año',
-      image: best.log.entry?.cover ?? undefined,
-      title: best.log.entry?.title ?? '',
-      caption: `La calificaste con ${best.rating.toLocaleString('es')} de 5 estrellas.`,
-      background: g1,
-    })
-  }
-
-  const goal = goals.value.find((g) => g.type === 'all') ?? goals.value[0]
-  if (goal) {
-    const done = goalProgress(logs.value, currentYear, goal.type)
-    slides.push({
-      eyebrow: `Reto ${currentYear}`,
-      value: `${done}/${goal.target}`,
-      title: done >= goal.target ? '¡Meta cumplida!' : `Vas por el ${Math.round((done / goal.target) * 100)}%`,
-      caption: done >= goal.target ? 'Te pusiste una meta y la cumpliste.' : 'Todavía queda año para lograrlo.',
-      background: g4,
-    })
-  }
-
-  if (s.repeats) {
-    slides.push({
-      eyebrow: 'Lo que no pudiste soltar',
-      value: String(s.repeats),
-      title: s.repeats === 1 ? 'vez que volviste a algo' : 'veces que volviste a algo',
-      caption: 'Algunas obras merecen otra vuelta.',
-      background: g3,
-    })
-  }
-
-  slides.push({
-    eyebrow: `Mosaic · ${currentYear}`,
-    title: identitySentence.value || 'Gracias por construir tu mosaico cultural.',
-    caption: 'Vuelve pronto a ver cómo evoluciona.',
-    background: g6,
-  })
-
-  return slides
+watch(isSelf, (self) => {
+  // "Tu retrato cultural" se calcula con la colección completa.
+  if (self) void media.ensureLoaded()
 })
 
-// --- Mini area chart (serie única, sin librería) ---
-const chartWidth = 700
-const chartHeight = 200
-const padY = 12
-
-const points = computed(() => {
-  const values = evolution.value.values
-  const max = Math.max(1, ...values)
-  return values.map((v, i) => ({
-    x: (i / Math.max(1, values.length - 1)) * chartWidth,
-    y: chartHeight - padY - (v / max) * (chartHeight - padY * 2),
-    month: evolution.value.months[i],
-    value: v,
-  }))
-})
-
-function smoothLinePath(pts: { x: number; y: number }[]): string {
-  if (pts.length === 0) return ''
-  let d = `M ${pts[0].x} ${pts[0].y}`
-  for (let i = 0; i < pts.length - 1; i++) {
-    const p0 = pts[i - 1] ?? pts[i]
-    const p1 = pts[i]
-    const p2 = pts[i + 1]
-    const p3 = pts[i + 2] ?? p2
-    const c1x = p1.x + (p2.x - p0.x) / 6
-    const c1y = p1.y + (p2.y - p0.y) / 6
-    const c2x = p2.x - (p3.x - p1.x) / 6
-    const c2y = p2.y - (p3.y - p1.y) / 6
-    d += ` C ${c1x} ${c1y}, ${c2x} ${c2y}, ${p2.x} ${p2.y}`
-  }
-  return d
+function onFollowChange(following: boolean, followers: number) {
+  if (!profile.value) return
+  profile.value.isFollowing = following
+  profile.value.followers = followers
 }
 
-const linePath = computed(() => smoothLinePath(points.value))
-const areaPath = computed(() => `${linePath.value} L ${chartWidth} ${chartHeight} L 0 ${chartHeight} Z`)
+// --- Favoritas ---
+const pickingFavorites = ref(false)
 
-const hoverIndex = ref<number | null>(null)
-const chartEl = ref<HTMLElement | null>(null)
-
-function onChartMove(event: MouseEvent) {
-  if (!chartEl.value) return
-  const rect = chartEl.value.getBoundingClientRect()
-  const ratio = (event.clientX - rect.left) / rect.width
-  const count = evolution.value.values.length
-  hoverIndex.value = Math.min(count - 1, Math.max(0, Math.round(ratio * (count - 1))))
+function openWork(e: Pick<PublicEntry, 'type' | 'title' | 'creator' | 'year' | 'genres' | 'cover' | 'externalId'>) {
+  ui.openWorkDetail({
+    type: e.type,
+    title: e.title,
+    creator: e.creator,
+    year: e.year,
+    genres: e.genres,
+    cover: e.cover,
+    externalId: e.externalId,
+  })
 }
 
-const hoverPoint = computed(() =>
-  hoverIndex.value !== null ? points.value[hoverIndex.value] ?? null : null,
+// --- Actividad reciente ---
+function describeLog(log: LogEntry): string {
+  const type = log.entry!.type
+  if (!log.finishedAt) return `${statusLabel(type, 'in-progress')}${log.startedAt ? ` desde el ${formatDay(log.startedAt)}` : ''}`
+  const status = statusLabel(type, log.abandoned ? 'abandoned' : 'completed')
+  return `${status} el ${formatDay(log.finishedAt)}`
+}
+
+// --- Reseñas (y notas públicas) ---
+const MAX_REVIEWS = 4
+const reviews = computed(() =>
+  (profile.value?.entries ?? []).filter((e) => e.review.trim() || e.notes?.trim()).slice(0, MAX_REVIEWS),
 )
 
-const memberLabel = computed(() =>
-  profile.value.memberSince ? `Desde ${profile.value.memberSince}` : 'Perfil recién creado',
-)
-
-// --- Donut de géneros (ADN cultural) ---
-const genreColors = ['var(--color-accent)', 'var(--fig-stem-green)', 'var(--rose)']
-
-const donutGradient = computed(() => {
-  const genres = topGenres.value
-  if (!genres.length) return 'conic-gradient(var(--color-border) 0% 100%)'
-  let acc = 0
-  const stops = genres.map((g, i) => {
-    const start = acc
-    acc += g.percent
-    return `${genreColors[i % genreColors.length]} ${start}% ${acc}%`
-  })
-  if (acc < 100) stops.push(`var(--color-border) ${acc}% 100%`)
-  return `conic-gradient(${stops.join(', ')})`
-})
+const nf = (n: number) => n.toLocaleString('es')
 </script>
 
 <template>
-  <p v-if="loading && !media.loaded" class="profile__loading">Cargando tu perfil…</p>
+  <div class="profile">
+    <div v-if="loading && !profile" class="profile__hint"><BaseSpinner size="sm" /> Cargando perfil…</div>
+    <EmptyState v-else-if="error" icon="person-x" :title="error" />
 
-  <EmptyState
-    v-else-if="isEmpty"
-    icon="person-circle"
-    title="Tu perfil cultural se construye con tus obras"
-    text="Todavía no hay datos que analizar. Registra algunas películas, libros, juegos o álbumes y aquí verás tus géneros, tu evolución y tus obras esenciales."
-  >
-    <BaseButton @click="ui.openCreateEntry()">Agregar una obra</BaseButton>
-  </EmptyState>
+    <template v-else-if="profile">
+      <!-- Identidad y números -->
+      <header class="card profile-head">
+        <UserAvatar :user="profile.user" :size="96" :link="false" class="profile-head__avatar" />
 
-  <template v-else>
-    <section class="card profile-header">
-      <div class="profile-header__avatar-ring">
-        <img v-if="profile.avatar" :src="profile.avatar" :alt="profile.name" class="profile-header__avatar" />
-        <div v-else class="profile-header__avatar profile-header__avatar--placeholder">
-          {{ profile.name.charAt(0).toUpperCase() }}
-        </div>
-      </div>
-      <h1 class="profile-header__name">{{ profile.name }}</h1>
-      <p class="profile-header__tagline">{{ profile.tagline }}</p>
-      <p v-if="profile.quote" class="profile-header__quote">&ldquo;{{ profile.quote }}&rdquo;</p>
-      <p class="profile-header__meta">
-        <span>{{ memberLabel }}</span>
-        <span class="profile-header__dot">•</span>
-        <span>{{ worksLogged }} obras registradas</span>
-        <template v-if="follows">
-          <span class="profile-header__dot">•</span>
-          <RouterLink to="/users/me/followers" class="profile-header__follows">
-            <strong>{{ follows.followers }}</strong> {{ follows.followers === 1 ? 'seguidor' : 'seguidores' }}
-          </RouterLink>
-          <span class="profile-header__dot">•</span>
-          <RouterLink to="/users/me/following" class="profile-header__follows">
-            <strong>{{ follows.following }}</strong> {{ follows.following === 1 ? 'seguido' : 'seguidos' }}
-          </RouterLink>
-        </template>
-      </p>
-      <div class="profile-header__actions">
-        <BaseButton variant="outline" @click="ui.openSettings()">Editar perfil</BaseButton>
-        <RouterLink to="/users/me" class="profile-header__public-link">
-          <BaseIcon name="eye" /> Ver como lo ven los demás
-        </RouterLink>
-      </div>
-    </section>
-
-    <section class="card">
-      <h2 class="card__title">Tu identidad cultural</h2>
-      <p class="identity__text">{{ identitySentence }}</p>
-    </section>
-
-    <section class="two-col">
-      <div class="card">
-        <div class="card__header">
-          <h2 class="card__title">ADN cultural</h2>
-          <span class="card__header-label"><BaseIcon name="diagram-3" /></span>
-        </div>
-        <div class="dna">
-          <template v-if="topGenres.length">
-            <div class="donut" :style="{ background: donutGradient }">
-              <div class="donut__hole">
-                <strong>{{ topGenres[0].percent }}%</strong>
-                <span>{{ topGenres[0].name }}</span>
-              </div>
-            </div>
-            <ul class="donut__legend">
-              <li v-for="(g, i) in topGenres" :key="g.name">
-                <span class="donut__dot" :style="{ background: genreColors[i % genreColors.length] }" />
-                {{ g.name }}<template v-if="i > 0"> ({{ g.percent }}%)</template>
-              </li>
-            </ul>
-          </template>
-          <p v-else class="dna__value">Aún sin géneros: agrégalos al registrar obras.</p>
-
-          <div class="dna__row">
-            <div class="dna__field">
-              <h4 class="dna__label">Década favorita</h4>
-              <p class="dna__value">
-                <template v-if="favoriteDecade">Los {{ favoriteDecade.decade }}s — {{ favoriteDecade.percent }}%</template>
-                <template v-else>Sin datos aún</template>
-              </p>
-            </div>
-            <div class="dna__field">
-              <h4 class="dna__label">Formato dominante</h4>
-              <p class="dna__value">{{ dominantFormat ? dominantFormat.plural : 'Sin datos suficientes' }}</p>
-            </div>
-          </div>
-
-          <p class="dna__insight">
-            <strong>Insight:</strong> completas el {{ completionRate }}% de las obras que empiezas.
+        <div class="profile-head__identity">
+          <h1 class="profile-head__name">{{ profile.user.name }}</h1>
+          <p class="profile-head__handle">
+            <template v-if="profile.user.handle">@{{ profile.user.handle }}</template>
+            <template v-if="profile.memberSince"> · En Mosaic desde {{ profile.memberSince }}</template>
+          </p>
+          <p v-if="profile.tagline" class="profile-head__tagline">{{ profile.tagline }}</p>
+          <blockquote v-if="profile.quote" class="profile-head__quote">“{{ profile.quote }}”</blockquote>
+          <p v-else-if="isSelf && !profile.tagline" class="profile-head__empty">
+            Agrega una frase que te describa desde
+            <button type="button" class="profile-head__inline" @click="ui.openSettings()">Editar perfil</button>.
           </p>
         </div>
-      </div>
 
-      <div class="card wrapup">
-        <span class="wrapup__eyebrow">Tu {{ currentYear }}</span>
-        <h2 class="wrapup__title">Resumen del año</h2>
-        <p v-if="year.total" class="wrapup__stat">
-          <strong>{{ year.total }}</strong> {{ year.total === 1 ? 'obra terminada' : 'obras terminadas' }}
-          <template v-if="year.topGenres[0]"> · sobre todo {{ year.topGenres[0].name }}</template>
-        </p>
-        <p v-else class="wrapup__hint">Aún no terminas nada este año.</p>
-        <button class="wrapup__cta" type="button" @click="storyOpen = true">
-          <BaseIcon name="play-circle-fill" />
-          Ver tu historia
-        </button>
-        <RouterLink to="/diary?tab=review" class="wrapup__link">
-          Ver en números <BaseIcon name="arrow-right" />
-        </RouterLink>
-      </div>
-    </section>
-
-    <section v-if="essentialWorks.length">
-      <SectionHeader title="Las obras que te definen" link-text="Tus esenciales" />
-      <div class="works-grid">
-        <article v-for="work in essentialWorks" :key="work.id" class="work-card">
-          <img v-if="work.cover" :src="work.cover" :alt="work.title" class="work-card__cover" />
-          <div v-else class="work-card__cover work-card__cover--placeholder" />
-          <h3 class="work-card__title">{{ work.title }}</h3>
-          <p class="work-card__subtitle">{{ work.subtitle }}</p>
-        </article>
-      </div>
-    </section>
-
-    <section class="two-col">
-      <div class="card">
-        <div class="card__header">
-          <h2 class="card__title">Constancia</h2>
-          <span class="card__header-label">Últimos 365 días</span>
-        </div>
-        <div class="heatmap">
-          <div ref="heatmapEl" class="heatmap__grid">
-            <span
-              v-for="day in activityHeatmap"
-              :key="day.date"
-              class="heatmap__cell"
-              :class="`heatmap__cell--${day.level}`"
-              :title="`${day.count} ${day.count === 1 ? 'registro' : 'registros'} en tu diario · ${day.label}`"
-            />
-          </div>
-          <div class="heatmap__legend">
-            <span>Menos</span>
-            <span class="heatmap__cell heatmap__cell--0" />
-            <span class="heatmap__cell heatmap__cell--1" />
-            <span class="heatmap__cell heatmap__cell--2" />
-            <span class="heatmap__cell heatmap__cell--3" />
-            <span class="heatmap__cell heatmap__cell--4" />
-            <span>Más</span>
-          </div>
-        </div>
-      </div>
-
-      <div class="card">
-        <h2 class="card__title"><BaseIcon name="trophy" /> Logros</h2>
-        <ul class="achievements">
-          <li v-for="a in unlockedAchievements" :key="a.label">
-            <span class="achievements__check"><BaseIcon name="check-lg" /></span>
-            {{ a.label }}
-          </li>
-          <li v-if="nextAchievement" class="achievements__next">
-            <span class="achievements__check achievements__check--locked"><BaseIcon name="circle" /></span>
-            Próximo: {{ nextAchievement.label }}
-          </li>
-        </ul>
-      </div>
-    </section>
-
-    <CulturalStory v-if="storyOpen" :slides="storySlides" @close="storyOpen = false" />
-
-    <section>
-      <div class="card">
-        <div class="card__header">
-          <h2 class="card__title">Evolución</h2>
-          <span class="card__header-label">Últimos 12 meses</span>
-        </div>
-        <p class="evolution__summary">
-          <template v-if="evolution.trendPercent != null && evolution.trendPercent > 0">
-            Terminaste un {{ evolution.trendPercent }}% más que el semestre anterior.
+        <div class="profile-head__actions">
+          <template v-if="isSelf">
+            <BaseButton variant="outline" @click="ui.openSettings()"><BaseIcon name="pencil" /> Editar perfil</BaseButton>
+            <button type="button" class="profile-head__visibility" title="Cambiar en Editar perfil" @click="ui.openSettings()">
+              <BaseIcon :name="profile.isPublic ? 'globe' : 'lock-fill'" />
+              {{ profile.isPublic ? 'Perfil público' : 'Perfil privado' }}
+            </button>
           </template>
-          <template v-else-if="evolution.trendPercent != null && evolution.trendPercent < 0">
-            Bajaste el ritmo un {{ Math.abs(evolution.trendPercent) }}% frente al semestre anterior.
-          </template>
-          <template v-else>
-            {{ evolution.total }} {{ evolution.total === 1 ? 'obra terminada' : 'obras terminadas' }} en el último año.
-          </template>
-        </p>
+          <FollowButton v-else :user-id="profile.user.id" :following="profile.isFollowing" @change="onFollowChange" />
+        </div>
 
-        <div ref="chartEl" class="evolution__chart" @mousemove="onChartMove" @mouseleave="hoverIndex = null">
-          <svg :viewBox="`0 0 ${chartWidth} ${chartHeight}`" preserveAspectRatio="none" class="evolution__svg">
-            <defs>
-              <linearGradient id="evolution-fill" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="0%" stop-color="var(--color-accent)" stop-opacity="0.25" />
-                <stop offset="100%" stop-color="var(--color-accent)" stop-opacity="0" />
-              </linearGradient>
-            </defs>
-            <line x1="0" :y1="chartHeight - 1" :x2="chartWidth" :y2="chartHeight - 1" class="evolution__baseline" />
-            <path :d="areaPath" fill="url(#evolution-fill)" stroke="none" />
-            <path :d="linePath" fill="none" class="evolution__line" />
-            <g v-if="hoverPoint">
-              <line :x1="hoverPoint.x" y1="0" :x2="hoverPoint.x" :y2="chartHeight" class="evolution__crosshair" />
-              <circle :cx="hoverPoint.x" :cy="hoverPoint.y" r="5" class="evolution__dot" />
-            </g>
-          </svg>
-          <div
-            v-if="hoverPoint"
-            class="evolution__tooltip"
-            :style="{ left: (hoverPoint.x / chartWidth) * 100 + '%', top: hoverPoint.y + 'px' }"
+        <nav class="profile-stats" aria-label="Números del perfil">
+          <component
+            :is="isSelf ? 'RouterLink' : 'span'"
+            :to="isSelf ? '/collection' : undefined"
+            class="profile-stats__item"
+            :class="{ 'is-muted': !canSeeCollection }"
           >
-            <strong>{{ hoverPoint.value }}</strong>
-            <span>{{ hoverPoint.month }}</span>
-          </div>
+            <strong>{{ nf(profile.counts.works) }}</strong> obras
+          </component>
+          <component
+            :is="isSelf ? 'RouterLink' : 'span'"
+            :to="isSelf ? '/diary?tab=review' : undefined"
+            class="profile-stats__item"
+            :class="{ 'is-muted': !canSeeCollection }"
+          >
+            <strong>{{ nf(profile.counts.finishedThisYear) }}</strong> este año
+          </component>
+          <component :is="isSelf ? 'RouterLink' : 'span'" :to="isSelf ? '/lists' : undefined" class="profile-stats__item">
+            <strong>{{ nf(profile.counts.lists) }}</strong> {{ profile.counts.lists === 1 ? 'lista' : 'listas' }}
+          </component>
+          <RouterLink :to="`/users/${profile.user.id}/followers`" class="profile-stats__item">
+            <strong>{{ nf(profile.followers) }}</strong> {{ profile.followers === 1 ? 'seguidor' : 'seguidores' }}
+          </RouterLink>
+          <RouterLink :to="`/users/${profile.user.id}/following`" class="profile-stats__item">
+            <strong>{{ nf(profile.following) }}</strong> {{ profile.following === 1 ? 'seguido' : 'seguidos' }}
+          </RouterLink>
+        </nav>
+      </header>
+
+      <p v-if="isSelf && !profile.isPublic" class="profile__banner">
+        <BaseIcon name="lock" />
+        <span>
+          Tu perfil es <strong>privado</strong>: los demás sólo ven tu nombre, tus contadores y tus listas públicas. Tus
+          reseñas siguen visibles en cada obra.
+        </span>
+        <BaseButton variant="outline" @click="ui.openSettings()">Hacerlo público</BaseButton>
+      </p>
+      <p v-else-if="!isSelf && profile.isFollowing && !profile.isPublic" class="profile__banner">
+        <BaseIcon name="lock" /> Sigues a esta persona, pero su perfil es privado: su actividad no aparece en tu feed. Sus
+        listas públicas, sí.
+      </p>
+
+      <EmptyState
+        v-if="!canSeeCollection"
+        icon="lock"
+        title="Perfil privado"
+        text="Esta persona decidió no mostrar su colección. Sus reseñas siguen visibles en cada obra."
+      />
+
+      <template v-else>
+        <!-- Favoritas: las elige su dueño -->
+        <section v-if="profile.favorites.length || isSelf" class="profile-section">
+          <header class="profile-section__head">
+            <h2 class="profile-section__title"><BaseIcon name="heart" /> {{ isSelf ? 'Tus 4 favoritas' : 'Sus 4 favoritas' }}</h2>
+            <button v-if="isSelf" type="button" class="profile-section__link" @click="pickingFavorites = true">
+              <BaseIcon name="pencil" /> {{ profile.favorites.length ? 'Cambiar' : 'Elegir' }}
+            </button>
+          </header>
+          <ol class="favorites">
+            <li v-for="f in profile.favorites" :key="f.id">
+              <button type="button" class="favorites__item" :aria-label="`Ver ficha de ${f.title}`" @click="openWork(f)">
+                <img v-if="f.cover" :src="f.cover" alt="" class="favorites__cover" loading="lazy" />
+                <span v-else class="favorites__cover favorites__cover--empty" aria-hidden="true">
+                  <BaseIcon :name="typeMeta(f.type).icon" />
+                </span>
+                <span class="favorites__title">{{ f.title }}</span>
+                <span class="favorites__meta">{{ typeMeta(f.type).label }}<template v-if="f.year"> · {{ f.year }}</template></span>
+              </button>
+            </li>
+            <template v-if="isSelf">
+              <li v-for="n in 4 - profile.favorites.length" :key="`empty-${n}`">
+                <button type="button" class="favorites__item" @click="pickingFavorites = true">
+                  <span class="favorites__cover favorites__cover--slot"><BaseIcon name="plus-lg" /></span>
+                  <span class="favorites__meta">Elegir</span>
+                </button>
+              </li>
+            </template>
+          </ol>
+        </section>
+
+        <!-- Actividad reciente + cómo califica -->
+        <div class="profile-columns">
+          <section class="card profile-section">
+            <header class="profile-section__head">
+              <h2 class="profile-section__title"><BaseIcon name="journal-bookmark" /> Actividad reciente</h2>
+              <RouterLink v-if="isSelf" to="/diary" class="profile-section__link">Ver diario <BaseIcon name="arrow-right" /></RouterLink>
+            </header>
+            <p v-if="!profile.recent.length" class="profile__hint">
+              {{ isSelf ? 'Cuando empieces o termines algo, aparecerá aquí.' : 'Todavía no hay actividad.' }}
+            </p>
+            <ul v-else class="recent">
+              <li v-for="log in profile.recent" :key="log.id">
+                <button type="button" class="recent__row" @click="openWork(log.entry!)">
+                  <img v-if="log.entry!.cover" :src="log.entry!.cover" alt="" class="recent__cover" loading="lazy" />
+                  <span v-else class="recent__cover recent__cover--empty" aria-hidden="true">
+                    <BaseIcon :name="typeMeta(log.entry!.type).icon" />
+                  </span>
+                  <span class="recent__info">
+                    <span class="recent__title">{{ log.entry!.title }}</span>
+                    <span class="recent__meta">
+                      {{ describeLog(log) }}
+                      <span v-if="log.repeat" class="recent__repeat"><BaseIcon name="arrow-repeat" /> Otra vez</span>
+                    </span>
+                  </span>
+                  <RatingStars v-if="log.rating != null" :value="log.rating" class="recent__stars" />
+                </button>
+              </li>
+            </ul>
+          </section>
+
+          <section class="card profile-section">
+            <h2 class="profile-section__title"><BaseIcon name="bar-chart" /> {{ isSelf ? 'Cómo calificas' : 'Cómo califica' }}</h2>
+            <RatingHistogram
+              v-if="profile.ratings.count"
+              :histogram="profile.ratings.histogram"
+              :average="profile.ratings.average"
+              :count="profile.ratings.count"
+            />
+            <p v-else class="profile__hint">Todavía no hay calificaciones.</p>
+          </section>
         </div>
 
-        <div class="evolution__months">
-          <span v-for="(m, i) in evolution.months" :key="i" v-show="i % 3 === 0">{{ m }}</span>
-        </div>
-      </div>
-    </section>
+        <!-- Reseñas y notas públicas -->
+        <section v-if="reviews.length" class="profile-section">
+          <h2 class="profile-section__title"><BaseIcon name="chat-quote" /> Reseñas recientes</h2>
+          <ul class="reviews">
+            <li v-for="e in reviews" :key="e.id" class="reviews__item">
+              <button type="button" class="reviews__cover-btn" :aria-label="`Ver ficha de ${e.title}`" @click="openWork(e)">
+                <img v-if="e.cover" :src="e.cover" alt="" class="reviews__cover" loading="lazy" />
+                <span v-else class="reviews__cover reviews__cover--empty" aria-hidden="true">
+                  <BaseIcon :name="typeMeta(e.type).icon" />
+                </span>
+              </button>
+              <div class="reviews__body">
+                <button type="button" class="reviews__title" @click="openWork(e)">{{ e.title }}</button>
+                <p class="reviews__meta">
+                  {{ [typeMeta(e.type).label, e.creator, e.year].filter(Boolean).join(' · ') }}
+                </p>
+                <RatingStars v-if="e.rating != null" :value="e.rating" />
+                <p v-if="e.review.trim()" class="reviews__text">{{ e.review }}</p>
+                <div v-if="e.notes?.trim()" class="reviews__note">
+                  <span class="reviews__note-label"><BaseIcon name="globe2" /> Nota</span>
+                  <p>{{ e.notes }}</p>
+                </div>
+              </div>
+            </li>
+          </ul>
+        </section>
+      </template>
 
-    <section v-if="publicLists.length">
-      <SectionHeader title="Tus listas públicas" />
-      <div class="profile-lists">
-        <ListCard v-for="l in publicLists" :key="l.id" :list="l" />
-      </div>
-    </section>
-  </template>
+      <!-- Listas públicas (se ven aunque el perfil sea privado: cada lista decide) -->
+      <section v-if="profile.lists.length" class="profile-section">
+        <header class="profile-section__head">
+          <h2 class="profile-section__title"><BaseIcon name="card-list" /> {{ isSelf ? 'Tus listas públicas' : 'Listas' }}</h2>
+          <RouterLink v-if="isSelf" to="/lists" class="profile-section__link">Todas tus listas <BaseIcon name="arrow-right" /></RouterLink>
+        </header>
+        <div class="profile-lists">
+          <ListCard v-for="l in profile.lists" :key="l.id" :list="l" />
+        </div>
+      </section>
+
+      <!-- Sólo para su dueño -->
+      <CulturalPortrait v-if="isSelf && media.entries.length" />
+
+      <FavoritesPicker
+        v-if="pickingFavorites"
+        :initial="profile.favorites.map((f) => f.id)"
+        @close="pickingFavorites = false"
+        @saved="load"
+      />
+    </template>
+  </div>
 </template>
 
 <style scoped>
-.profile__loading {
+.profile {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xl);
+}
+
+.profile__hint {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  margin: 0;
   color: var(--color-text-muted);
+  font-size: 0.9375rem;
 }
 
 .card {
@@ -528,398 +353,464 @@ const donutGradient = computed(() => {
   padding: var(--space-lg);
 }
 
-.card__title {
-  font-size: 1.25rem;
-  font-weight: 700;
-  color: var(--color-text);
-  margin: 0 0 var(--space-md) 0;
+/* --- Encabezado --- */
+.profile-head {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  grid-template-areas:
+    'avatar identity actions'
+    'stats stats stats';
+  gap: var(--space-md) var(--space-lg);
+  align-items: start;
+}
+
+.profile-head__avatar {
+  grid-area: avatar;
+  box-shadow: 0 0 0 3px var(--color-accent);
+}
+
+.profile-head__identity {
+  grid-area: identity;
+  min-width: 0;
   display: flex;
-  align-items: center;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.profile-head__name {
+  margin: 0;
+  font-size: 2rem;
+  font-weight: 800;
+  color: var(--color-text);
+  overflow-wrap: anywhere;
+}
+
+.profile-head__handle {
+  margin: 0;
+  color: var(--color-text-muted);
+}
+
+.profile-head__tagline {
+  margin: 4px 0 0;
+  font-weight: 700;
+  color: var(--color-accent);
+}
+
+.profile-head__quote {
+  margin: 4px 0 0;
+  padding-left: var(--space-md);
+  border-left: 3px solid var(--color-accent);
+  font-family: var(--font-serif);
+  font-style: italic;
+  color: var(--color-text-muted);
+}
+
+.profile-head__empty {
+  margin: 4px 0 0;
+  font-size: 0.875rem;
+  color: var(--color-text-subtle);
+}
+
+.profile-head__inline {
+  padding: 0;
+  border: none;
+  background: none;
+  font: inherit;
+  font-weight: 600;
+  color: var(--color-accent);
+  cursor: pointer;
+}
+
+.profile-head__actions {
+  grid-area: actions;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
   gap: var(--space-sm);
 }
 
-.card__header {
+.profile-head__visibility {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0;
+  border: none;
+  background: none;
+  font: inherit;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: var(--color-text-muted);
+  cursor: pointer;
+}
+
+.profile-head__visibility:hover {
+  color: var(--color-text);
+}
+
+.profile-stats {
+  grid-area: stats;
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-sm);
+  padding-top: var(--space-md);
+  border-top: 1px solid var(--color-border);
+}
+
+.profile-stats__item {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 6px;
+  padding: 6px 14px;
+  border-radius: 999px;
+  background: var(--color-surface-2);
+  font-family: var(--font-sans);
+  font-size: 0.875rem;
+  color: var(--color-text-muted);
+}
+
+.profile-stats__item strong {
+  font-size: 1.0625rem;
+  color: var(--color-text);
+}
+
+a.profile-stats__item:hover {
+  color: var(--color-accent);
+}
+
+.profile-stats__item.is-muted {
+  opacity: 0.6;
+}
+
+.profile__banner {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--space-sm);
+  margin: 0;
+  padding: var(--space-sm) var(--space-md);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
+  color: var(--color-text-muted);
+  font-size: 0.875rem;
+}
+
+.profile__banner > span {
+  flex: 1;
+  min-width: 220px;
+}
+
+.profile__banner strong {
+  color: var(--color-text);
+}
+
+.profile__banner :deep(button) {
+  margin-left: auto;
+}
+
+/* --- Secciones --- */
+.profile-section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-md);
+  min-width: 0;
+}
+
+.profile-section__head {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  margin-bottom: var(--space-md);
-}
-
-.card__header .card__title {
-  margin: 0;
-}
-
-.card__header-label {
-  color: var(--color-text-subtle);
-  font-size: 0.8125rem;
-  font-weight: 600;
-}
-
-.profile-header {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  text-align: center;
   gap: var(--space-sm);
-  padding: var(--space-xl);
 }
 
-.profile-header__avatar-ring {
-  width: 112px;
-  height: 112px;
-  border-radius: 50%;
-  padding: 4px;
-  background: radial-gradient(circle at 50% 40%, var(--color-accent-bg), transparent 70%);
-  box-shadow: 0 0 0 1px var(--color-border), 0 0 24px var(--color-accent-bg);
-  margin-bottom: var(--space-sm);
-}
-
-.profile-header__avatar {
-  width: 100%;
-  height: 100%;
-  border-radius: 50%;
-  object-fit: cover;
-  background: linear-gradient(135deg, var(--color-surface-2), var(--color-surface));
-}
-
-.profile-header__avatar--placeholder {
+.profile-section__title {
   display: flex;
   align-items: center;
-  justify-content: center;
-  font-size: 2.5rem;
-  font-weight: 800;
-  color: var(--color-accent);
-}
-
-.profile-header__name {
-  font-size: 2.25rem;
-  font-weight: 800;
-  color: var(--color-text);
+  gap: var(--space-sm);
   margin: 0;
-}
-
-.profile-header__tagline {
-  color: var(--color-accent);
-  font-size: 1.0625rem;
+  font-size: 1.25rem;
   font-weight: 700;
-  margin: 0;
+  color: var(--color-text);
 }
 
-.profile-header__quote {
-  color: var(--color-text-muted);
-  font-style: italic;
-  margin: var(--space-sm) 0 0 0;
-}
-
-.profile-header__meta {
-  color: var(--color-text-subtle);
+.profile-section__link {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0;
+  border: none;
+  background: none;
+  font: inherit;
   font-size: 0.875rem;
-  margin: var(--space-md) 0 var(--space-md) 0;
-  display: flex;
-  gap: var(--space-sm);
-  flex-wrap: wrap;
-  justify-content: center;
+  font-weight: 600;
+  color: var(--color-accent);
+  cursor: pointer;
 }
 
-.identity__text {
-  color: var(--color-text-muted);
-  line-height: 1.6;
-  margin: 0;
-}
-
-.two-col {
+.profile-columns {
   display: grid;
-  grid-template-columns: 2fr 1fr;
+  grid-template-columns: 3fr 2fr;
   gap: var(--space-md);
   align-items: start;
 }
 
-/* Sin esto el heatmap (ancho fijo) ensancha su columna y empuja la otra fuera de la página. */
-.two-col > * {
+/* --- Favoritas --- */
+.favorites {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  /* minmax(0, 1fr): un título largo no ensancha su columna (todas las portadas iguales). */
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: var(--space-md);
+  max-width: 760px;
+}
+
+.favorites__item {
+  width: 100%;
   min-width: 0;
-}
-
-.profile-header__follows {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 0;
+  border: none;
+  background: none;
   color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
 }
 
-.profile-header__follows strong {
-  color: var(--color-text);
+.favorites__cover {
+  display: block;
+  width: 100%;
+  aspect-ratio: 2 / 3;
+  border-radius: var(--radius-md);
+  object-fit: cover;
+  background: var(--color-surface-2);
+  transition: transform 0.15s ease;
 }
 
-.profile-header__follows:hover {
-  color: var(--color-accent);
+.favorites__item:hover .favorites__cover {
+  transform: translateY(-3px);
 }
 
-.profile-header__actions {
+.favorites__cover--empty,
+.favorites__cover--slot {
   display: flex;
-  flex-wrap: wrap;
   align-items: center;
   justify-content: center;
-  gap: var(--space-md);
-}
-
-.profile-header__public-link {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  color: var(--color-accent);
-  font-size: 0.875rem;
-  font-weight: 600;
-  text-decoration: none;
-}
-
-.profile-header__public-link:hover {
-  text-decoration: underline;
-}
-
-.dna {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-md);
-}
-
-.donut {
-  width: 140px;
-  height: 140px;
-  border-radius: 50%;
-  position: relative;
-  margin: 0 auto;
-}
-
-.donut__hole {
-  position: absolute;
-  inset: 16px;
-  border-radius: 50%;
-  background: var(--color-surface);
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  text-align: center;
-}
-
-.donut__hole strong {
-  color: var(--color-text);
-  font-size: 1.375rem;
-  font-weight: 800;
-}
-
-.donut__hole span {
+  font-size: 1.75rem;
   color: var(--color-text-subtle);
-  font-size: 0.75rem;
 }
 
-.donut__legend {
+.favorites__cover--slot {
+  border: 2px dashed var(--color-border);
+  background: none;
+}
+
+.favorites__title {
+  font-weight: 700;
+  color: var(--color-text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.favorites__meta {
+  font-size: 0.8125rem;
+  color: var(--color-text-muted);
+}
+
+/* --- Actividad reciente --- */
+.recent {
   list-style: none;
   margin: 0;
   padding: 0;
   display: flex;
-  flex-wrap: wrap;
-  justify-content: center;
-  gap: var(--space-sm) var(--space-md);
-  font-size: 0.8125rem;
-  color: var(--color-text-muted);
+  flex-direction: column;
+  gap: 2px;
 }
 
-.donut__legend li {
+.recent__row {
+  width: 100%;
   display: flex;
   align-items: center;
-  gap: 6px;
-}
-
-.donut__dot {
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  flex-shrink: 0;
-}
-
-.dna__row {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: var(--space-md);
-  border-top: 1px solid var(--color-border);
-  padding-top: var(--space-md);
-}
-
-.dna__label {
-  color: var(--color-text);
-  font-size: 0.875rem;
-  font-weight: 700;
-  margin: 0 0 var(--space-xs) 0;
-}
-
-.dna__value {
-  color: var(--color-text-muted);
-  font-size: 0.875rem;
-  margin: 0;
-}
-
-.dna__insight {
-  background: var(--color-accent-bg);
+  gap: var(--space-sm);
+  padding: 6px;
+  border: none;
   border-radius: var(--radius-md);
-  padding: var(--space-sm) var(--space-md);
-  color: var(--color-text-muted);
-  font-size: 0.8125rem;
-  margin: 0;
-  line-height: 1.5;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
 }
 
-.dna__insight strong {
-  color: var(--color-accent);
-}
-
-.works-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
-  gap: var(--space-md);
-}
-
-.work-card {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-xs);
-}
-
-.work-card__cover {
-  aspect-ratio: 3 / 4;
-  border-radius: var(--radius-lg);
-  object-fit: cover;
-  border: 1px solid var(--color-border);
-  margin-bottom: var(--space-xs);
-}
-
-.work-card__cover--placeholder {
-  background: linear-gradient(135deg, var(--color-surface-2), var(--color-surface));
-}
-
-.work-card__title {
-  color: var(--color-text);
-  font-size: 0.9375rem;
-  font-weight: 700;
-  margin: 0;
-}
-
-.work-card__subtitle {
-  color: var(--color-accent);
-  font-size: 0.8125rem;
-  margin: 0;
-}
-
-.heatmap__grid {
-  display: grid;
-  grid-auto-flow: column;
-  grid-template-rows: repeat(7, 11px);
-  gap: 3px;
-  overflow-x: auto;
-  padding-bottom: var(--space-xs);
-}
-
-.heatmap__cell {
-  width: 11px;
-  height: 11px;
-  border-radius: 2px;
+.recent__row:hover,
+.recent__row:focus-visible {
   background: var(--color-surface-2);
 }
 
-.heatmap__cell--1 {
-  background: color-mix(in srgb, var(--color-accent) 25%, var(--color-surface-2));
+.recent__cover {
+  width: 36px;
+  height: 54px;
+  flex-shrink: 0;
+  border-radius: var(--radius-sm);
+  object-fit: cover;
+  background: var(--color-surface-2);
 }
 
-.heatmap__cell--2 {
-  background: color-mix(in srgb, var(--color-accent) 50%, var(--color-surface-2));
-}
-
-.heatmap__cell--3 {
-  background: color-mix(in srgb, var(--color-accent) 75%, var(--color-surface-2));
-}
-
-.heatmap__cell--4 {
-  background: var(--color-accent);
-}
-
-.heatmap__legend {
+.recent__cover--empty {
   display: flex;
   align-items: center;
-  gap: 4px;
-  margin-top: var(--space-sm);
+  justify-content: center;
   color: var(--color-text-subtle);
-  font-size: 0.75rem;
-  justify-content: flex-end;
 }
 
-.heatmap__legend .heatmap__cell {
-  width: 10px;
-  height: 10px;
-}
-
-.wrapup {
-  align-self: stretch;
-  background: linear-gradient(135deg, var(--deep-raspberry), var(--fig-purple));
+.recent__info {
+  flex: 1;
+  min-width: 0;
   display: flex;
   flex-direction: column;
-  justify-content: center;
-  gap: var(--space-sm);
 }
 
-.wrapup__eyebrow {
-  color: var(--rose);
-  font-size: 0.75rem;
+.recent__title {
   font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
+  color: var(--color-text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
-.wrapup__title {
-  color: var(--fig-cream);
-  font-size: 1.5rem;
-  font-weight: 800;
-  margin: 0;
+.recent__meta {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  font-size: 0.8125rem;
+  color: var(--color-text-muted);
 }
 
-.wrapup__cta {
+.recent__repeat {
   display: inline-flex;
   align-items: center;
-  gap: var(--space-xs);
-  align-self: flex-start;
-  background: rgba(243, 231, 216, 0.12);
-  border: 1px solid rgba(243, 231, 216, 0.24);
-  border-radius: 999px;
-  color: var(--fig-cream);
-  font-weight: 700;
-  font-size: 0.875rem;
-  padding: var(--space-sm) var(--space-md);
-  cursor: pointer;
-  transition: background 0.15s ease;
-}
-
-.wrapup__cta:hover {
-  background: rgba(243, 231, 216, 0.2);
-}
-
-.wrapup__stat {
-  margin: 0;
-  color: var(--fig-cream);
-  font-size: 0.9375rem;
-}
-
-.wrapup__stat strong {
-  font-size: 1.5rem;
+  gap: 4px;
+  font-weight: 600;
   color: var(--color-accent);
 }
 
-.wrapup__link {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  color: var(--rose);
-  font-size: 0.875rem;
-  font-weight: 600;
+.recent__stars {
+  flex-shrink: 0;
 }
 
-.wrapup__link:hover {
-  color: var(--fig-cream);
+/* --- Reseñas --- */
+.reviews {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-md);
+}
+
+.reviews__item {
+  display: flex;
+  gap: var(--space-md);
+  padding: var(--space-md);
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+}
+
+.reviews__cover-btn {
+  flex-shrink: 0;
+  padding: 0;
+  border: none;
+  background: none;
+  cursor: pointer;
+}
+
+.reviews__cover {
+  display: block;
+  width: 64px;
+  aspect-ratio: 2 / 3;
+  border-radius: var(--radius-sm);
+  object-fit: cover;
+  background: var(--color-surface-2);
+}
+
+.reviews__cover--empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.5rem;
+  color: var(--color-text-subtle);
+}
+
+.reviews__body {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+}
+
+.reviews__title {
+  padding: 0;
+  border: none;
+  background: none;
+  font: inherit;
+  font-size: 1.0625rem;
+  font-weight: 700;
+  color: var(--color-text);
+  text-align: left;
+  cursor: pointer;
+}
+
+.reviews__title:hover {
+  color: var(--color-accent);
+}
+
+.reviews__meta {
+  margin: 0;
+  font-size: 0.8125rem;
+  color: var(--color-text-muted);
+}
+
+.reviews__text {
+  margin: var(--space-xs) 0 0;
+  color: var(--color-text);
+  font-size: 0.9375rem;
+  line-height: 1.55;
+  white-space: pre-line;
+  overflow-wrap: anywhere;
+}
+
+.reviews__note {
+  align-self: stretch;
+  margin-top: var(--space-xs);
+  padding: var(--space-sm);
+  border-radius: var(--radius-md);
+  background: var(--color-surface-2);
+}
+
+.reviews__note-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: var(--color-text-subtle);
+}
+
+.reviews__note p {
+  margin: 4px 0 0;
+  font-size: 0.875rem;
+  color: var(--color-text-muted);
+  white-space: pre-line;
+  overflow-wrap: anywhere;
 }
 
 .profile-lists {
@@ -928,118 +819,46 @@ const donutGradient = computed(() => {
   gap: var(--space-md);
 }
 
-.wrapup__hint {
-  color: var(--rose);
-  font-size: 0.875rem;
-  line-height: 1.5;
-  margin: 0;
-}
-
-.evolution__summary {
-  color: var(--color-text);
-  font-weight: 600;
-  margin: 0;
-}
-
-.evolution__chart {
-  position: relative;
-  margin-top: var(--space-lg);
-  height: 200px;
-}
-
-.evolution__svg {
-  width: 100%;
-  height: 200px;
-  display: block;
-  overflow: visible;
-}
-
-.evolution__baseline {
-  stroke: var(--color-border);
-  stroke-width: 1;
-}
-
-.evolution__line {
-  stroke: var(--color-accent);
-  stroke-width: 2;
-  stroke-linecap: round;
-  stroke-linejoin: round;
-}
-
-.evolution__crosshair {
-  stroke: var(--color-border);
-  stroke-width: 1;
-}
-
-.evolution__dot {
-  fill: var(--color-accent);
-  stroke: var(--color-surface);
-  stroke-width: 2;
-}
-
-.evolution__tooltip {
-  position: absolute;
-  transform: translate(-50%, -130%);
-  background: var(--color-surface-2);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-sm);
-  padding: var(--space-xs) var(--space-sm);
-  font-size: 0.75rem;
-  color: var(--color-text-muted);
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 2px;
-  pointer-events: none;
-  white-space: nowrap;
-}
-
-.evolution__tooltip strong {
-  color: var(--color-text);
-  font-size: 0.875rem;
-}
-
-.evolution__months {
-  display: flex;
-  justify-content: space-between;
-  margin-top: var(--space-sm);
-  color: var(--color-text-subtle);
-  font-size: 0.75rem;
-}
-
-.achievements {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-sm);
-}
-
-.achievements li {
-  display: flex;
-  align-items: center;
-  gap: var(--space-sm);
-  color: var(--color-text-muted);
-  font-size: 0.9375rem;
-}
-
-.achievements__check {
-  color: var(--color-success);
-  font-weight: 700;
-}
-
-.achievements__check--locked {
-  color: var(--color-text-subtle);
-}
-
-.achievements__next {
-  color: var(--color-text-subtle) !important;
-}
-
 @media (max-width: 900px) {
-  .two-col {
+  .profile-columns {
     grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 620px) {
+  .profile-head {
+    grid-template-columns: auto 1fr;
+    grid-template-areas:
+      'avatar identity'
+      'actions actions'
+      'stats stats';
+  }
+
+  .profile-head__actions {
+    flex-direction: row;
+    align-items: center;
+    flex-wrap: wrap;
+  }
+
+  .profile-head__name {
+    font-size: 1.5rem;
+  }
+
+  .profile-head :deep(.user-avatar) {
+    width: 64px !important;
+    height: 64px !important;
+  }
+
+  .favorites {
+    gap: var(--space-sm);
+  }
+
+  .favorites__title {
+    font-size: 0.8125rem;
+  }
+
+  .recent__stars {
+    display: none;
   }
 }
 </style>

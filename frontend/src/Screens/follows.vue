@@ -53,7 +53,7 @@ const EMPTY = {
 <template>
   <div class="follows">
     <RouterLink v-if="profile" :to="`/users/${profile.user.id}`" class="follows__back">
-      <BaseIcon name="arrow-left" /> {{ profile.isSelf ? 'Tu perfil público' : profile.user.name }}
+      <BaseIcon name="arrow-left" /> {{ profile.isSelf ? 'Tu perfil' : profile.user.name }}
     </RouterLink>
 
     <nav class="follows__tabs" aria-label="Seguidores y seguidos">

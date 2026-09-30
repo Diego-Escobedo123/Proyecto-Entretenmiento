@@ -63,6 +63,8 @@ export interface UserProfile {
   quote: string
   /** Año en que empezó a registrar obras. `null` hasta que exista la primera. */
   memberSince: number | null
-  /** Preferencia de visibilidad. Se guarda, pero hoy no hay vista pública que la respete. */
+  /** Perfil público: los demás ven su colección, actividad y favoritas. */
   isPublic: boolean
+  /** "Tus 4 favoritas": ids de obras de la propia colección, en orden. */
+  topPicks: string[]
 }

@@ -4,6 +4,7 @@
  */
 import type { MediaStatus, MediaType } from './media'
 import type { ListSummary } from './list'
+import type { LogEntry } from './log'
 
 /** Lo que otro usuario deja ver de sí mismo. */
 export interface PublicUser {
@@ -65,6 +66,8 @@ export interface PublicEntry {
   rating: number | null
   genres: string[]
   cover: string | null
+  /** Id de catálogo, para abrir la ficha de la obra. */
+  externalId: string | null
   review: string
   /** Sólo presente si el dueño marcó sus notas como públicas. */
   notes: string | null
@@ -74,14 +77,24 @@ export interface PublicEntry {
 /** GET /users/:id */
 export interface PublicProfile {
   user: PublicUser
+  /** Vacíos si la persona no los escribió. */
   tagline: string
   quote: string
+  memberSince: number | null
   isPublic: boolean
   isSelf: boolean
   /** El usuario actual lo sigue. */
   isFollowing: boolean
   followers: number
   following: number
+  /** Con perfil privado (y si no es el propio), `works` y `finishedThisYear` vienen en 0. */
+  counts: { works: number; finishedThisYear: number; lists: number }
+  /** Sus 4 favoritas, en el orden que eligió. */
+  favorites: PublicEntry[]
+  /** Sus últimas entradas del diario (con los datos de la obra). */
+  recent: LogEntry[]
+  /** Cómo califica: promedio e histograma de ½ a 5. */
+  ratings: { average: number | null; count: number; histogram: number[] }
   entries: PublicEntry[]
   /** Sus listas públicas (visibles aunque el perfil sea privado). */
   lists: ListSummary[]

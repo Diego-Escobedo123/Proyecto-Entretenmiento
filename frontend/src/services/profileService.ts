@@ -16,10 +16,11 @@ export const DEFAULT_PROFILE: UserProfile = {
   name: 'Tu perfil',
   handle: '',
   avatar: null,
-  tagline: 'Tu identidad cultural',
-  quote: 'Cada obra cuenta una historia. Juntas cuentan la tuya.',
+  tagline: '',
+  quote: '',
   memberSince: null,
   isPublic: false,
+  topPicks: [],
 }
 
 /** Implementación HTTP contra el backend (`/profile`). */

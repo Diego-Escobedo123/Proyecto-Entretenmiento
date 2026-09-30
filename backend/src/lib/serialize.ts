@@ -108,6 +108,7 @@ export function toPublicEntryDTO(row: MediaEntry) {
     rating: row.rating,
     genres: row.genres,
     cover: upgradeBookCover(row.cover),
+    externalId: row.externalId,
     review: row.review,
     notes: row.notesPublic ? row.notes : null,
     updatedAt: row.updatedAt.toISOString(),
