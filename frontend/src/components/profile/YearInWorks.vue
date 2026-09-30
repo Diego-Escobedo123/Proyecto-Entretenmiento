@@ -1,22 +1,26 @@
 <script setup lang="ts">
 /**
  * YearInWorks — "Tu año en obras": una barra por semana del último año,
- * reflejada sobre una línea central (como una onda). Las semanas con
- * registros van en color, con los tramos de los géneros del ADN (mismos
- * colores que la dona; el resto, "Otros"), y su alto crece con cuántos hubo.
- * Las semanas sin registros van en gris y sólo dibujan la onda (su alto es
- * decorativo, no un dato). Tooltip por barra; arranca mostrando la última
- * semana con actividad.
+ * reflejada sobre una línea central. El alto de las barras es siempre la
+ * misma onda (decorativa, como una hélice de ADN), no un dato: lo que cuenta
+ * es el color. Las semanas con registros van con los tramos de los géneros
+ * del ADN (mismos colores que la dona; el resto, "Otros"); las demás, en
+ * gris. Tooltip por barra con cuántos registros hubo; arranca mostrando la
+ * última semana con actividad.
  *
  * Uso:
  *   <YearInWorks :activity="profile.activity" :top-genres="['Drama', 'Comedia']" self />
  */
 import { computed, ref } from 'vue'
+import { faDna } from '@fortawesome/free-solid-svg-icons'
 import { isoDay, parseISODay } from '../../lib/dates'
 import { GENRE_COLORS, OTHER_GENRES_COLOR, OTHER_GENRES_LABEL } from '../../lib/genreColors'
 import type { ActivityEvent } from '../../types/review'
 
 const props = defineProps<{ activity: ActivityEvent[]; topGenres: string[]; self?: boolean }>()
+
+/** Ícono "dna" de Font Awesome (Bootstrap Icons no trae uno): [ancho, alto, …, path]. */
+const [DNA_WIDTH, DNA_HEIGHT, , , DNA_PATH] = faDna.icon
 
 /** Género de un registro: el mejor ubicado en el top del ADN, o "Otros". */
 function genreIndex(e: ActivityEvent): number {
@@ -64,14 +68,10 @@ const weeks = computed<Week[]>(() => {
   return out
 })
 
-const maxCount = computed(() => Math.max(1, ...weeks.value.map((w) => w.events.length)))
 /** Alto de la barra en % del área (la más alta llega al 100%; ninguna con datos baja del 18%). */
-/** Alto (%) de una semana con registros: siempre alta, más cuantos más hubo. */
-const barHeight = (w: Week) => 70 + (30 * w.events.length) / maxCount.value
-
 /**
- * Alto (%) de una semana vacía: una onda suave (dos cosenos) para que el
- * gráfico tenga forma aunque haya pocos datos. Es decoración: siempre gris.
+ * Alto (%) de la barra de la semana i: una onda suave (dos cosenos), igual
+ * haya o no registros. Es la forma del gráfico, no un dato.
  */
 const waveHeight = (i: number) => {
   const wave = 0.5 + 0.5 * Math.cos((2 * Math.PI * i) / 8.5) + 0.18 * Math.cos((2 * Math.PI * i) / 2.9)
@@ -145,10 +145,8 @@ const ariaWeek = (w: Week) =>
   <div class="card year">
     <div class="card__header">
       <h2 class="card__title">
-        <!-- Doble hélice (Bootstrap Icons no trae una de ADN), con el mismo trazo que sus íconos. -->
-        <svg class="card__icon" viewBox="0 0 16 16" aria-hidden="true">
-          <path d="M4 1c0 3.5 8 3.5 8 7s-8 3.5-8 7M12 1c0 3.5-8 3.5-8 7s8 3.5 8 7" />
-          <path d="M4.6 2.6h6.8M5 8h6M4.6 13.4h6.8" />
+        <svg class="card__icon" :viewBox="`0 0 ${DNA_WIDTH} ${DNA_HEIGHT}`" aria-hidden="true">
+          <path :d="String(DNA_PATH)" />
         </svg>
         {{ self ? 'Tu' : 'Su' }} año en obras
       </h2>
@@ -175,7 +173,7 @@ const ariaWeek = (w: Week) =>
             @focus="hovered = i"
             @blur="hovered = null"
           >
-            <span class="year__bar" :style="{ height: `${barHeight(w)}%` }">
+            <span class="year__bar" :style="{ height: `${waveHeight(i)}%` }">
               <span
                 v-for="s in w.segments"
                 :key="s.index"
@@ -237,13 +235,10 @@ const ariaWeek = (w: Week) =>
 }
 
 .card__icon {
-  width: 1em;
   height: 1em;
+  width: auto;
   flex-shrink: 0;
-  fill: none;
-  stroke: currentColor;
-  stroke-width: 1.3;
-  stroke-linecap: round;
+  fill: currentColor;
 }
 
 .card__title {
