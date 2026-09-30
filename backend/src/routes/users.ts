@@ -2,6 +2,7 @@ import { Hono } from 'hono'
 import { prisma } from '../lib/prisma'
 import { requireAuth, type AuthEnv } from '../middleware/auth'
 import { toPublicEntryDTO, toPublicUserDTO } from '../lib/serialize'
+import { LIST_SUMMARY_INCLUDE, toListSummaryDTO } from './lists'
 
 export const userRoutes = new Hono<AuthEnv>()
 
@@ -11,11 +12,12 @@ const MAX_ENTRIES = 60
 
 /**
  * GET /users/:id (o /users/me) -> perfil público de un usuario
- *   { user, tagline, quote, isPublic, isSelf, entries }
+ *   { user, tagline, quote, isPublic, isSelf, entries, lists }
  *
  * Si el perfil es privado (`Profile.isPublic = false`) y no es el propio,
  * `entries` viene vacío: sólo se muestran los datos básicos. Las notas de
  * cada obra sólo se incluyen si el dueño las marcó como públicas.
+ * `lists` son sus listas públicas (visibles aunque el perfil sea privado).
  */
 userRoutes.get('/:id', async (c) => {
   // `/users/me` = cómo ven los demás el perfil propio.
@@ -42,6 +44,13 @@ userRoutes.get('/:id', async (c) => {
         })
       : []
 
+  // Las listas públicas se ven aunque el perfil sea privado: cada lista decide.
+  const lists = await prisma.list.findMany({
+    where: { userId: id, isPublic: true },
+    include: LIST_SUMMARY_INCLUDE,
+    orderBy: { updatedAt: 'desc' },
+  })
+
   return c.json({
     user: toPublicUserDTO(user),
     tagline: user.profile?.tagline ?? '',
@@ -49,5 +58,6 @@ userRoutes.get('/:id', async (c) => {
     isPublic,
     isSelf,
     entries: entries.map(toPublicEntryDTO),
+    lists: lists.map(toListSummaryDTO),
   })
 })

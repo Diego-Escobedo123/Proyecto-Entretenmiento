@@ -21,6 +21,11 @@ const ui = useUiStore()
 const auth = useAuthStore()
 const { profile } = storeToRefs(useProfileStore())
 
+/** Activo en su ruta y en las que cuelgan de ella (/lists/:id marca "Listas"). */
+function isActive(to: string): boolean {
+  return route.path === to || (to !== '/' && route.path.startsWith(`${to}/`))
+}
+
 // Menú desplegable del usuario (Editar perfil / Cerrar sesión).
 const userMenuOpen = ref(false)
 const userWrapEl = ref<HTMLElement | null>(null)
@@ -93,7 +98,7 @@ watch(
         :key="item.to"
         :to="item.to"
         class="app-sidebar__link"
-        :class="{ 'app-sidebar__link--active': item.to === route.path }"
+        :class="{ 'app-sidebar__link--active': isActive(item.to) }"
       >
         <span class="app-sidebar__icon"><BaseIcon :name="item.icon" /></span>
         {{ item.label }}

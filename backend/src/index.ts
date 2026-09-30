@@ -11,6 +11,7 @@ import { userRoutes } from './routes/users'
 import { detailsRoutes } from './routes/details'
 import { logRoutes } from './routes/logs'
 import { goalRoutes } from './routes/goals'
+import { listRoutes } from './routes/lists'
 
 const app = new Hono()
 
@@ -37,6 +38,7 @@ app.route('/users', userRoutes)
 app.route('/details', detailsRoutes)
 app.route('/logs', logRoutes)
 app.route('/goals', goalRoutes)
+app.route('/lists', listRoutes)
 
 app.notFound((c) => c.json({ message: 'Ruta no encontrada.' }, 404))
 app.onError((err, c) => {

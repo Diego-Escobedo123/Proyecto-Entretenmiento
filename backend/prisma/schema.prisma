@@ -18,6 +18,7 @@ model User {
   entries      MediaEntry[]
   logs         LogEntry[]
   goals        Goal[]
+  lists        List[]
   createdAt    DateTime     @default(now())
   updatedAt    DateTime     @updatedAt
 }
@@ -137,4 +138,45 @@ model Goal {
   target Int
 
   @@unique([userId, year, type])
+}
+
+/// Lista de obras armada por el usuario (como las de Letterboxd). Puede
+/// incluir obras que no están en su colección.
+model List {
+  id          String     @id @default(cuid())
+  user        User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId      String
+  title       String
+  description String     @default("")
+  /// Pública: la ve cualquiera con el enlace y aparece en el perfil público.
+  isPublic    Boolean    @default(false)
+  /// Con ranking: el orden importa y se muestra numerado.
+  ranked      Boolean    @default(false)
+  items       ListItem[]
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+
+  @@index([userId])
+}
+
+/// Obra dentro de una lista. Guarda los datos del catálogo (no depende de la
+/// colección del usuario).
+model ListItem {
+  id         String   @id @default(cuid())
+  list       List     @relation(fields: [listId], references: [id], onDelete: Cascade)
+  listId     String
+  /// Orden dentro de la lista (0 = primero).
+  position   Int
+  type       String
+  title      String
+  creator    String   @default("")
+  year       Int?
+  cover      String?
+  genres     String[] @default([])
+  externalId String?
+  /// Comentario del autor de la lista sobre esta obra.
+  note       String   @default("")
+  addedAt    DateTime @default(now())
+
+  @@index([listId, position])
 }
