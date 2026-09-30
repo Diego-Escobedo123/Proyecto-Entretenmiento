@@ -4,7 +4,7 @@ import { apiFetch } from '../lib/api'
 import { detectRegion } from '../lib/region'
 
 /** Fuentes con ficha extendida. El resto de `externalId` no se consulta. */
-const SUPPORTED_PREFIXES = ['tmdb:', 'tmdb-tv:', 'googlebooks:', 'rawg:', 'itunes:']
+const SUPPORTED_PREFIXES = ['tmdb:', 'tmdb-tv:', 'googlebooks:', 'openlibrary:', 'rawg:', 'itunes:']
 
 export function hasDetails(externalId: string | null | undefined): externalId is string {
   return !!externalId && SUPPORTED_PREFIXES.some((p) => externalId.startsWith(p))

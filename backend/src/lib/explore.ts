@@ -155,11 +155,29 @@ interface AppleAlbum {
   genres?: { name: string }[]
 }
 
+/**
+ * Tendencias y Estrenos usan el mismo top: se pide una vez por país y se
+ * comparte (también entre peticiones simultáneas). El feed a veces tarda,
+ * así que tiene más margen que el resto; si falla, no se guarda.
+ */
+const appleTop = new Map<string, { at: number; albums: Promise<AppleAlbum[]> }>()
+
+function appleTopFeed(region: string): Promise<AppleAlbum[]> {
+  const hit = appleTop.get(region)
+  if (hit && Date.now() - hit.at < CATALOG_TTL) return hit.albums
+  const albums = (
+    fetchJson(
+      `https://rss.marketingtools.apple.com/api/v2/${region.toLowerCase()}/music/most-played/50/albums.json`,
+      10_000,
+    ) as Promise<{ feed?: { results?: AppleAlbum[] } }>
+  ).then((data) => data.feed?.results ?? [])
+  albums.catch(() => appleTop.delete(region))
+  appleTop.set(region, { at: Date.now(), albums })
+  return albums
+}
+
 async function appleTopAlbums(region: string): Promise<ExploreItem[]> {
-  const data = (await fetchJson(
-    `https://rss.marketingtools.apple.com/api/v2/${region.toLowerCase()}/music/most-played/50/albums.json`,
-  )) as { feed?: { results?: AppleAlbum[] } }
-  return (data.feed?.results ?? []).map((a) => ({
+  return (await appleTopFeed(region)).map((a) => ({
     type: 'music' as const,
     externalId: `itunes:${a.id}`,
     title: a.name,
@@ -358,7 +376,10 @@ async function forYou(userId: string, type: MediaKind): Promise<ExploreItem[]> {
     const genre = topGenre(entries)
     if (genre) {
       const res = await searchExternal('book', `subject:"${genre}"`)
-      items = res.results.map((r) => ({ ...r, type: 'book' as const, note: `Por tu gusto por ${genre}` }))
+      // Una búsqueda por género trae de todo: sin portada ni autor suelen ser tesis o folletos.
+      items = res.results
+        .filter((r) => r.cover && r.creator)
+        .map((r) => ({ ...r, type: 'book' as const, note: `Por tu gusto por ${genre}` }))
     }
   } else if (type === 'music') {
     // Más de los artistas que mejor calificaste.
