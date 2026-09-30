@@ -519,8 +519,8 @@ const busiestDay = computed(() => {
   display: flex;
   flex-direction: column;
   min-width: 0;
-  padding: var(--space-md);
-  border-radius: var(--radius-lg);
+  padding: 12px;
+  border-radius: var(--radius-md);
 }
 
 .insight--constancy {
@@ -549,13 +549,13 @@ const busiestDay = computed(() => {
 
 .insight__dots {
   display: grid;
-  grid-template-columns: repeat(5, 14px);
-  gap: 6px;
+  grid-template-columns: repeat(5, 11px);
+  gap: 5px;
 }
 
 .insight__dot {
-  width: 14px;
-  height: 14px;
+  width: 11px;
+  height: 11px;
   border-radius: 50%;
   border: 1.5px solid var(--color-text-subtle);
 }
@@ -567,15 +567,15 @@ const busiestDay = computed(() => {
 
 .insight__stars {
   display: flex;
-  gap: 6px;
-  font-size: 1.125rem;
+  gap: 4px;
+  font-size: 0.9375rem;
 }
 
 .insight__calendar {
   align-self: flex-start;
   display: flex;
   flex-direction: column;
-  width: 52px;
+  width: 42px;
   border-radius: var(--radius-sm);
   overflow: hidden;
   background: var(--fig-cream);
@@ -584,27 +584,27 @@ const busiestDay = computed(() => {
 }
 
 .insight__calendar-month {
-  padding: 2px 0;
+  padding: 1px 0;
   background: var(--deep-raspberry);
   color: var(--fig-cream);
-  font-size: 0.625rem;
+  font-size: 0.5625rem;
   font-weight: 700;
   letter-spacing: 0.08em;
 }
 
 .insight__calendar-day {
-  padding: 2px 0 4px;
+  padding: 1px 0 3px;
   color: var(--fig-purple);
-  font-size: 1.375rem;
+  font-size: 1.125rem;
   font-weight: 800;
   line-height: 1.1;
 }
 
 .insight__value {
   font-family: var(--font-sans);
-  margin: auto 0 var(--space-xs);
-  padding-top: var(--space-md);
-  font-size: 2rem;
+  margin: auto 0 2px;
+  padding-top: var(--space-sm);
+  font-size: 1.625rem;
   font-weight: 800;
   line-height: 1.1;
 }
@@ -612,8 +612,8 @@ const busiestDay = computed(() => {
 .insight__text {
   margin: 0;
   font-family: var(--font-serif);
-  font-size: 0.8125rem;
-  line-height: 1.5;
+  font-size: 0.75rem;
+  line-height: 1.45;
 }
 
 .insight__inline-star {
@@ -628,9 +628,12 @@ const busiestDay = computed(() => {
     gap: clamp(8px, 2cqi, 16px);
   }
 
-  .ov__fact,
-  .insight {
+  .ov__fact {
     padding: clamp(10px, 2.4cqi, 16px);
+  }
+
+  .insight {
+    padding: clamp(8px, 1.9cqi, 12px);
   }
 
   .ov__big {
@@ -641,9 +644,12 @@ const busiestDay = computed(() => {
     font-size: clamp(1.75rem, 6.5cqi, 3rem);
   }
 
-  .ov__caption,
-  .insight__text {
+  .ov__caption {
     font-size: clamp(0.6875rem, 1.9cqi, 0.8125rem);
+  }
+
+  .insight__text {
+    font-size: clamp(0.625rem, 1.7cqi, 0.75rem);
   }
 
   .ov__type-icon {
@@ -657,17 +663,17 @@ const busiestDay = computed(() => {
   }
 
   .insight__value {
-    font-size: clamp(1.25rem, 4.6cqi, 2rem);
+    font-size: clamp(1.0625rem, 3.7cqi, 1.625rem);
   }
 
   .insight__dots {
-    grid-template-columns: repeat(5, clamp(10px, 2.2cqi, 14px));
-    gap: clamp(4px, 1cqi, 6px);
+    grid-template-columns: repeat(5, clamp(8px, 1.8cqi, 11px));
+    gap: clamp(3px, 0.8cqi, 5px);
   }
 
   .insight__dot {
-    width: clamp(10px, 2.2cqi, 14px);
-    height: clamp(10px, 2.2cqi, 14px);
+    width: clamp(8px, 1.8cqi, 11px);
+    height: clamp(8px, 1.8cqi, 11px);
   }
 
   .timeline__stop {
