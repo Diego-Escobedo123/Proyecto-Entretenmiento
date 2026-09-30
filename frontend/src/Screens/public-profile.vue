@@ -14,6 +14,7 @@ import BaseSpinner from '../components/BaseSpinner.vue'
 import EmptyState from '../components/EmptyState.vue'
 import RatingStars from '../components/RatingStars.vue'
 import ListCard from '../components/lists/ListCard.vue'
+import FollowButton from '../components/social/FollowButton.vue'
 import { typeMeta } from '../lib/catalog'
 import { useUiStore } from '../stores/ui'
 import { useProfileStore } from '../stores/profile'
@@ -62,6 +63,13 @@ watch(
   },
 )
 
+/** Seguir/dejar de seguir actualiza el contador sin recargar el perfil. */
+function onFollowChange(following: boolean, followers: number) {
+  if (!profile.value) return
+  profile.value.isFollowing = following
+  profile.value.followers = followers
+}
+
 const canSeeEntries = computed(() => profile.value != null && (profile.value.isPublic || profile.value.isSelf))
 /** Sólo obras con algo que contar: calificación, reseña o nota pública. */
 const entries = computed(() =>
@@ -102,8 +110,28 @@ function formatDate(iso: string): string {
           <h1 class="public-profile__name">{{ profile.user.name }}</h1>
           <p v-if="profile.user.handle" class="public-profile__handle">@{{ profile.user.handle }}</p>
           <p v-if="canSeeEntries && profile.tagline" class="public-profile__tagline">{{ profile.tagline }}</p>
+          <p class="public-profile__counts">
+            <RouterLink :to="`/users/${profile.user.id}/followers`">
+              <strong>{{ profile.followers }}</strong> {{ profile.followers === 1 ? 'seguidor' : 'seguidores' }}
+            </RouterLink>
+            <RouterLink :to="`/users/${profile.user.id}/following`">
+              <strong>{{ profile.following }}</strong> {{ profile.following === 1 ? 'seguido' : 'seguidos' }}
+            </RouterLink>
+          </p>
         </div>
+        <FollowButton
+          v-if="!profile.isSelf"
+          :user-id="profile.user.id"
+          :following="profile.isFollowing"
+          class="public-profile__follow"
+          @change="onFollowChange"
+        />
       </header>
+
+      <p v-if="!profile.isSelf && profile.isFollowing && !profile.isPublic" class="public-profile__note">
+        <BaseIcon name="lock" /> Sigues a esta persona, pero su perfil es privado: su actividad no aparece en tu feed.
+        Sus listas públicas, sí.
+      </p>
 
       <blockquote v-if="canSeeEntries && profile.quote" class="public-profile__quote">
         “{{ profile.quote }}”
@@ -203,6 +231,7 @@ function formatDate(iso: string): string {
 .public-profile__head {
   display: flex;
   align-items: center;
+  flex-wrap: wrap;
   gap: var(--space-md);
 }
 
@@ -228,7 +257,43 @@ function formatDate(iso: string): string {
 }
 
 .public-profile__identity {
+  flex: 1;
   min-width: 0;
+}
+
+.public-profile__counts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-md);
+  margin: var(--space-xs) 0 0;
+  font-family: var(--font-sans);
+  font-size: 0.875rem;
+  color: var(--color-text-muted);
+}
+
+.public-profile__counts a:hover {
+  color: var(--color-accent);
+}
+
+.public-profile__counts strong {
+  color: var(--color-text);
+}
+
+.public-profile__follow {
+  align-self: center;
+}
+
+.public-profile__note {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  margin: 0;
+  padding: var(--space-sm) var(--space-md);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
+  color: var(--color-text-muted);
+  font-size: 0.875rem;
 }
 
 .public-profile__name {

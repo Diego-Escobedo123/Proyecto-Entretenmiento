@@ -10,6 +10,8 @@ import ListsScreen from '../Screens/lists.vue'
 import ListDetailScreen from '../Screens/list-detail.vue'
 import ProfileScreen from '../Screens/profile.vue'
 import PublicProfileScreen from '../Screens/public-profile.vue'
+import PeopleScreen from '../Screens/people.vue'
+import FollowsScreen from '../Screens/follows.vue'
 import NotFoundScreen from '../Screens/not-found.vue'
 
 /**
@@ -32,6 +34,8 @@ export const router = createRouter({
     { path: '/lists/:id', name: 'list-detail', component: ListDetailScreen },
     { path: '/profile', name: 'profile', component: ProfileScreen },
     { path: '/users/:id', name: 'public-profile', component: PublicProfileScreen },
+    { path: '/users/:id/:tab(followers|following)', name: 'follows', component: FollowsScreen },
+    { path: '/people', name: 'people', component: PeopleScreen },
     { path: '/:pathMatch(.*)*', name: 'not-found', component: NotFoundScreen },
   ],
   scrollBehavior: () => ({ top: 0 }),

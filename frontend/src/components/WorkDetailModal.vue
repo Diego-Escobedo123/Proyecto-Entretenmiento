@@ -70,7 +70,10 @@ function addOrEdit() {
 
       <WorkInfo :type="work.type" :external-id="work.externalId" />
 
-      <WorkStats :work="{ type: work.type, externalId: work.externalId, title: work.title }" />
+      <WorkStats
+        :work="{ type: work.type, externalId: work.externalId, title: work.title }"
+        @navigate="closeAnimated"
+      />
 
       <CommunityReviews
         :work="{ type: work.type, externalId: work.externalId, title: work.title }"

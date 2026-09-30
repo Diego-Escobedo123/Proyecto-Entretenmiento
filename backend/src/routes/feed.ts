@@ -58,6 +58,18 @@ feedRoutes.get('/', async (c) => {
 
   const day = (d: Date | null) => (d ? d.toISOString().slice(0, 10) : null)
 
+  // La reseña es de la obra, no de cada vez: va sólo en la última vez que la terminó.
+  const latestFinished = new Set(
+    (
+      await prisma.logEntry.findMany({
+        where: { entryId: { in: [...new Set(logs.map((l) => l.entryId))] }, finishedAt: { not: null }, abandoned: false },
+        orderBy: [{ entryId: 'asc' }, { finishedAt: 'desc' }, { createdAt: 'desc' }],
+        distinct: ['entryId'],
+        select: { id: true },
+      })
+    ).map((l) => l.id),
+  )
+
   const all = [
     ...logs.map((l) => ({
       id: `log:${l.id}`,
@@ -77,7 +89,7 @@ feedRoutes.get('/', async (c) => {
       rating: l.rating,
       repeat: l.repeat,
       // La reseña de la obra (siempre pública) acompaña a la última vez que la terminó.
-      review: l.finishedAt && !l.abandoned && l.entry.review.trim() ? l.entry.review.trim().slice(0, MAX_REVIEW) : null,
+      review: latestFinished.has(l.id) && l.entry.review.trim() ? l.entry.review.trim().slice(0, MAX_REVIEW) : null,
     })),
     ...lists.map((list) => ({
       id: `list:${list.id}`,

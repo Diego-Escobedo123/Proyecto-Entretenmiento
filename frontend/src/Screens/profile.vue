@@ -22,6 +22,7 @@ import { goalProgress, yearStats } from '../lib/yearStats'
 import { logService } from '../services/logService'
 import { goalService } from '../services/goalService'
 import { listService } from '../services/listService'
+import { socialService } from '../services/socialService'
 import type { Goal } from '../types/goal'
 import type { ListSummary } from '../types/list'
 import type { LogEntry } from '../types/log'
@@ -41,16 +42,20 @@ const currentYear = new Date().getFullYear()
 const logs = ref<LogEntry[]>([])
 const goals = ref<Goal[]>([])
 const publicLists = ref<ListSummary[]>([])
+/** Seguidores y seguidos (del perfil público propio). */
+const follows = ref<{ followers: number; following: number } | null>(null)
 
 onMounted(async () => {
-  const [l, g, lists] = await Promise.allSettled([
+  const [l, g, lists, me] = await Promise.allSettled([
     logService.list(),
     goalService.list(currentYear),
     listService.mine(),
+    socialService.publicProfile('me'),
   ])
   if (l.status === 'fulfilled') logs.value = l.value
   if (g.status === 'fulfilled') goals.value = g.value
   if (lists.status === 'fulfilled') publicLists.value = lists.value.filter((x) => x.isPublic)
+  if (me.status === 'fulfilled') follows.value = { followers: me.value.followers, following: me.value.following }
 })
 
 const {
@@ -310,6 +315,16 @@ const donutGradient = computed(() => {
         <span>{{ memberLabel }}</span>
         <span class="profile-header__dot">•</span>
         <span>{{ worksLogged }} obras registradas</span>
+        <template v-if="follows">
+          <span class="profile-header__dot">•</span>
+          <RouterLink to="/users/me/followers" class="profile-header__follows">
+            <strong>{{ follows.followers }}</strong> {{ follows.followers === 1 ? 'seguidor' : 'seguidores' }}
+          </RouterLink>
+          <span class="profile-header__dot">•</span>
+          <RouterLink to="/users/me/following" class="profile-header__follows">
+            <strong>{{ follows.following }}</strong> {{ follows.following === 1 ? 'seguido' : 'seguidos' }}
+          </RouterLink>
+        </template>
       </p>
       <div class="profile-header__actions">
         <BaseButton variant="outline" @click="ui.openSettings()">Editar perfil</BaseButton>
@@ -622,6 +637,18 @@ const donutGradient = computed(() => {
 /* Sin esto el heatmap (ancho fijo) ensancha su columna y empuja la otra fuera de la página. */
 .two-col > * {
   min-width: 0;
+}
+
+.profile-header__follows {
+  color: inherit;
+}
+
+.profile-header__follows strong {
+  color: var(--color-text);
+}
+
+.profile-header__follows:hover {
+  color: var(--color-accent);
 }
 
 .profile-header__actions {

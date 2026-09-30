@@ -1,7 +1,8 @@
 <script setup lang="ts">
 /**
  * Inicio — "¿qué sigue?": lo que tienes a medias para retomarlo, cómo vas
- * con tu reto del año y lo último que terminaste. No repite la colección
+ * con tu reto del año, lo último que terminaste y la actividad de quienes
+ * sigues. No repite la colección
  * (Mi colección), el diario (Diario) ni tu retrato cultural (Perfil).
  */
 import { computed, onMounted, ref } from 'vue'
@@ -14,6 +15,7 @@ import EmptyState from '../components/EmptyState.vue'
 import ProgressBar from '../components/ProgressBar.vue'
 import RatingStars from '../components/RatingStars.vue'
 import ContinueConsumingCard from '../components/home/ContinueConsumingCard.vue'
+import FollowingFeed from '../components/home/FollowingFeed.vue'
 import { MEDIA_TYPES, statusLabel, typeMeta } from '../lib/catalog'
 import { formatDay } from '../lib/dates'
 import { finishedIn, goalProgress } from '../lib/yearStats'
@@ -192,6 +194,8 @@ function openLog(log: LogEntry) {
         </p>
       </section>
     </div>
+
+    <FollowingFeed />
   </template>
 </template>
 

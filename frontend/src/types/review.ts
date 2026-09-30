@@ -43,6 +43,8 @@ export interface WorkStats {
   /** Veces que se terminó (según los diarios) y cuántas de ellas fueron repeticiones. */
   finishes: number
   repeats: number
+  /** Quiénes de los que sigue el usuario la tienen (sólo perfiles públicos). */
+  following: { user: PublicUser; status: MediaStatus; rating: number | null }[]
 }
 
 /** Identifica una obra entre usuarios: por id de catálogo o, si no hay, por tipo + título. */
@@ -76,6 +78,10 @@ export interface PublicProfile {
   quote: string
   isPublic: boolean
   isSelf: boolean
+  /** El usuario actual lo sigue. */
+  isFollowing: boolean
+  followers: number
+  following: number
   entries: PublicEntry[]
   /** Sus listas públicas (visibles aunque el perfil sea privado). */
   lists: ListSummary[]
