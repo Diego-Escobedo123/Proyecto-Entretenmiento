@@ -1,6 +1,8 @@
 /**
  * Búsqueda contra catálogos externos, uno por tipo de obra. Se usa para
- * autocompletar el formulario de alta y para poblar /discover con datos reales.
+ * autocompletar el formulario de alta y en Explorar. Los conversores
+ * (`fromTmdb`, `fromRawg`, …) también los usa `explore.ts`, para que una obra
+ * se vea igual venga de una búsqueda o de una sección de Explorar.
  *
  * Proveedores (todos con tier gratuito):
  * - movie:  TMDB         (requiere TMDB_API_KEY)
@@ -12,6 +14,8 @@
  * Si falta la key de un proveedor, esa búsqueda vuelve `available: false` en
  * vez de romper: el resto de la app sigue funcionando sin esa fuente.
  */
+import { fetchJson } from './http'
+
 export type MediaKind = 'movie' | 'series' | 'book' | 'game' | 'music'
 
 export interface ExternalResult {
@@ -28,27 +32,15 @@ export interface ExternalSearchResponse {
   results: ExternalResult[]
 }
 
-const TIMEOUT_MS = 6000
-
-async function fetchJson(url: string): Promise<unknown> {
-  const controller = new AbortController()
-  const timeout = setTimeout(() => controller.abort(), TIMEOUT_MS)
-  try {
-    const res = await fetch(url, { signal: controller.signal })
-    if (!res.ok) throw new Error(`${url} -> ${res.status}`)
-    return await res.json()
-  } finally {
-    clearTimeout(timeout)
-  }
-}
+const yearOf = (date?: string | null) => (date ? Number(date.slice(0, 4)) : null)
 
 // ---- TMDB (películas y series) ---------------------------------------
 
-type TmdbKind = 'movie' | 'tv'
+export type TmdbKind = 'movie' | 'tv'
 
 const tmdbGenreCache = new Map<TmdbKind, Map<number, string>>()
 
-async function tmdbGenres(apiKey: string, kind: TmdbKind): Promise<Map<number, string>> {
+export async function tmdbGenres(apiKey: string, kind: TmdbKind): Promise<Map<number, string>> {
   const cached = tmdbGenreCache.get(kind)
   if (cached) return cached
   const data = (await fetchJson(
@@ -60,7 +52,7 @@ async function tmdbGenres(apiKey: string, kind: TmdbKind): Promise<Map<number, s
 }
 
 /** TMDB usa `title`/`release_date` en películas y `name`/`first_air_date` en series. */
-interface TmdbResult {
+export interface TmdbResult {
   id: number
   title?: string
   name?: string
@@ -68,6 +60,21 @@ interface TmdbResult {
   first_air_date?: string
   poster_path?: string | null
   genre_ids?: number[]
+  overview?: string
+  /** 0–10. */
+  vote_average?: number
+}
+
+export function fromTmdb(kind: TmdbKind, m: TmdbResult, genres: Map<number, string>): ExternalResult {
+  return {
+    // Prefijo distinto: en TMDB el mismo id numérico puede ser película y serie.
+    externalId: `${kind === 'movie' ? 'tmdb' : 'tmdb-tv'}:${m.id}`,
+    title: (m.title ?? m.name ?? '').trim(),
+    creator: '',
+    year: yearOf(m.release_date || m.first_air_date),
+    cover: m.poster_path ? `https://image.tmdb.org/t/p/w342${m.poster_path}` : null,
+    genres: (m.genre_ids ?? []).map((id) => genres.get(id)).filter((g): g is string => Boolean(g)),
+  }
 }
 
 async function searchTmdb(kind: TmdbKind, query: string): Promise<ExternalSearchResponse> {
@@ -84,18 +91,7 @@ async function searchTmdb(kind: TmdbKind, query: string): Promise<ExternalSearch
   const results = (data.results ?? [])
     .filter((m) => m.title ?? m.name)
     .slice(0, 10)
-    .map((m) => {
-      const date = m.release_date || m.first_air_date
-      return {
-        // Prefijo distinto: en TMDB el mismo id numérico puede ser película y serie.
-        externalId: `${kind === 'movie' ? 'tmdb' : 'tmdb-tv'}:${m.id}`,
-        title: (m.title ?? m.name)!,
-        creator: '',
-        year: date ? Number(date.slice(0, 4)) : null,
-        cover: m.poster_path ? `https://image.tmdb.org/t/p/w342${m.poster_path}` : null,
-        genres: (m.genre_ids ?? []).map((id) => genres.get(id)).filter((g): g is string => Boolean(g)),
-      }
-    })
+    .map((m) => fromTmdb(kind, m, genres))
 
   return { available: true, results }
 }
@@ -148,7 +144,7 @@ async function searchBooks(query: string): Promise<ExternalSearchResponse> {
           externalId: `googlebooks:${item.id}`,
           title: info.title!,
           creator: info.authors?.join(', ') ?? '',
-          year: info.publishedDate ? Number(info.publishedDate.slice(0, 4)) : null,
+          year: yearOf(info.publishedDate),
           cover: upgradeBookCover(info.imageLinks?.thumbnail ?? null),
           genres: info.categories ?? [],
         }
@@ -165,29 +161,43 @@ async function searchBooks(query: string): Promise<ExternalSearchResponse> {
 
 // ---- RAWG (juegos) ------------------------------------------------------
 
+export interface RawgGame {
+  id: number
+  name: string
+  released?: string | null
+  background_image?: string | null
+  genres?: { name: string }[]
+  metacritic?: number | null
+  added?: number
+}
+
+export function fromRawg(g: RawgGame): ExternalResult {
+  return {
+    externalId: `rawg:${g.id}`,
+    title: g.name,
+    creator: '',
+    year: yearOf(g.released),
+    cover: g.background_image ?? null,
+    genres: (g.genres ?? []).map((x) => x.name),
+  }
+}
+
 async function searchGames(query: string): Promise<ExternalSearchResponse> {
   const apiKey = process.env.RAWG_API_KEY
   if (!apiKey) return { available: false, results: [] }
 
   const data = (await fetchJson(
     `https://api.rawg.io/api/games?key=${apiKey}&page_size=10&search=${encodeURIComponent(query)}`,
-  )) as {
-    results?: { id: number; name: string; released?: string | null; background_image?: string | null; genres?: { name: string }[] }[]
-  }
+  )) as { results?: RawgGame[] }
 
-  const results = (data.results ?? []).map((g) => ({
-    externalId: `rawg:${g.id}`,
-    title: g.name,
-    creator: '',
-    year: g.released ? Number(g.released.slice(0, 4)) : null,
-    cover: g.background_image ?? null,
-    genres: (g.genres ?? []).map((x) => x.name),
-  }))
-
-  return { available: true, results }
+  return { available: true, results: (data.results ?? []).map(fromRawg) }
 }
 
 // ---- iTunes Search (música) ---------------------------------------------
+
+/** Portada de Apple en otra resolución: sus URLs terminan en "100x100bb.jpg" (u otro tamaño). */
+export const appleArtwork = (url: string | undefined | null, size = 600) =>
+  url ? url.replace(/\/\d+x\d+(bb)?\.(jpg|png)$/, `/${size}x${size}bb.$2`) : null
 
 async function searchMusic(query: string): Promise<ExternalSearchResponse> {
   const data = (await fetchJson(
@@ -209,8 +219,8 @@ async function searchMusic(query: string): Promise<ExternalSearchResponse> {
       externalId: `itunes:${r.collectionId}`,
       title: r.collectionName!,
       creator: r.artistName ?? '',
-      year: r.releaseDate ? Number(r.releaseDate.slice(0, 4)) : null,
-      cover: r.artworkUrl100 ? r.artworkUrl100.replace('100x100', '600x600') : null,
+      year: yearOf(r.releaseDate),
+      cover: appleArtwork(r.artworkUrl100),
       genres: r.primaryGenreName ? [r.primaryGenreName] : [],
     }))
 
