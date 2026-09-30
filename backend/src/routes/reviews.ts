@@ -13,7 +13,7 @@ const MAX_REVIEWS = 30
 
 /**
  * GET /reviews/stats?type=movie&externalId=tmdb:123&title=Dune
- *   -> { people, byStatus, rating: { average, count, histogram }, finishes, repeats }
+ *   -> { people, byStatus, rating: { average, count, histogram }, finishes, repeats, following }
  *
  * Números de la obra en todo Mosaic (incluido el usuario actual): cuánta gente
  * la tiene y en qué estado, la distribución de estrellas (10 barras, de ½ a 5)
@@ -22,6 +22,9 @@ const MAX_REVIEWS = 30
  * La obra se reconoce por su id de catálogo; también cuentan las ingresadas a
  * mano (sin id) con el mismo tipo y título. Dos obras distintas con el mismo
  * título (Dune de 1984 y de 2021) no se mezclan porque sus ids difieren.
+ *
+ * `following`: quiénes de los que sigue el usuario la tienen (estado y
+ * estrellas). Sólo perfiles públicos: con perfil privado la colección no se comparte.
  */
 reviewRoutes.get('/stats', async (c) => {
   const type = c.req.query('type') ?? ''
@@ -44,8 +47,21 @@ reviewRoutes.get('/stats', async (c) => {
     OR: externalId ? [{ externalId }, ...(title ? [manualSameTitle] : [])] : [manualSameTitle],
   }
 
-  const [entries, finishedLogs] = await Promise.all([
+  const me = c.get('userId')
+  const [entries, followed, finishedLogs] = await Promise.all([
     prisma.mediaEntry.findMany({ where, select: { userId: true, status: true, rating: true } }),
+    prisma.mediaEntry.findMany({
+      where: {
+        ...where,
+        user: { followers: { some: { followerId: me } }, profile: { isPublic: true } },
+      },
+      orderBy: { updatedAt: 'desc' },
+      select: {
+        status: true,
+        rating: true,
+        user: { select: { id: true, name: true, profile: { select: { handle: true, avatar: true } } } },
+      },
+    }),
     prisma.logEntry.findMany({
       where: { entry: where, finishedAt: { not: null }, abandoned: false },
       select: { repeat: true },
@@ -74,6 +90,7 @@ reviewRoutes.get('/stats', async (c) => {
     rating: { average, count: ratings.length, histogram },
     finishes: finishedLogs.length,
     repeats: finishedLogs.filter((l) => l.repeat).length,
+    following: followed.map((f) => ({ user: toPublicUserDTO(f.user), status: f.status, rating: f.rating })),
   })
 })
 
