@@ -102,6 +102,7 @@ function scroll(direction: -1 | 1) {
         :type="item.type"
         :owned="!!owned(item)"
         :note="item.note"
+        :rating="item.rating"
         :show-type="!type"
         @add="ui.openCreateEntry(toWork(item))"
         @open="openOwned(item)"

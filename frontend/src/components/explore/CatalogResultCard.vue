@@ -5,7 +5,8 @@
  * "En tu colección" (abre la edición); si no, "+ Agregar" (alta precargada).
  * Clic en la portada o el título abre la ficha con reseñas (`details`).
  * `note` agrega una línea de contexto ("Sale el 15 oct", "Porque te gustó
- * Dune"); `showType` antepone el tipo cuando la lista mezcla tipos.
+ * Dune") y `rating` (0–5) una estrella con su valor; `showType` antepone
+ * el tipo cuando la lista mezcla tipos.
  */
 import BaseIcon from '../BaseIcon.vue'
 import { typeMeta } from '../../lib/catalog'
@@ -13,8 +14,15 @@ import type { MediaType } from '../../types/media'
 import type { ExternalSearchResult } from '../../types/search'
 
 withDefaults(
-  defineProps<{ result: ExternalSearchResult; type: MediaType; owned?: boolean; note?: string; showType?: boolean }>(),
-  { owned: false, note: undefined, showType: false },
+  defineProps<{
+    result: ExternalSearchResult
+    type: MediaType
+    owned?: boolean
+    note?: string
+    rating?: number
+    showType?: boolean
+  }>(),
+  { owned: false, note: undefined, rating: undefined, showType: false },
 )
 defineEmits<{ add: []; open: []; details: [] }>()
 </script>
@@ -38,7 +46,13 @@ defineEmits<{ add: []; open: []; details: [] }>()
           <BaseIcon v-if="showType" :name="typeMeta(type).icon" class="catalog-card__type" />
           {{ [result.creator, result.year].filter(Boolean).join(' · ') || (showType ? typeMeta(type).label : ' ') }}
         </span>
-        <span v-if="note" class="catalog-card__note" :title="note">{{ note }}</span>
+        <span v-if="note || rating != null" class="catalog-card__note" :title="note">
+          {{ note }}<template v-if="note && rating != null"> · </template>
+          <template v-if="rating != null">
+            <BaseIcon name="star-fill" />
+            {{ rating.toLocaleString('es', { minimumFractionDigits: 1, maximumFractionDigits: 1 }) }}
+          </template>
+        </span>
       </span>
     </button>
 

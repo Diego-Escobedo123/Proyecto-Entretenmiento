@@ -35,8 +35,13 @@ export const KINDS: MediaKind[] = ['movie', 'series', 'book', 'game', 'music']
 
 export interface ExploreItem extends ExternalResult {
   type: MediaKind
-  /** Línea corta de contexto: "Estreno: 16 sep", "12 personas · ★ 4,3", "Porque te gustó Dune". */
+  /** Línea corta de contexto: "Estreno: 16 sep", "12 personas", "Porque te gustó Dune". */
   note?: string
+  /**
+   * Calificación 0–5 (un decimal) cuando la sección la muestra: Joyas (TMDB)
+   * y Popular en Mosaic. Va aparte del texto para dibujarla con un ícono.
+   */
+  rating?: number
   /** Sinopsis, para las tarjetas grandes de Joyas escondidas. */
   description?: string
   /** Interno (no se responde): fecha de estreno, para ordenar "Estrenos y próximos". */
@@ -94,7 +99,12 @@ const TMDB_TV_NOISE = '10763,10764,10766,10767'
 /** Títulos en escritura asiática: TMDB no los tradujo al español y el usuario no los podría leer. */
 const UNTRANSLATED = /[\u3040-\u30ff\u3400-\u9fff\uac00-\ud7af]/
 
-async function tmdbList(kind: TmdbKind, path: string, note?: (m: TmdbResult) => string | undefined) {
+async function tmdbList(
+  kind: TmdbKind,
+  path: string,
+  note?: (m: TmdbResult) => string | undefined,
+  withRating = false,
+) {
   const apiKey = process.env.TMDB_API_KEY
   if (!apiKey) return []
   const sep = path.includes('?') ? '&' : '?'
@@ -113,12 +123,10 @@ async function tmdbList(kind: TmdbKind, path: string, note?: (m: TmdbResult) => 
       note: note?.(m),
       description: m.overview || undefined,
       releaseDate: m.release_date || m.first_air_date || undefined,
+      // TMDB califica de 0 a 10; la app, de 0 a 5.
+      rating: withRating && m.vote_average ? Math.round(m.vote_average * 5) / 10 : undefined,
     }))
 }
-
-/** Calificación de TMDB (0–10) en la escala de la app: "★ 4,1". */
-const tmdbStars = (m: TmdbResult) =>
-  m.vote_average ? `★ ${(m.vote_average / 2).toLocaleString('es', { maximumFractionDigits: 1 })}` : undefined
 
 const releaseNote = (date?: string) => {
   if (!date) return undefined
@@ -260,13 +268,15 @@ const CATALOG: Record<'trending' | 'upcoming' | 'gems', Partial<Record<MediaKind
       tmdbList(
         'movie',
         `/discover/movie?sort_by=vote_average.desc&vote_average.gte=7.5&vote_count.gte=300&vote_count.lte=2500&without_genres=16,99,10402&page=${pageOfTheDay(5, 0)}`,
-        tmdbStars,
+        undefined,
+        true,
       ),
     series: () =>
       tmdbList(
         'tv',
         `/discover/tv?sort_by=vote_average.desc&vote_average.gte=7.8&vote_count.gte=150&vote_count.lte=1500&without_genres=16,${TMDB_TV_NOISE}&page=${pageOfTheDay(4, 1)}`,
-        tmdbStars,
+        undefined,
+        true,
       ),
     // Metacritic alto pero pocos jugadores en RAWG: ni clásicos archiconocidos ni ediciones duplicadas.
     game: async () =>
@@ -311,7 +321,8 @@ async function community(type: MediaKind | 'all'): Promise<ExploreItem[]> {
         year: s.year,
         cover: upgradeBookCover(s.cover),
         genres: s.genres,
-        note: `${people} ${people === 1 ? 'persona' : 'personas'}${avg != null ? ` · ★ ${avg.toLocaleString('es', { maximumFractionDigits: 1 })}` : ''}`,
+        note: `${people} ${people === 1 ? 'persona' : 'personas'}`,
+        rating: avg != null ? Math.round(avg * 10) / 10 : undefined,
       },
     ]
   })
@@ -421,7 +432,7 @@ function interleave(lists: ExploreItem[][]): ExploreItem[] {
 
 /** Quita campos internos (p. ej. `_added` de RAWG) antes de responder. */
 function clean(items: ExploreItem[]): ExploreItem[] {
-  return items.map(({ type, externalId, title, creator, year, cover, genres, note, description }) => ({
+  return items.map(({ type, externalId, title, creator, year, cover, genres, note, description, rating }) => ({
     type,
     externalId,
     title,
@@ -430,6 +441,7 @@ function clean(items: ExploreItem[]): ExploreItem[] {
     cover,
     genres,
     ...(note && { note }),
+    ...(rating != null && { rating }),
     ...(description && { description }),
   }))
 }

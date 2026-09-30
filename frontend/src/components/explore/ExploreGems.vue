@@ -9,6 +9,7 @@
  *   <ExploreGems :type="tipoActivo" />
  */
 import { computed, ref, watch } from 'vue'
+import BaseIcon from '../BaseIcon.vue'
 import HiddenGemCard from './HiddenGemCard.vue'
 import { typeMeta } from '../../lib/catalog'
 import { exploreService } from '../../services/exploreService'
@@ -64,7 +65,7 @@ const kind = (g: ExploreItem) => [typeMeta(g.type).label, g.note].filter(Boolean
 <template>
   <section v-if="loading || gems.length" class="gems">
     <header>
-      <h2 class="gems__title">💎 Joyas escondidas</h2>
+      <h2 class="gems__title"><BaseIcon name="gem" /> Joyas escondidas</h2>
       <p class="gems__subtitle">Muy bien calificadas y poco conocidas. Cambian cada día.</p>
     </header>
 
@@ -81,6 +82,7 @@ const kind = (g: ExploreItem) => [typeMeta(g.type).label, g.note].filter(Boolean
         :year="featured.year ?? undefined"
         :title="featured.title"
         :description="featured.description"
+        :rating="featured.rating"
         :cover="featured.cover!"
         size="lg"
         @open="open(featured)"
@@ -90,6 +92,7 @@ const kind = (g: ExploreItem) => [typeMeta(g.type).label, g.note].filter(Boolean
           v-for="g in rest"
           :key="g.externalId"
           :kind="kind(g)"
+          :rating="g.rating"
           :title="g.title"
           :cover="g.cover!"
           @open="open(g)"
@@ -107,6 +110,9 @@ const kind = (g: ExploreItem) => [typeMeta(g.type).label, g.note].filter(Boolean
 }
 
 .gems__title {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
   margin: 0;
   font-size: 1.25rem;
   font-weight: 700;
