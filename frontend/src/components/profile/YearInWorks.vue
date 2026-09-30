@@ -1,11 +1,12 @@
 <script setup lang="ts">
 /**
  * YearInWorks — "Tu año en obras": una barra por semana del último año,
- * reflejada sobre una línea central (como una onda). El alto es cuántas
- * veces se empezó o terminó algo esa semana y los tramos de color son los
- * géneros del ADN (mismos colores que la dona; el resto, "Otros"). Las
- * semanas sin registros quedan como un trazo gris corto. Tooltip por barra;
- * arranca mostrando la última semana con actividad.
+ * reflejada sobre una línea central (como una onda). Las semanas con
+ * registros van en color, con los tramos de los géneros del ADN (mismos
+ * colores que la dona; el resto, "Otros"), y su alto crece con cuántos hubo.
+ * Las semanas sin registros van en gris y sólo dibujan la onda (su alto es
+ * decorativo, no un dato). Tooltip por barra; arranca mostrando la última
+ * semana con actividad.
  *
  * Uso:
  *   <YearInWorks :activity="profile.activity" :top-genres="['Drama', 'Comedia']" self />
@@ -65,7 +66,17 @@ const weeks = computed<Week[]>(() => {
 
 const maxCount = computed(() => Math.max(1, ...weeks.value.map((w) => w.events.length)))
 /** Alto de la barra en % del área (la más alta llega al 100%; ninguna con datos baja del 18%). */
-const barHeight = (w: Week) => (w.events.length ? 18 + (82 * w.events.length) / maxCount.value : 0)
+/** Alto (%) de una semana con registros: siempre alta, más cuantos más hubo. */
+const barHeight = (w: Week) => 70 + (30 * w.events.length) / maxCount.value
+
+/**
+ * Alto (%) de una semana vacía: una onda suave (dos cosenos) para que el
+ * gráfico tenga forma aunque haya pocos datos. Es decoración: siempre gris.
+ */
+const waveHeight = (i: number) => {
+  const wave = 0.5 + 0.5 * Math.cos((2 * Math.PI * i) / 8.5) + 0.18 * Math.cos((2 * Math.PI * i) / 2.9)
+  return 22 + 78 * Math.min(1, Math.max(0, wave))
+}
 
 /** Etiqueta de mes en la primera semana de cada mes (como Constancia). */
 const monthLabels = computed(() => {
@@ -133,7 +144,14 @@ const ariaWeek = (w: Week) =>
 <template>
   <div class="card year">
     <div class="card__header">
-      <h2 class="card__title">{{ self ? 'Tu' : 'Su' }} año en obras</h2>
+      <h2 class="card__title">
+        <!-- Doble hélice (Bootstrap Icons no trae una de ADN), con el mismo trazo que sus íconos. -->
+        <svg class="card__icon" viewBox="0 0 16 16" aria-hidden="true">
+          <path d="M4 1c0 3.5 8 3.5 8 7s-8 3.5-8 7M12 1c0 3.5-8 3.5-8 7s8 3.5 8 7" />
+          <path d="M4.6 2.6h6.8M5 8h6M4.6 13.4h6.8" />
+        </svg>
+        {{ self ? 'Tu' : 'Su' }} año en obras
+      </h2>
       <p class="year__summary">
         <strong>{{ total }} {{ total === 1 ? 'registro' : 'registros' }} en el último año</strong>
         <template v-if="busiestMonth"> · mes más activo: <span class="year__month">{{ busiestMonth }}</span></template>
@@ -166,7 +184,9 @@ const ariaWeek = (w: Week) =>
               />
             </span>
           </button>
-          <span v-else class="year__week year__week--empty" aria-hidden="true"><span class="year__stub" /></span>
+          <span v-else class="year__week year__week--empty" aria-hidden="true">
+            <span class="year__stub" :style="{ height: `${waveHeight(i)}%` }" />
+          </span>
         </template>
       </div>
 
@@ -216,7 +236,20 @@ const ariaWeek = (w: Week) =>
   gap: var(--space-xs) var(--space-md);
 }
 
+.card__icon {
+  width: 1em;
+  height: 1em;
+  flex-shrink: 0;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.3;
+  stroke-linecap: round;
+}
+
 .card__title {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
   margin: 0;
   font-size: 1.25rem;
   font-weight: 700;
@@ -299,7 +332,6 @@ const ariaWeek = (w: Week) =>
 
 .year__stub {
   width: min(100%, 10px);
-  height: 10px;
   border-radius: 999px;
   background: color-mix(in srgb, var(--color-text) 14%, var(--color-surface));
 }
