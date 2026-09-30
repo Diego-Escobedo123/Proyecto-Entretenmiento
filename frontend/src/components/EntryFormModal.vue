@@ -19,6 +19,7 @@ import { useMediaStore } from '../stores/media'
 import { useUiStore } from '../stores/ui'
 import { searchService } from '../services/searchService'
 import { detailsService, hasDetails } from '../services/detailsService'
+import { logService } from '../services/logService'
 import type { WorkDetails } from '../types/details'
 import type { MediaEntryInput, MediaStatus, MediaType } from '../types/media'
 import type { ExternalSearchResult } from '../types/search'
@@ -84,7 +85,7 @@ function blank(): FormShape {
 }
 
 const form = reactive<FormShape>(blank())
-const errors = reactive<{ title?: string; year?: string }>({})
+const errors = reactive<{ title?: string; year?: string; startDate?: string }>({})
 const submitting = ref(false)
 
 // --- Datos de la obra vs. datos del usuario ---
@@ -136,6 +137,12 @@ async function runSearch(query: string) {
 
 /** Día en que empezó/terminó/abandonó, para el diario. Hoy por defecto. */
 const logDate = ref(todayISO())
+/**
+ * Series, libros y juegos que se terminan o abandonan: cuándo se empezó.
+ * Si ya estaba en curso, viene de su entrada abierta del diario (se puede corregir).
+ */
+const startDate = ref('')
+let startDateRequest = 0
 /** El usuario pidió "volver a leerlo": al guardar se abre una entrada nueva. */
 const restarting = ref(false)
 
@@ -150,6 +157,9 @@ watch(
   () => {
     const e = editing.value
     logDate.value = todayISO()
+    startDate.value = ''
+    errors.startDate = undefined
+    if (e) void loadOpenStart(e.id)
     restarting.value = false
     suppressNextSearch = true
     picked.value = false
@@ -205,13 +215,38 @@ const creatorLabel = computed(() => typeMeta(form.type).creatorLabel)
 
 // --- Diario: fecha del cambio de estado y "volver a verla/leerla" ---
 
-
 const statusChanged = computed(() =>
   editing.value ? form.status !== editing.value.status : form.status !== 'want',
 )
 const logDateLabel = computed(() =>
   form.status === 'in-progress' ? 'Empezaste el' : `${statusLabel(form.type, form.status)} el`,
 )
+
+/** Series, libros y juegos al terminarlos o abandonarlos: fecha de inicio y de finalización. */
+const asksStartDate = computed(
+  () =>
+    statusChanged.value &&
+    !restarting.value &&
+    (form.type === 'series' || form.type === 'book' || form.type === 'game') &&
+    form.status !== 'in-progress' &&
+    form.status !== 'want',
+)
+
+// Al corregir cualquiera de las dos fechas, el aviso de "posterior a la finalización" se va.
+watch([startDate, logDate], () => {
+  errors.startDate = undefined
+})
+
+/** Inicio de la entrada abierta del diario (la que se está cerrando), si la hay. */
+async function loadOpenStart(entryId: string) {
+  const current = ++startDateRequest
+  try {
+    const open = (await logService.list(entryId)).find((l) => !l.finishedAt)
+    if (current === startDateRequest && open?.startedAt && !startDate.value) startDate.value = open.startedAt
+  } catch {
+    // Sin diario a mano: el campo queda vacío y es opcional.
+  }
+}
 
 /** Series, libros y juegos: la vuelve a empezar desde cero. */
 function restart() {
@@ -362,7 +397,11 @@ function validate(): boolean {
     !year || (/^\d{3,4}$/.test(year) && +year >= 1800 && +year <= new Date().getFullYear() + 1)
       ? undefined
       : 'Escribe un año válido (ej. 1999).'
-  return !errors.title && !errors.year
+  errors.startDate =
+    asksStartDate.value && startDate.value && startDate.value > (logDate.value || todayISO())
+      ? 'No puede ser posterior a la fecha de finalización.'
+      : undefined
+  return !errors.title && !errors.year && !errors.startDate
 }
 
 function toInput(): MediaEntryInput {
@@ -410,7 +449,12 @@ async function submit() {
   if (!validate() || submitting.value) return
   submitting.value = true
   try {
-    const options = statusChanged.value ? { logDate: logDate.value || todayISO() } : undefined
+    const options = statusChanged.value
+      ? {
+          logDate: logDate.value || todayISO(),
+          ...(asksStartDate.value && startDate.value && { startDate: startDate.value }),
+        }
+      : undefined
     if (editing.value) {
       await media.editEntry(editing.value.id, toInput(), options)
     } else {
@@ -547,14 +591,34 @@ async function submit() {
       </div>
 
       <!-- Para el diario: cuándo empezó/terminó (sólo si cambia el estado) -->
-      <AppField
-        v-if="statusChanged"
-        v-slot="{ id }"
-        :label="logDateLabel"
-        :hint="restarting ? 'Se registrará en tu diario como una vez más' : 'Queda registrado en tu diario'"
-      >
-        <input :id="id" v-model="logDate" type="date" :max="todayISO()" class="app-input entry-form__date" />
-      </AppField>
+      <template v-if="statusChanged">
+        <!-- Series, libros y juegos terminados o abandonados: inicio y fin -->
+        <div v-if="asksStartDate" class="entry-form__dates">
+          <div class="entry-form__row">
+            <AppField v-slot="{ id }" label="Fecha de inicio" hint="Opcional" :error="errors.startDate">
+              <input
+                :id="id"
+                v-model="startDate"
+                type="date"
+                :max="logDate || todayISO()"
+                class="app-input"
+              />
+            </AppField>
+            <AppField v-slot="{ id }" label="Fecha de finalización">
+              <input :id="id" v-model="logDate" type="date" :max="todayISO()" class="app-input" />
+            </AppField>
+          </div>
+          <p class="entry-form__dates-hint">Queda registrado en tu diario</p>
+        </div>
+        <AppField
+          v-else
+          v-slot="{ id }"
+          :label="logDateLabel"
+          :hint="restarting ? 'Se registrará en tu diario como una vez más' : 'Queda registrado en tu diario'"
+        >
+          <input :id="id" v-model="logDate" type="date" :max="todayISO()" class="app-input entry-form__date" />
+        </AppField>
+      </template>
 
       <!-- Avance: específico de cada tipo -->
       <template v-if="showProgress">
@@ -727,6 +791,18 @@ async function submit() {
 <style scoped>
 .entry-form__date {
   max-width: 220px;
+}
+
+.entry-form__dates {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xs);
+}
+
+.entry-form__dates-hint {
+  margin: 0;
+  font-size: 0.75rem;
+  color: var(--color-text-subtle);
 }
 
 .entry-form {

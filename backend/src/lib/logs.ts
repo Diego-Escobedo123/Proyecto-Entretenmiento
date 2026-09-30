@@ -64,6 +64,8 @@ export async function createLog(
 /**
  * Refleja en el diario un cambio de estado de la obra. `prev` es null en un
  * alta. `day` es la fecha que eligió el usuario (hoy por defecto).
+ * `startDay` (series, libros y juegos que se terminan o abandonan): cuándo la
+ * empezó; corrige el inicio de la entrada abierta o se usa en la nueva.
  *
  * - → en progreso: abre una entrada (si no hay una abierta).
  * - → terminada/100%: cierra la abierta o crea una ya terminada.
@@ -71,7 +73,7 @@ export async function createLog(
  * - → abandonada: cierra la abierta marcándola como abandonada.
  * - → pendiente: nada; el historial se conserva.
  */
-export async function recordStatusChange(entry: MediaEntry, prev: string | null, day: Date) {
+export async function recordStatusChange(entry: MediaEntry, prev: string | null, day: Date, startDay: Date | null = null) {
   const next = entry.status
   if (prev === next) return
   if (next === 'want') return
@@ -91,8 +93,8 @@ export async function recordStatusChange(entry: MediaEntry, prev: string | null,
     ? { finishedAt: day, rating: entry.rating, abandoned: false }
     : { finishedAt: day, rating: null, abandoned: true }
 
-  if (open) await prisma.logEntry.update({ where: { id: open.id }, data: closing })
-  else await createLog(entry, closing)
+  if (open) await prisma.logEntry.update({ where: { id: open.id }, data: { ...closing, ...(startDay && { startedAt: startDay }) } })
+  else await createLog(entry, { ...closing, startedAt: startDay })
 }
 
 /** La calificación de la obra es la de su último visionado/lectura terminado. */
