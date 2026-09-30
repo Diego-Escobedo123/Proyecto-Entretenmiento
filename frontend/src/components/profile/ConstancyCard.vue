@@ -79,7 +79,7 @@ const cellTitle = (day: HeatmapDay) =>
     <div ref="gridEl" class="constancy__scroll">
       <div
         class="constancy__grid"
-        :style="{ gridTemplateColumns: `auto repeat(${weeks.length}, minmax(9px, 1fr))` }"
+        :style="{ gridTemplateColumns: `auto repeat(${weeks.length}, minmax(6px, 1fr))` }"
         role="img"
         :aria-label="`${total} registros en ${self ? 'tu' : 'su'} diario en el último año`"
       >
@@ -166,8 +166,8 @@ const cellTitle = (day: HeatmapDay) =>
 .constancy__grid {
   display: grid;
   grid-template-rows: auto repeat(7, auto);
-  gap: 3px;
-  min-width: max-content;
+  gap: 2px;
+  min-width: min-content;
   width: 100%;
 }
 

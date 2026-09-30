@@ -239,9 +239,13 @@ const nf = (n: number) => n.toLocaleString('es')
           </ol>
         </section>
 
-        <!-- Actividad reciente + cómo califica -->
-        <div class="profile-columns">
-          <section class="card profile-section">
+        <!--
+          Actividad reciente + cómo califica. Perfil público: a su lado, más
+          anchos, ADN cultural y constancia (lo mismo para todos):
+            Actividad | ADN  /  Cómo califica | Constancia
+        -->
+        <div class="profile-columns" :class="{ 'profile-columns--public': profile.isPublic }">
+          <section class="card profile-section profile-columns__recent">
             <header class="profile-section__head">
               <h2 class="profile-section__title"><BaseIcon name="journal-bookmark" /> Actividad reciente</h2>
               <RouterLink v-if="isSelf" to="/diary" class="profile-section__link">Ver diario <BaseIcon name="arrow-right" /></RouterLink>
@@ -269,7 +273,7 @@ const nf = (n: number) => n.toLocaleString('es')
             </ul>
           </section>
 
-          <section class="card profile-section profile-section--rating">
+          <section class="card profile-section profile-section--rating profile-columns__rating">
             <h2 class="profile-section__title"><BaseIcon name="bar-chart" /> {{ isSelf ? 'Cómo calificas' : 'Cómo califica' }}</h2>
             <RatingHistogram
               v-if="profile.ratings.count"
@@ -280,23 +284,23 @@ const nf = (n: number) => n.toLocaleString('es')
             />
             <p v-else class="profile__hint">Todavía no hay calificaciones.</p>
           </section>
+
+          <template v-if="profile.isPublic">
+            <DnaCard
+              class="profile-columns__dna"
+              :top-genres="profile.dna.topGenres"
+              :favorite-decade="profile.dna.favoriteDecade"
+              :dominant-label="profile.dna.dominantType ? typeMeta(profile.dna.dominantType).plural : null"
+              :completion-rate="profile.dna.completionRate"
+              :self="isSelf"
+              wide
+            />
+            <ConstancyCard class="profile-columns__constancy" :days="profile.activity" :self="isSelf" />
+          </template>
         </div>
 
-        <!-- Perfil público: ADN cultural y constancia (lo mismo para todos) -->
-        <template v-if="profile.isPublic">
-          <DnaCard
-            :top-genres="profile.dna.topGenres"
-            :favorite-decade="profile.dna.favoriteDecade"
-            :dominant-label="profile.dna.dominantType ? typeMeta(profile.dna.dominantType).plural : null"
-            :completion-rate="profile.dna.completionRate"
-            :self="isSelf"
-            wide
-          />
-          <ConstancyCard :days="profile.activity" :self="isSelf" />
-        </template>
-
         <!-- Perfil privado (sólo lo ve su dueño): reseñas y notas públicas -->
-        <section v-else-if="reviews.length" class="profile-section">
+        <section v-if="!profile.isPublic && reviews.length" class="profile-section">
           <h2 class="profile-section__title"><BaseIcon name="chat-quote" /> Reseñas recientes</h2>
           <ul class="reviews">
             <li v-for="e in reviews" :key="e.id" class="reviews__item">
@@ -581,6 +585,30 @@ a.profile-stats__item:hover {
   min-width: 0;
 }
 
+/* Público: columna angosta (actividad, calificaciones) y ancha (ADN, constancia). */
+.profile-columns--public {
+  grid-template-columns: minmax(0, 2fr) minmax(0, 3fr);
+  grid-template-areas:
+    'recent dna'
+    'rating constancy';
+}
+
+.profile-columns__recent {
+  grid-area: recent;
+}
+
+.profile-columns__rating {
+  grid-area: rating;
+}
+
+.profile-columns__dna {
+  grid-area: dna;
+}
+
+.profile-columns__constancy {
+  grid-area: constancy;
+}
+
 /* --- Favoritas --- */
 .favorites {
   list-style: none;
@@ -849,6 +877,14 @@ a.profile-stats__item:hover {
 @media (max-width: 900px) {
   .profile-columns {
     grid-template-columns: 1fr;
+  }
+}
+
+/* Con la barra lateral, bajo ~1100px la columna ancha no alcanza para el año completo de Constancia. */
+@media (max-width: 1100px) {
+  .profile-columns--public {
+    grid-template-columns: 1fr;
+    grid-template-areas: 'recent' 'dna' 'rating' 'constancy';
   }
 }
 
