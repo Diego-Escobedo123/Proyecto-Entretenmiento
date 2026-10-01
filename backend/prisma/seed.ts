@@ -1,6 +1,7 @@
 /**
  * Datos de ejemplo para desarrollo. Correr con: bun run db:seed
- * Crea un usuario demo (demo@mosaic.app / demo123) con algunas obras.
+ * Crea un usuario demo (demo@mosaic.app / demo123) con algunas obras y un
+ * administrador de prueba (admin@mosaic.app / admin123).
  */
 import { PrismaClient } from '@prisma/client'
 import { hashPassword } from '../src/lib/auth'
@@ -50,7 +51,18 @@ async function main() {
     },
   })
 
-  console.log(`Seed listo. Usuario demo: ${user.email} / demo123`)
+  await prisma.user.deleteMany({ where: { email: 'admin@mosaic.app' } })
+  await prisma.user.create({
+    data: {
+      email: 'admin@mosaic.app',
+      name: 'Admin',
+      role: 'ADMIN',
+      passwordHash: await hashPassword('admin123'),
+      profile: { create: { handle: 'admin', memberSince: new Date().getFullYear() } },
+    },
+  })
+
+  console.log(`Seed listo. Usuario demo: ${user.email} / demo123 · Admin: admin@mosaic.app / admin123`)
 }
 
 main()
