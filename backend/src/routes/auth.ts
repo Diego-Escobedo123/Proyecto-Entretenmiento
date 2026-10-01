@@ -1,12 +1,13 @@
 import { Hono } from 'hono'
+import type { Role } from '@prisma/client'
 import { prisma } from '../lib/prisma'
 import { hashPassword, isGoogleAuthEnabled, signToken, verifyGoogleIdToken, verifyPassword } from '../lib/auth'
 import { requireAuth, type AuthEnv } from '../middleware/auth'
 
 export const authRoutes = new Hono<AuthEnv>()
 
-function publicUser(user: { id: string; name: string; email: string }) {
-  return { id: user.id, name: user.name, email: user.email }
+function publicUser(user: { id: string; name: string; email: string; role: Role }) {
+  return { id: user.id, name: user.name, email: user.email, role: user.role }
 }
 
 // POST /auth/register  { name, email, password }
