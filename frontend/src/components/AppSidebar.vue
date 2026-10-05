@@ -112,6 +112,17 @@ watch(
           {{ followRequests.count }}
         </span>
       </RouterLink>
+
+      <!-- Solo para administradores (el backend también lo protege). -->
+      <RouterLink
+        v-if="auth.isAdmin"
+        to="/admin"
+        class="app-sidebar__link"
+        :class="{ 'app-sidebar__link--active': isActive('/admin') }"
+      >
+        <span class="app-sidebar__icon"><BaseIcon name="shield-lock" /></span>
+        Administración
+      </RouterLink>
     </nav>
 
     <div class="app-sidebar__footer">
