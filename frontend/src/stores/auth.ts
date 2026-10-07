@@ -9,15 +9,21 @@
  * Google: el botón de Google Identity Services entrega un ID token que se
  * manda al backend (POST /auth/google). El backend es quien verifica la firma
  * del token; el frontend nunca confía en su contenido.
+ *
+ * Roles: `user.role` es USER o ADMIN. `isAdmin` solo sirve para mostrar u
+ * ocultar cosas en la interfaz; quien de verdad protege las rutas /admin es
+ * el backend (responde 403 a quien no sea ADMIN).
  */
 import { defineStore } from 'pinia'
 import { computed, ref } from 'vue'
 import { ApiError, apiFetch, getToken, setToken } from '../lib/api'
+import type { Role } from '../types/admin'
 
 interface AuthUser {
   id: string
   name: string
   email: string
+  role: Role
   avatarUrl?: string
 }
 
@@ -34,6 +40,7 @@ export const useAuthStore = defineStore('auth', () => {
   const hasToken = ref(getToken() !== null)
 
   const isAuthenticated = computed(() => hasToken.value)
+  const isAdmin = computed(() => user.value?.role === 'ADMIN')
 
   function setSession(res: AuthResponse): void {
     setToken(res.token)
@@ -85,17 +92,28 @@ export const useAuthStore = defineStore('auth', () => {
     window.google?.accounts.id.disableAutoSelect()
   }
 
-  /** Revalida la sesión al arrancar la app. Si el token no sirve, cierra sesión. */
-  async function restore(): Promise<void> {
-    if (!getToken()) return
-    try {
-      const { user: me } = await apiFetch<{ user: AuthUser }>('/auth/me')
-      user.value = me
-      hasToken.value = true
-    } catch (e) {
-      if (e instanceof ApiError && (e.status === 401 || e.status === 403)) logout()
-    }
+  /**
+   * Revalida la sesión contra /auth/me. Si el token no sirve, cierra sesión.
+   * Si ya hay una revalidación en curso, devuelve esa misma (el guard del
+   * router la espera antes de decidir si dejar entrar a /admin).
+   */
+  let restoring: Promise<void> | null = null
+
+  function restore(): Promise<void> {
+    if (!getToken()) return Promise.resolve()
+    restoring ??= (async () => {
+      try {
+        const { user: me } = await apiFetch<{ user: AuthUser }>('/auth/me')
+        user.value = me
+        hasToken.value = true
+      } catch (e) {
+        if (e instanceof ApiError && (e.status === 401 || e.status === 403)) logout()
+      } finally {
+        restoring = null
+      }
+    })()
+    return restoring
   }
 
-  return { user, isAuthenticated, login, loginWithGoogleCredential, register, logout, restore }
+  return { user, isAuthenticated, isAdmin, login, loginWithGoogleCredential, register, logout, restore }
 })

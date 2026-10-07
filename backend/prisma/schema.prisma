@@ -9,11 +9,20 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+/// Roles de la plataforma.
+enum Role {
+  USER
+  ADMIN
+}
+
 model User {
   id           String       @id @default(cuid())
   email        String       @unique
   name         String
   passwordHash String
+  /// Permisos del usuario. Todos nacen como USER; un ADMIN puede gestionar
+  /// usuarios y roles desde /admin. Ver `bun run make-admin`.
+  role         Role         @default(USER)
   profile      Profile?
   entries      MediaEntry[]
   logs         LogEntry[]
