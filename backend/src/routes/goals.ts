@@ -3,6 +3,7 @@ import { prisma } from '../lib/prisma'
 import { requireAuth, type AuthEnv } from '../middleware/auth'
 import { validateBody } from '../lib/validation'
 import { createGoalSchema } from '../lib/schemas'
+import { checkGoalsCompleted } from '../lib/notifications'
 
 export const goalRoutes = new Hono<AuthEnv>()
 
@@ -37,6 +38,8 @@ goalRoutes.post('/', async (c) => {
     create: { userId, year, type, target },
     update: { target },
   })
+    // Si ya la había alcanzado (por ejemplo, bajó el objetivo), avisa ahora.
+  await checkGoalsCompleted(userId)
   return c.json(toGoalDTO(row))
 })
 
