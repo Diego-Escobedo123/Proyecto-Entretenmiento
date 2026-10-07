@@ -4,6 +4,7 @@ import { requireAuth, type AuthEnv } from '../middleware/auth'
 import { fromMediaInput, toMediaDTO } from '../lib/serialize'
 import { parseDay, recordStatusChange, syncLatestRating } from '../lib/logs'
 import { validateBody } from '../lib/validation'
+import { checkGoalsCompleted } from '../lib/notifications'
 import { createMediaSchema, updateMediaSchema } from '../lib/schemas'
 
 /**
@@ -62,6 +63,7 @@ mediaRoutes.post('/', async (c) => {
     data: { ...fromMediaInput(body), userId: c.get('userId') } as never,
   })
   await recordStatusChange(row, null, logDay(body), start.day)
+  await checkGoalsCompleted(row.userId)
   return c.json(toMediaDTO(row), 201)
 })
 
@@ -79,8 +81,10 @@ mediaRoutes.patch('/:id', async (c) => {
     where: { id: owned.id },
     data: fromMediaInput(body),
   })
-  if (row.status !== owned.status) await recordStatusChange(row, owned.status, logDay(body), start.day)
-  else if (row.rating !== owned.rating) await syncLatestRating(row)
+  if (row.status !== owned.status) {
+    await recordStatusChange(row, owned.status, logDay(body), start.day)
+    await checkGoalsCompleted(row.userId)
+  } else if (row.rating !== owned.rating) await syncLatestRating(row)
   return c.json(toMediaDTO(row))
 })
 

@@ -1,13 +1,14 @@
 <script setup lang="ts">
 /**
  * AppTopBar — barra superior: toggle de nav (móvil), búsqueda global
- * (ver GlobalSearch) y el menú de perfil (Cuenta, Tema, Notificaciones)
- * que se despliega desde el avatar.
+ * (ver GlobalSearch), la campana de notificaciones (ver NotificationBell) y
+ * el menú de perfil (Cuenta, Tema) que se despliega desde el avatar.
  */
 import { onBeforeUnmount, onMounted, ref } from 'vue'
 import { storeToRefs } from 'pinia'
 import BaseIcon from './BaseIcon.vue'
 import GlobalSearch from './GlobalSearch.vue'
+import NotificationBell from './NotificationBell.vue'
 import { useUiStore } from '../stores/ui'
 import { useProfileStore } from '../stores/profile'
 import { useTheme } from '../composables/useTheme'
@@ -16,7 +17,7 @@ const ui = useUiStore()
 const { profile } = storeToRefs(useProfileStore())
 const { theme, toggleTheme } = useTheme()
 
-// Menú desplegable del avatar (Cuenta / Tema / Notificaciones).
+// Menú desplegable del avatar (Cuenta / Tema).
 const menuOpen = ref(false)
 const menuWrapEl = ref<HTMLElement | null>(null)
 
@@ -64,6 +65,8 @@ onBeforeUnmount(() => {
     <GlobalSearch />
 
     <div class="app-topbar__actions">
+      <NotificationBell />
+
       <div ref="menuWrapEl" class="app-topbar__user-wrap">
         <button
           class="app-topbar__avatar"
@@ -92,10 +95,6 @@ onBeforeUnmount(() => {
               </button>
             </div>
 
-            <div class="app-topbar__menu-item app-topbar__menu-item--row app-topbar__menu-item--soon">
-              <span class="app-topbar__menu-label"><BaseIcon name="bell" /> Notificaciones</span>
-              <span class="app-topbar__soon-badge">Próximamente</span>
-            </div>
           </div>
         </Transition>
       </div>
@@ -202,10 +201,6 @@ button.app-topbar__menu-item:hover {
   cursor: default;
 }
 
-.app-topbar__menu-item--soon {
-  opacity: 0.65;
-}
-
 .app-topbar__menu-label {
   display: flex;
   align-items: center;
@@ -230,17 +225,6 @@ button.app-topbar__menu-item:hover {
 .app-topbar__theme-toggle:hover {
   border-color: var(--color-accent);
   color: var(--color-accent);
-}
-
-.app-topbar__soon-badge {
-  font-size: 0.6875rem;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.02em;
-  color: var(--color-text-subtle);
-  background: var(--color-surface-2);
-  padding: 2px 8px;
-  border-radius: 999px;
 }
 
 .user-menu-enter-active,

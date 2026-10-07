@@ -7,6 +7,7 @@ import { toLogDTO } from '../lib/logs'
 import { ratingSummary } from '../lib/ratings'
 import { culturalDna } from '../lib/dna'
 import { profileInsights } from '../lib/insights'
+import { clearFollowRequestNotification, notify } from '../lib/notifications'
 
 export const userRoutes = new Hono<AuthEnv>()
 
@@ -179,6 +180,9 @@ userRoutes.post('/requests/:id/accept', async (c) => {
     create: { followerId: requesterId, followingId: me },
     update: {},
   })
+  // La solicitud ya se respondió: se quita de mi campana y le aviso a quien la mandó.
+  await clearFollowRequestNotification(me, requesterId)
+  await notify(requesterId, 'follow_accepted', { actorId: me })
   return c.json({ followers: await prisma.follow.count({ where: { followingId: me } }) })
 })
 
@@ -186,6 +190,7 @@ userRoutes.post('/requests/:id/accept', async (c) => {
 userRoutes.delete('/requests/:id', async (c) => {
   const me = c.get('userId')
   await prisma.followRequest.deleteMany({ where: { requesterId: c.req.param('id'), targetId: me } })
+  await clearFollowRequestNotification(me, c.req.param('id'))
   return c.json({ ok: true })
 })
 
@@ -356,6 +361,7 @@ userRoutes.post('/:id/follow', async (c) => {
       create: { requesterId: me, targetId: id },
       update: {},
     })
+    await notify(id, 'follow_request', { actorId: me })
     return c.json({ status: 'requested', followers: null })
   }
 
@@ -364,6 +370,7 @@ userRoutes.post('/:id/follow', async (c) => {
     create: { followerId: me, followingId: id },
     update: {},
   })
+  if (!alreadyFollowing) await notify(id, 'follow', { actorId: me })
   return c.json({ status: 'following', followers: await followersAfterChange(id, me) })
 })
 
@@ -375,6 +382,8 @@ userRoutes.delete('/:id/follow', async (c) => {
     prisma.follow.deleteMany({ where: { followerId: me, followingId: id } }),
     prisma.followRequest.deleteMany({ where: { requesterId: me, targetId: id } }),
   ])
+  // Si era una solicitud pendiente, ya no tiene sentido que le aparezca.
+  await clearFollowRequestNotification(id, me)
   return c.json({ status: 'none', followers: await followersAfterChange(id, me) })
 })
 

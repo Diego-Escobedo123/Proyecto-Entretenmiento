@@ -3,6 +3,7 @@ import { prisma } from '../lib/prisma'
 import { requireAuth, type AuthEnv } from '../middleware/auth'
 import { createLog, parseDay, toLogDTO } from '../lib/logs'
 import { validateBody } from '../lib/validation'
+import { checkGoalsCompleted } from '../lib/notifications'
 import { createLogSchema, updateLogSchema } from '../lib/schemas'
 
 export const logRoutes = new Hono<AuthEnv>()
@@ -60,6 +61,7 @@ logRoutes.post('/', async (c) => {
   if (finishedAt && rating != null) {
     await prisma.mediaEntry.update({ where: { id: entry.id }, data: { rating } })
   }
+  await checkGoalsCompleted(entry.userId)
   return c.json(toLogDTO(row), 201)
 })
 
@@ -78,6 +80,7 @@ logRoutes.patch('/:id', async (c) => {
   if (body.abandoned !== undefined) data.abandoned = body.abandoned
 
   const row = await prisma.logEntry.update({ where: { id: owned.id }, data })
+  await checkGoalsCompleted(owned.userId)
   return c.json(toLogDTO(row))
 })
 
