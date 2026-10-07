@@ -16,7 +16,8 @@
   },
   "dependencies": {
     "@prisma/client": "^6.19.3",
-    "hono": "^4.13.7"
+    "hono": "^4.13.7",
+    "zod": "^4.6.5"
   },
   "devDependencies": {
     "@types/bun": "^1.4.2",

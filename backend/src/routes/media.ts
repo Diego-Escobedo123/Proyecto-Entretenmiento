@@ -3,6 +3,8 @@ import { prisma } from '../lib/prisma'
 import { requireAuth, type AuthEnv } from '../middleware/auth'
 import { fromMediaInput, toMediaDTO } from '../lib/serialize'
 import { parseDay, recordStatusChange, syncLatestRating } from '../lib/logs'
+import { validateBody } from '../lib/validation'
+import { createMediaSchema, updateMediaSchema } from '../lib/schemas'
 
 /**
  * Día que el usuario eligió para el cambio de estado (`logDate`, "2026-09-29").
@@ -50,13 +52,9 @@ mediaRoutes.get('/:id', async (c) => {
 
 // POST /media  (MediaEntryInput) -> MediaEntry
 mediaRoutes.post('/', async (c) => {
-  const body = await c.req.json().catch(() => ({}))
-  if (typeof body.title !== 'string' || !body.title.trim()) {
-    return c.json({ message: 'El título es obligatorio.' }, 400)
-  }
-  if (typeof body.type !== 'string' || !body.type) {
-    return c.json({ message: 'El tipo es obligatorio.' }, 400)
-  }
+  const parsed = await validateBody(c, createMediaSchema)
+  if (!parsed.ok) return parsed.response
+  const body = parsed.data
   const start = startDay(body)
   if ('error' in start) return c.json({ field: 'startDate', message: start.error }, 400)
 
@@ -72,7 +70,9 @@ mediaRoutes.patch('/:id', async (c) => {
   const owned = await findOwned(c.req.param('id'), c.get('userId'))
   if (!owned) return c.json({ message: 'No existe la obra.' }, 404)
 
-  const body = await c.req.json().catch(() => ({}))
+  const parsed = await validateBody(c, updateMediaSchema)
+  if (!parsed.ok) return parsed.response
+  const body = parsed.data
   const start = startDay(body)
   if ('error' in start) return c.json({ field: 'startDate', message: start.error }, 400)
   const row = await prisma.mediaEntry.update({

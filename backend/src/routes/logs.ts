@@ -2,6 +2,8 @@ import { Hono } from 'hono'
 import { prisma } from '../lib/prisma'
 import { requireAuth, type AuthEnv } from '../middleware/auth'
 import { createLog, parseDay, toLogDTO } from '../lib/logs'
+import { validateBody } from '../lib/validation'
+import { createLogSchema, updateLogSchema } from '../lib/schemas'
 
 export const logRoutes = new Hono<AuthEnv>()
 
@@ -40,9 +42,11 @@ logRoutes.get('/', async (c) => {
 // POST /logs { entryId, startedAt?, finishedAt?, rating? } -> LogEntry
 // Registrar otra vez una obra ("volver a verla"); se marca como repetición sola.
 logRoutes.post('/', async (c) => {
-  const body = await c.req.json().catch(() => ({}))
+  const parsed = await validateBody(c, createLogSchema)
+  if (!parsed.ok) return parsed.response
+  const body = parsed.data
   const entry = await prisma.mediaEntry.findFirst({
-    where: { id: String(body.entryId ?? ''), userId: c.get('userId') },
+    where: { id: body.entryId, userId: c.get('userId') },
   })
   if (!entry) return c.json({ message: 'No existe la obra.' }, 404)
 
@@ -64,12 +68,14 @@ logRoutes.patch('/:id', async (c) => {
   const owned = await prisma.logEntry.findFirst({ where: { id: c.req.param('id'), userId: c.get('userId') } })
   if (!owned) return c.json({ message: 'No existe esa entrada del diario.' }, 404)
 
-  const body = await c.req.json().catch(() => ({}))
+  const parsed = await validateBody(c, updateLogSchema)
+  if (!parsed.ok) return parsed.response
+  const body = parsed.data
   const data: Record<string, unknown> = {}
   if ('startedAt' in body) data.startedAt = parseDay(body.startedAt)
   if ('finishedAt' in body) data.finishedAt = parseDay(body.finishedAt)
   if ('rating' in body) data.rating = ratingOf(body.rating)
-  if ('abandoned' in body) data.abandoned = Boolean(body.abandoned)
+  if (body.abandoned !== undefined) data.abandoned = body.abandoned
 
   const row = await prisma.logEntry.update({ where: { id: owned.id }, data })
   return c.json(toLogDTO(row))
