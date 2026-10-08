@@ -5,7 +5,8 @@ import { requireAdmin, requireAuth, type AuthEnv } from '../middleware/auth'
 import { fromMediaInput } from '../lib/serialize'
 import { parseDay, recordStatusChange } from '../lib/logs'
 import { toWorkRequestDTO } from './workRequests'
-import { checkGoalsCompleted } from '../lib/notifications'
+import { checkGoalsCompleted, notify } from '../lib/notifications'
+import { createMediaSchema } from '../lib/schemas'
 
 /**
  * Panel de administración. Todas las rutas exigen sesión (requireAuth) y rol
@@ -149,6 +150,14 @@ adminRoutes.post('/work-requests/:id/approve', async (c) => {
   const request = await prisma.workRequest.findUnique({ where: { id }, include: REQUEST_USER })
   if (!request) return c.json({ message: 'Solicitud no encontrada.' }, 404)
 
+  // Lo que llenó en el formulario (estado, calificación, notas...). Se revisa otra vez con las
+  // reglas de POST /media por si la solicitud se guardó antes de que se validara al enviarla.
+  const parsed = createMediaSchema.safeParse(request.payload)
+  if (!parsed.success) {
+    return c.json({ message: 'Esta solicitud tiene datos inválidos y no se puede aprobar. Recházala.' }, 422)
+  }
+  const payload = parsed.data
+
   // Se marca como aprobada sólo si sigue pendiente: así dos admins no la aprueban dos veces.
   const reviewedAt = new Date()
   const { count } = await prisma.workRequest.updateMany({
@@ -158,8 +167,7 @@ adminRoutes.post('/work-requests/:id/approve', async (c) => {
   if (!count) return c.json({ message: 'Esa solicitud ya fue revisada.' }, 409)
 
   try {
-    // Lo que llenó en el formulario (estado, calificación, notas...), con los datos de la obra revisados.
-    const payload = (request.payload ?? {}) as Record<string, unknown>
+    // Con los datos de la obra revisados.
     const entry = await prisma.mediaEntry.create({
       data: {
         ...fromMediaInput(payload),
@@ -185,6 +193,7 @@ adminRoutes.post('/work-requests/:id/approve', async (c) => {
     throw err
   }
 
+  await notify(request.userId, 'work_approved', { ref: id, data: { title: request.title, type: request.type } })
   return c.json(toWorkRequestDTO({ ...request, status: 'approved', reviewedAt }))
 })
 
@@ -200,5 +209,7 @@ adminRoutes.post('/work-requests/:id/reject', async (c) => {
     data: { status: 'rejected', reviewedAt },
   })
   if (!count) return c.json({ message: 'Esa solicitud ya fue revisada.' }, 409)
+
+  await notify(request.userId, 'work_rejected', { ref: id, data: { title: request.title, type: request.type } })
   return c.json(toWorkRequestDTO({ ...request, status: 'rejected', reviewedAt }))
 })

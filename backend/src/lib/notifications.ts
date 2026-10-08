@@ -9,8 +9,16 @@ import { prisma } from './prisma'
  * - follow_request   alguien pidió seguirte (cuenta privada)
  * - follow_accepted  aceptaron tu solicitud para seguir
  * - goal_completed   cumpliste una meta anual
+ * - work_approved    un admin aprobó la obra que pediste agregar a mano
+ * - work_rejected    un admin rechazó la obra que pediste agregar a mano
  */
-export type NotificationType = 'follow' | 'follow_request' | 'follow_accepted' | 'goal_completed'
+export type NotificationType =
+  | 'follow'
+  | 'follow_request'
+  | 'follow_accepted'
+  | 'goal_completed'
+  | 'work_approved'
+  | 'work_rejected'
 
 /** Datos públicos de quien provocó la notificación. */
 const ACTOR_SELECT = {

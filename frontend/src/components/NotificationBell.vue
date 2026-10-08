@@ -2,9 +2,10 @@
 /**
  * NotificationBell — campana de la barra superior. Muestra cuántas
  * notificaciones hay sin leer y, al abrirla, la lista de las más recientes:
- * quién te siguió, quién pidió seguirte, quién aceptó tu solicitud y las
- * metas anuales cumplidas. Al hacer clic en una se marca como leída y lleva
- * a donde corresponde (el perfil de esa persona, Personas o el Diario).
+ * quién te siguió, quién pidió seguirte, quién aceptó tu solicitud, las
+ * metas anuales cumplidas y si un admin aprobó o rechazó una obra que
+ * pediste agregar. Al hacer clic en una se marca como leída y lleva a donde
+ * corresponde (el perfil de esa persona, Personas, el Diario o tu colección).
  */
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
@@ -47,11 +48,17 @@ function message(n: AppNotification): string {
           : (one ? typeMeta(type).label : typeMeta(type).plural).toLowerCase()
       return `¡Cumpliste tu meta de ${year}: ${target} ${what}!`
     }
+    case 'work_approved':
+      return `Se aprobó «${n.data?.title ?? ''}». Ya está en tu colección.`
+    case 'work_rejected':
+      return `Un administrador rechazó «${n.data?.title ?? ''}», así que no se agregó a tu colección.`
   }
 }
 
 function icon(n: AppNotification): string {
   if (n.type === 'goal_completed') return 'trophy'
+  if (n.type === 'work_approved') return 'check-circle'
+  if (n.type === 'work_rejected') return 'x-circle'
   if (n.type === 'follow_request') return 'person-plus'
   if (n.type === 'follow_accepted') return 'person-check'
   return 'person-heart'
@@ -61,6 +68,8 @@ function icon(n: AppNotification): string {
 function target(n: AppNotification): string {
   if (n.type === 'goal_completed') return '/diary'
   if (n.type === 'follow_request') return '/people'
+  if (n.type === 'work_approved') return '/collection'
+  if (n.type === 'work_rejected') return '/'
   return n.actor ? `/users/${n.actor.id}` : '/'
 }
 

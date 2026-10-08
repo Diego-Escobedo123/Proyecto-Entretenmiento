@@ -2,6 +2,8 @@ import { Hono, type MiddlewareHandler } from 'hono'
 import type { Prisma, WorkRequest } from '@prisma/client'
 import { prisma } from '../lib/prisma'
 import { requireAuth, type AuthEnv } from '../middleware/auth'
+import { validateBody } from '../lib/validation'
+import { createMediaSchema } from '../lib/schemas'
 
 /**
  * Solicitudes para agregar obras que no están en el catálogo.
@@ -16,7 +18,6 @@ export const workRequestRoutes = new Hono<AuthEnv>()
 
 workRequestRoutes.use('*', requireAuth)
 
-const MEDIA_TYPES = new Set(['movie', 'series', 'book', 'game', 'music'])
 export const MAX_PENDING_PER_USER = 20
 
 /** Datos que el admin ve de cada solicitud. */
@@ -48,17 +49,12 @@ export function toWorkRequestDTO(
 // POST /work-requests  (MediaEntryInput + logDate/startDate) -> 201 solicitud
 workRequestRoutes.post('/', async (c) => {
   const userId = c.get('userId')
-  const body = await c.req.json().catch(() => ({}))
-  const title = typeof body.title === 'string' ? body.title.trim() : ''
-  if (!title) return c.json({ field: 'title', message: 'El título es obligatorio.' }, 400)
-  if (title.length > 200) return c.json({ field: 'title', message: 'El título es demasiado largo.' }, 400)
-  if (typeof body.type !== 'string' || !MEDIA_TYPES.has(body.type)) {
-    return c.json({ field: 'type', message: 'El tipo de obra no es válido.' }, 400)
-  }
-  const year = typeof body.year === 'number' && Number.isInteger(body.year) ? body.year : null
-  const genres = Array.isArray(body.genres)
-    ? body.genres.filter((g: unknown): g is string => typeof g === 'string' && g.trim() !== '').map((g: string) => g.trim())
-    : []
+  // Mismas reglas que POST /media: lo que se guarda es lo que se usará al aprobarla.
+  const parsed = await validateBody(c, createMediaSchema)
+  if (!parsed.ok) return parsed.response
+  const body = parsed.data
+  const year = body.year ?? null
+  const genres = body.genres ?? []
 
   const pending = await prisma.workRequest.count({ where: { userId, status: 'pending' } })
   if (pending >= MAX_PENDING_PER_USER) {
@@ -66,13 +62,13 @@ workRequestRoutes.post('/', async (c) => {
   }
 
   // Una obra escrita a mano no tiene id de catálogo ni portada.
-  const payload = { ...body, title, year, genres, externalId: null, cover: null } as Prisma.InputJsonObject
+  const payload = { ...body, year, genres, externalId: null, cover: null } as Prisma.InputJsonObject
   const row = await prisma.workRequest.create({
     data: {
       userId,
       type: body.type,
-      title,
-      creator: typeof body.creator === 'string' ? body.creator.trim() : '',
+      title: body.title,
+      creator: body.creator ?? '',
       year,
       genres,
       payload,
