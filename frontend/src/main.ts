@@ -6,6 +6,10 @@ import './style.css'
 import App from './App.vue'
 import { router } from './router'
 import { useAuthStore } from './stores/auth'
+import { initAnalytics } from './lib/analytics'
+
+// Analítica (PostHog). Sin VITE_POSTHOG_KEY no hace nada.
+initAnalytics()
 
 const app = createApp(App).use(createPinia()).use(router)
 

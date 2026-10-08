@@ -13,11 +13,15 @@
  * Roles: `user.role` es USER o ADMIN. `isAdmin` solo sirve para mostrar u
  * ocultar cosas en la interfaz; quien de verdad protege las rutas /admin es
  * el backend (responde 403 a quien no sea ADMIN).
+ *
+ * Analítica: al entrar se manda a PostHog `user_registered` (cuenta nueva) o
+ * `user_logged_in` (cuenta existente). Ver lib/analytics.
  */
 import { defineStore } from 'pinia'
 import { computed, ref } from 'vue'
 import { ApiError, apiFetch, getToken, setToken } from '../lib/api'
 import type { Role } from '../types/admin'
+import { identifyUser, resetAnalytics, track, type AuthMethod } from '../lib/analytics'
 
 interface AuthUser {
   id: string
@@ -30,6 +34,8 @@ interface AuthUser {
 interface AuthResponse {
   token: string
   user: AuthUser
+  /** Solo en /auth/google: true si la cuenta se acaba de crear. */
+  isNew?: boolean
 }
 
 type Result = { ok: true } | { ok: false; message: string }
@@ -42,15 +48,18 @@ export const useAuthStore = defineStore('auth', () => {
   const isAuthenticated = computed(() => hasToken.value)
   const isAdmin = computed(() => user.value?.role === 'ADMIN')
 
-  function setSession(res: AuthResponse): void {
+  /** Guarda la sesión y avisa a la analítica si fue un registro o un inicio de sesión. */
+  function setSession(res: AuthResponse, method: AuthMethod, isNew: boolean): void {
     setToken(res.token)
     user.value = res.user
     hasToken.value = true
+    identifyUser(res.user)
+    track(isNew ? 'user_registered' : 'user_logged_in', { method })
   }
 
   async function login(email: string, password: string): Promise<Result> {
     try {
-      setSession(await apiFetch<AuthResponse>('/auth/login', { method: 'POST', body: { email, password } }))
+      setSession(await apiFetch<AuthResponse>('/auth/login', { method: 'POST', body: { email, password } }), 'email', false)
       return { ok: true }
     } catch (e) {
       return { ok: false, message: e instanceof ApiError ? e.message : 'No se pudo iniciar sesión.' }
@@ -61,6 +70,8 @@ export const useAuthStore = defineStore('auth', () => {
     try {
       setSession(
         await apiFetch<AuthResponse>('/auth/register', { method: 'POST', body: { name, email, password } }),
+        'email',
+        true,
       )
       return { ok: true }
     } catch (e) {
@@ -74,7 +85,8 @@ export const useAuthStore = defineStore('auth', () => {
    */
   async function loginWithGoogleCredential(idToken: string): Promise<Result> {
     try {
-      setSession(await apiFetch<AuthResponse>('/auth/google', { method: 'POST', body: { idToken } }))
+      const res = await apiFetch<AuthResponse>('/auth/google', { method: 'POST', body: { idToken } })
+      setSession(res, 'google', res.isNew === true)
       return { ok: true }
     } catch (e) {
       if (e instanceof ApiError && e.status === 404) {
@@ -88,6 +100,7 @@ export const useAuthStore = defineStore('auth', () => {
     setToken(null)
     user.value = null
     hasToken.value = false
+    resetAnalytics()
     // Evita que Google vuelva a iniciar sesión solo en la próxima visita.
     window.google?.accounts.id.disableAutoSelect()
   }
@@ -106,6 +119,8 @@ export const useAuthStore = defineStore('auth', () => {
         const { user: me } = await apiFetch<{ user: AuthUser }>('/auth/me')
         user.value = me
         hasToken.value = true
+        // Volvió con la sesión guardada: no es un login nuevo, solo se le reconoce.
+        identifyUser(me)
       } catch (e) {
         if (e instanceof ApiError && (e.status === 401 || e.status === 403)) logout()
       } finally {
