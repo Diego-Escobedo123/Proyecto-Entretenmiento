@@ -63,8 +63,9 @@ authRoutes.post('/google', async (c) => {
 
   // Si ya existe una cuenta con ese correo, entra a esa misma cuenta.
   // Si no, se crea con una contraseña aleatoria: solo podrá entrar con Google.
+  const existing = await prisma.user.findUnique({ where: { email: google.email } })
   const user =
-    (await prisma.user.findUnique({ where: { email: google.email } })) ??
+    existing ??
     (await prisma.user.create({
       data: {
         name: google.name,
@@ -76,7 +77,8 @@ authRoutes.post('/google', async (c) => {
       },
     }))
 
-  return c.json({ token: await signToken(user.id), user: publicUser(user) })
+  // isNew: la cuenta se acaba de crear (el frontend lo cuenta como registro en la analítica).
+  return c.json({ token: await signToken(user.id), user: publicUser(user), isNew: !existing })
 })
 
 // GET /auth/me   (requiere token) -> usuario actual
