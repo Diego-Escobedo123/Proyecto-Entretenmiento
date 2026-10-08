@@ -12,11 +12,13 @@
     "db:migrate": "prisma migrate dev",
     "db:reset": "prisma migrate reset",
     "db:studio": "prisma studio",
-    "db:seed": "bun prisma/seed.ts"
+    "db:seed": "bun prisma/seed.ts",
+    "make-admin": "bun prisma/make-admin.ts"
   },
   "dependencies": {
     "@prisma/client": "^6.19.3",
-    "hono": "^4.13.7"
+    "hono": "^4.13.7",
+    "zod": "^4.6.5"
   },
   "devDependencies": {
     "@types/bun": "^1.4.2",

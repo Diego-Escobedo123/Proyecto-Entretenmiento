@@ -13,6 +13,7 @@ import ProfileScreen from '../Screens/profile.vue'
 import PeopleScreen from '../Screens/people.vue'
 import FollowsScreen from '../Screens/follows.vue'
 import NotFoundScreen from '../Screens/not-found.vue'
+import AdminScreen from '../Screens/admin.vue'
 
 /**
  * Rutas de la app. Importaciones normales (no lazy) a propósito: mezclar
@@ -39,18 +40,20 @@ export const router = createRouter({
     { path: '/users/:id', name: 'user-profile', component: ProfileScreen },
     { path: '/users/:id/:tab(followers|following)', name: 'follows', component: FollowsScreen },
     { path: '/people', name: 'people', component: PeopleScreen },
+    { path: '/admin', name: 'admin', component: AdminScreen, meta: { admin: true } },
     { path: '/:pathMatch(.*)*', name: 'not-found', component: NotFoundScreen },
   ],
   scrollBehavior: () => ({ top: 0 }),
 })
 
 /**
- * Guard de autenticación (hardcodeado, ver stores/auth.ts).
- * TODO(backend): cuando el login sea real, este guard no cambia — sigue
- * leyendo auth.isAuthenticated, solo que ese valor vendrá de un token
- * verificado contra el backend en vez de localStorage.
+ * Guard de autenticación y de rol.
+ * - Sin sesión → /login. Con sesión en login/register → Inicio.
+ * - Rutas con `meta.admin`: espera a conocer al usuario (/auth/me) y, si no
+ *   es ADMIN, lo manda a Inicio. Es solo comodidad de interfaz: el backend
+ *   también rechaza con 403 a quien no sea admin.
  */
-router.beforeEach((to) => {
+router.beforeEach(async (to) => {
   const auth = useAuthStore()
 
   if (!to.meta.public && !auth.isAuthenticated) {
@@ -59,6 +62,12 @@ router.beforeEach((to) => {
 
   if (to.meta.public && auth.isAuthenticated) {
     return { path: '/' }
+  }
+
+  if (to.meta.admin) {
+    if (!auth.user) await auth.restore()
+    if (!auth.isAuthenticated) return { path: '/login', query: { redirect: to.fullPath } }
+    if (!auth.isAdmin) return { path: '/' }
   }
 
   return true

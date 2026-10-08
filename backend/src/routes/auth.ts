@@ -1,32 +1,29 @@
 import { Hono } from 'hono'
+import type { Role } from '@prisma/client'
 import { prisma } from '../lib/prisma'
 import { hashPassword, isGoogleAuthEnabled, signToken, verifyGoogleIdToken, verifyPassword } from '../lib/auth'
 import { requireAuth, type AuthEnv } from '../middleware/auth'
+import { validateBody } from '../lib/validation'
+import { googleLoginSchema, loginSchema, registerSchema } from '../lib/schemas'
 
 export const authRoutes = new Hono<AuthEnv>()
 
-function publicUser(user: { id: string; name: string; email: string }) {
-  return { id: user.id, name: user.name, email: user.email }
+function publicUser(user: { id: string; name: string; email: string; role: Role }) {
+  return { id: user.id, name: user.name, email: user.email, role: user.role }
 }
 
 // POST /auth/register  { name, email, password }
 authRoutes.post('/register', async (c) => {
-  const { name, email, password } = await c.req.json().catch(() => ({}))
-
-  if (!name?.trim()) return c.json({ message: 'Ingresa tu nombre.' }, 400)
-  if (typeof email !== 'string' || !email.includes('@')) {
-    return c.json({ message: 'Ingresa un correo válido.' }, 400)
-  }
-  if (typeof password !== 'string' || password.length < 6) {
-    return c.json({ message: 'La contraseña debe tener al menos 6 caracteres.' }, 400)
-  }
+  const parsed = await validateBody(c, registerSchema)
+  if (!parsed.ok) return parsed.response
+  const { name, email, password } = parsed.data
 
   const exists = await prisma.user.findUnique({ where: { email } })
   if (exists) return c.json({ message: 'Ese correo ya está registrado.' }, 409)
 
   const user = await prisma.user.create({
     data: {
-      name: name.trim(),
+      name,
       email,
       passwordHash: await hashPassword(password),
       profile: {
@@ -40,10 +37,12 @@ authRoutes.post('/register', async (c) => {
 
 // POST /auth/login  { email, password }
 authRoutes.post('/login', async (c) => {
-  const { email, password } = await c.req.json().catch(() => ({}))
+  const parsed = await validateBody(c, loginSchema)
+  if (!parsed.ok) return parsed.response
+  const { email, password } = parsed.data
 
-  const user = typeof email === 'string' ? await prisma.user.findUnique({ where: { email } }) : null
-  const ok = user ? await verifyPassword(String(password ?? ''), user.passwordHash) : false
+  const user = await prisma.user.findUnique({ where: { email } })
+  const ok = user ? await verifyPassword(password, user.passwordHash) : false
   if (!user || !ok) return c.json({ message: 'Correo o contraseña incorrectos.' }, 401)
 
   return c.json({ token: await signToken(user.id), user: publicUser(user) })
@@ -55,8 +54,9 @@ authRoutes.post('/google', async (c) => {
     return c.json({ message: 'El inicio con Google no está configurado en el servidor.' }, 503)
   }
 
-  const { idToken } = await c.req.json().catch(() => ({}))
-  if (typeof idToken !== 'string' || !idToken) return c.json({ message: 'Falta el token de Google.' }, 400)
+  const parsed = await validateBody(c, googleLoginSchema)
+  if (!parsed.ok) return parsed.response
+  const { idToken } = parsed.data
 
   const google = await verifyGoogleIdToken(idToken)
   if (!google) return c.json({ message: 'No se pudo verificar la cuenta de Google.' }, 401)

@@ -4,7 +4,7 @@
  * contenido) y host de los modales globales. Las screens sólo renderizan su
  * contenido dentro del <slot>.
  */
-import { onMounted } from 'vue'
+import { onBeforeUnmount, onMounted } from 'vue'
 import AppSidebar from '../components/AppSidebar.vue'
 import AppTopBar from '../components/AppTopBar.vue'
 import WorkDetailModal from '../components/WorkDetailModal.vue'
@@ -13,18 +13,24 @@ import SettingsModal from '../components/SettingsModal.vue'
 import { useMediaStore } from '../stores/media'
 import { useProfileStore } from '../stores/profile'
 import { useFollowRequestsStore } from '../stores/followRequests'
+import { useNotificationsStore } from '../stores/notifications'
 import { useUiStore } from '../stores/ui'
 
 const ui = useUiStore()
 const media = useMediaStore()
 const profile = useProfileStore()
 const followRequests = useFollowRequestsStore()
+const notifications = useNotificationsStore()
 
 onMounted(() => {
   void media.ensureLoaded()
   void profile.ensureLoaded()
   void followRequests.load()
+  notifications.startPolling()
 })
+
+// Al salir de la app (cerrar sesión → login) deja de pedir notificaciones.
+onBeforeUnmount(() => notifications.reset())
 </script>
 
 <template>
