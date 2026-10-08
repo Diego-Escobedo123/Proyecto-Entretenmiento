@@ -37,6 +37,8 @@ model User {
   /// Notificaciones que recibe y las que provocó (ver Notification).
   notifications     Notification[] @relation("NotificationsReceived")
   notificationsSent Notification[] @relation("NotificationsSent")
+  /// Obras que pidió agregar a mano y esperan revisión de un admin (ver WorkRequest).
+  workRequests WorkRequest[]
   createdAt    DateTime     @default(now())
   updatedAt    DateTime     @updatedAt
 }
@@ -230,4 +232,29 @@ model Notification {
   createdAt DateTime  @default(now())
 
   @@index([userId, createdAt])
+}
+
+/// Solicitud para agregar una obra que no está en el catálogo. Un USER no
+/// puede agregarla directo a su colección: la manda como solicitud y un ADMIN
+/// la aprueba (se crea la obra en su colección) o la rechaza.
+model WorkRequest {
+  id         String    @id @default(cuid())
+  user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId     String
+  /// Datos de la obra, para que el admin la revise.
+  type       String
+  title      String
+  creator    String    @default("")
+  year       Int?
+  genres     String[]
+  /// Todo lo que llenó en el formulario (estado, calificación, notas, fechas
+  /// del diario). Al aprobarla se usa para crear la obra igual que POST /media.
+  payload    Json
+  /// 'pending' | 'approved' | 'rejected'
+  status     String    @default("pending")
+  reviewedAt DateTime?
+  createdAt  DateTime  @default(now())
+
+  @@index([status, createdAt])
+  @@index([userId])
 }

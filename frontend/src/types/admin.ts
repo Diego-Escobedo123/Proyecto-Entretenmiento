@@ -1,3 +1,5 @@
+import type { MediaType } from './media'
+
 /** Roles de la plataforma (mismo enum `Role` del backend). */
 export type Role = 'USER' | 'ADMIN'
 
@@ -25,4 +27,22 @@ export interface AdminStats {
   entries: number
   reviews: number
   lists: number
+  /** Solicitudes de obras escritas a mano que esperan revisión. */
+  pendingRequests: number
+}
+
+/** Solicitud para agregar una obra que no está en el catálogo (GET /admin/work-requests). */
+export interface WorkRequest {
+  id: string
+  type: MediaType
+  title: string
+  creator: string
+  year: number | null
+  genres: string[]
+  status: 'pending' | 'approved' | 'rejected'
+  /** ISO 8601. */
+  createdAt: string
+  reviewedAt: string | null
+  /** Quién la pidió (solo en las respuestas de /admin). */
+  user?: { id: string; name: string; email: string; handle: string; avatar: string | null }
 }

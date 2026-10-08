@@ -15,6 +15,8 @@ import { exploreRoutes } from './routes/explore'
 import { feedRoutes } from './routes/feed'
 import { adminRoutes } from './routes/admin'
 import { notificationRoutes } from './routes/notifications'
+import { manualEntryGuard, workRequestRoutes } from './routes/workRequests'
+import { requireAuth } from './middleware/auth'
 
 const app = new Hono()
 
@@ -32,6 +34,8 @@ app.get('/', (c) => c.json({ name: 'mosaic-api', status: 'ok' }))
 app.get('/health', (c) => c.json({ status: 'ok' }))
 
 app.route('/auth', authRoutes)
+// Obras escritas a mano: un USER las manda como solicitud (ver routes/workRequests).
+app.post('/media', requireAuth, manualEntryGuard)
 app.route('/media', mediaRoutes)
 app.route('/profile', profileRoutes)
 app.route('/search', searchRoutes)
@@ -45,6 +49,7 @@ app.route('/explore', exploreRoutes)
 app.route('/feed', feedRoutes)
 app.route('/admin', adminRoutes)
 app.route('/notifications', notificationRoutes)
+app.route('/work-requests', workRequestRoutes)
 
 app.notFound((c) => c.json({ message: 'Ruta no encontrada.' }, 404))
 app.onError((err, c) => {

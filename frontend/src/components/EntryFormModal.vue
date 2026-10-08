@@ -17,6 +17,8 @@ import { todayISO } from '../lib/dates'
 import { bookProgress, seriesProgress } from '../lib/progress'
 import { useMediaStore } from '../stores/media'
 import { useUiStore } from '../stores/ui'
+import { useAuthStore } from '../stores/auth'
+import { workRequestService } from '../services/workRequestService'
 import { searchService } from '../services/searchService'
 import { detailsService, hasDetails } from '../services/detailsService'
 import { logService } from '../services/logService'
@@ -26,6 +28,7 @@ import type { ExternalSearchResult } from '../types/search'
 
 const ui = useUiStore()
 const media = useMediaStore()
+const auth = useAuthStore()
 
 const modalRef = ref<InstanceType<typeof BaseModal> | null>(null)
 function closeAnimated() {
@@ -98,6 +101,14 @@ const submitting = ref(false)
 const picked = ref(false)
 const manualMode = ref(false)
 const workLocked = computed(() => Boolean(editing.value) || picked.value)
+
+/**
+ * Una obra escrita a mano no se agrega directo: un usuario normal la manda
+ * como solicitud y un admin la revisa en /admin (los admins sí la agregan).
+ */
+const sendsRequest = computed(() => !editing.value && manualMode.value && !auth.isAdmin)
+/** Título de la solicitud que se acaba de enviar (muestra la confirmación). */
+const requestSent = ref<string | null>(null)
 const titleInput = ref<HTMLInputElement | null>(null)
 
 const genreList = computed(() =>
@@ -455,6 +466,11 @@ async function submit() {
           ...(asksStartDate.value && startDate.value && { startDate: startDate.value }),
         }
       : undefined
+    if (sendsRequest.value) {
+      await workRequestService.create(toInput(), options)
+      requestSent.value = form.title.trim()
+      return
+    }
     if (editing.value) {
       await media.editEntry(editing.value.id, toInput(), options)
     } else {
@@ -476,7 +492,17 @@ async function submit() {
     size="lg"
     @close="ui.closeModal()"
   >
-    <form class="entry-form" @submit.prevent="submit">
+    <!-- Obra escrita a mano: la solicitud ya se envió al admin -->
+    <div v-if="requestSent" class="entry-form__sent" role="status">
+      <span class="entry-form__sent-icon" aria-hidden="true"><BaseIcon name="send-check" /></span>
+      <h3 class="entry-form__sent-title">Solicitud enviada</h3>
+      <p class="entry-form__sent-text">
+        Un administrador va a revisar «{{ requestSent }}». Cuando la apruebe, aparecerá en tu colección con
+        los datos que llenaste.
+      </p>
+    </div>
+
+    <form v-else class="entry-form" @submit.prevent="submit">
       <!-- Obra ya elegida (o en edición): ficha de sólo lectura con datos del catálogo -->
       <div v-if="workLocked" class="entry-form__work">
         <img v-if="form.cover" :src="form.cover" alt="" class="entry-form__work-cover" />
@@ -552,6 +578,10 @@ async function submit() {
 
         <!-- Respaldo: la obra no está en el catálogo (sin portada) -->
         <template v-if="manualMode">
+          <p v-if="sendsRequest" class="entry-form__review-note">
+            <BaseIcon name="shield-check" />
+            Como no está en el catálogo, se enviará a un administrador para que la revise antes de agregarla.
+          </p>
           <div class="entry-form__row">
             <AppField v-slot="{ id }" :label="creatorLabel">
               <input :id="id" v-model="form.creator" class="app-input" autocomplete="off" />
@@ -780,15 +810,64 @@ async function submit() {
     </form>
 
     <template #footer>
-      <BaseButton variant="ghost" @click="closeAnimated">Cancelar</BaseButton>
-      <BaseButton :disabled="submitting" @click="submit">
-        {{ submitting ? 'Guardando…' : editing ? 'Guardar cambios' : 'Agregar obra' }}
-      </BaseButton>
+      <BaseButton v-if="requestSent" @click="closeAnimated">Entendido</BaseButton>
+      <template v-else>
+        <BaseButton variant="ghost" @click="closeAnimated">Cancelar</BaseButton>
+        <BaseButton :disabled="submitting" @click="submit">
+          <template v-if="submitting">{{ sendsRequest ? 'Enviando…' : 'Guardando…' }}</template>
+          <template v-else>{{ editing ? 'Guardar cambios' : sendsRequest ? 'Enviar solicitud' : 'Agregar obra' }}</template>
+        </BaseButton>
+      </template>
     </template>
   </BaseModal>
 </template>
 
 <style scoped>
+.entry-form__sent {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-sm);
+  padding: var(--space-xl) var(--space-md);
+  text-align: center;
+}
+
+.entry-form__sent-icon {
+  display: grid;
+  place-items: center;
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  background: var(--color-accent-bg);
+  color: var(--color-accent);
+  font-size: 1.5rem;
+}
+
+.entry-form__sent-title {
+  margin: 0;
+  color: var(--color-text);
+  font-size: 1.25rem;
+  font-weight: 700;
+}
+
+.entry-form__sent-text {
+  max-width: 420px;
+  margin: 0;
+  color: var(--color-text-muted);
+}
+
+.entry-form__review-note {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-sm);
+  margin: 0;
+  padding: var(--space-sm) var(--space-md);
+  border-radius: var(--radius-md);
+  background: var(--color-accent-bg);
+  color: var(--color-text);
+  font-size: 0.875rem;
+}
+
 .entry-form__date {
   max-width: 220px;
 }
