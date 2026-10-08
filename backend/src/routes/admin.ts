@@ -2,10 +2,18 @@ import { Hono } from 'hono'
 import type { Prisma, Role } from '@prisma/client'
 import { prisma } from '../lib/prisma'
 import { requireAdmin, requireAuth, type AuthEnv } from '../middleware/auth'
+import { fromMediaInput } from '../lib/serialize'
+import { parseDay, recordStatusChange } from '../lib/logs'
+import { toWorkRequestDTO } from './workRequests'
+import { checkGoalsCompleted } from '../lib/notifications'
 
 /**
  * Panel de administración. Todas las rutas exigen sesión (requireAuth) y rol
  * ADMIN (requireAdmin); un USER normal recibe 403.
+ *
+ * También revisa las solicitudes de obras que los usuarios escribieron a mano
+ * (no están en el catálogo): al aprobarla, la obra se agrega a la colección
+ * de quien la pidió; al rechazarla, no se agrega nada.
  *
  * Regla de seguridad: un admin no puede quitarse el rol ni borrarse a sí
  * mismo. Así siempre queda al menos un admin y nadie se queda fuera del panel
@@ -48,15 +56,16 @@ function toAdminUserDTO(u: AdminUserRow) {
 // GET /admin/stats -> números generales de la plataforma
 adminRoutes.get('/stats', async (c) => {
   const weekAgo = new Date(Date.now() - 7 * DAY_MS)
-  const [users, admins, newUsers, entries, reviews, lists] = await Promise.all([
+  const [users, admins, newUsers, entries, reviews, lists, pendingRequests] = await Promise.all([
     prisma.user.count(),
     prisma.user.count({ where: { role: 'ADMIN' } }),
     prisma.user.count({ where: { createdAt: { gte: weekAgo } } }),
     prisma.mediaEntry.count(),
     prisma.mediaEntry.count({ where: { review: { not: '' } } }),
     prisma.list.count(),
+    prisma.workRequest.count({ where: { status: 'pending' } }),
   ])
-  return c.json({ users, admins, newUsers, entries, reviews, lists })
+  return c.json({ users, admins, newUsers, entries, reviews, lists, pendingRequests })
 })
 
 // GET /admin/users?q=texto&role=ADMIN|USER -> usuarios más recientes primero
@@ -115,4 +124,81 @@ adminRoutes.delete('/users/:id', async (c) => {
 
   await prisma.user.delete({ where: { id } })
   return c.body(null, 204)
+})
+
+// --- Solicitudes de obras escritas a mano ---
+
+const REQUEST_USER = {
+  user: { select: { id: true, name: true, email: true, profile: { select: { handle: true, avatar: true } } } },
+} as const
+
+// GET /admin/work-requests -> pendientes, las más antiguas primero (para atenderlas en orden)
+adminRoutes.get('/work-requests', async (c) => {
+  const rows = await prisma.workRequest.findMany({
+    where: { status: 'pending' },
+    include: REQUEST_USER,
+    orderBy: { createdAt: 'asc' },
+    take: MAX_USERS,
+  })
+  return c.json(rows.map(toWorkRequestDTO))
+})
+
+// POST /admin/work-requests/:id/approve -> crea la obra en la colección de quien la pidió
+adminRoutes.post('/work-requests/:id/approve', async (c) => {
+  const id = c.req.param('id')
+  const request = await prisma.workRequest.findUnique({ where: { id }, include: REQUEST_USER })
+  if (!request) return c.json({ message: 'Solicitud no encontrada.' }, 404)
+
+  // Se marca como aprobada sólo si sigue pendiente: así dos admins no la aprueban dos veces.
+  const reviewedAt = new Date()
+  const { count } = await prisma.workRequest.updateMany({
+    where: { id, status: 'pending' },
+    data: { status: 'approved', reviewedAt },
+  })
+  if (!count) return c.json({ message: 'Esa solicitud ya fue revisada.' }, 409)
+
+  try {
+    // Lo que llenó en el formulario (estado, calificación, notas...), con los datos de la obra revisados.
+    const payload = (request.payload ?? {}) as Record<string, unknown>
+    const entry = await prisma.mediaEntry.create({
+      data: {
+        ...fromMediaInput(payload),
+        type: request.type,
+        title: request.title,
+        creator: request.creator,
+        year: request.year,
+        genres: request.genres,
+        cover: null,
+        externalId: null,
+        userId: request.userId,
+      } as never,
+    })
+    // Igual que POST /media: si ya la empezó o terminó, queda en su diario con las fechas que eligió.
+    const day = parseDay(payload.logDate) ?? new Date(new Date().toISOString().slice(0, 10))
+    const start = parseDay(payload.startDate)
+    await recordStatusChange(entry, null, day, start && start <= day ? start : null)
+    // Si con esta obra cumple una meta anual, le llega la notificación.
+    await checkGoalsCompleted(request.userId)
+  } catch (err) {
+    // Si no se pudo crear la obra, la solicitud vuelve a quedar pendiente.
+    await prisma.workRequest.update({ where: { id }, data: { status: 'pending', reviewedAt: null } })
+    throw err
+  }
+
+  return c.json(toWorkRequestDTO({ ...request, status: 'approved', reviewedAt }))
+})
+
+// POST /admin/work-requests/:id/reject -> no se agrega nada
+adminRoutes.post('/work-requests/:id/reject', async (c) => {
+  const id = c.req.param('id')
+  const request = await prisma.workRequest.findUnique({ where: { id }, include: REQUEST_USER })
+  if (!request) return c.json({ message: 'Solicitud no encontrada.' }, 404)
+
+  const reviewedAt = new Date()
+  const { count } = await prisma.workRequest.updateMany({
+    where: { id, status: 'pending' },
+    data: { status: 'rejected', reviewedAt },
+  })
+  if (!count) return c.json({ message: 'Esa solicitud ya fue revisada.' }, 409)
+  return c.json(toWorkRequestDTO({ ...request, status: 'rejected', reviewedAt }))
 })

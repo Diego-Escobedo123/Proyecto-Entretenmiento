@@ -4,6 +4,7 @@
  * 403 en el backend). Muestra números generales de Mosaic y la lista de
  * usuarios, donde un admin puede dar o quitar el rol de admin y eliminar
  * cuentas. Un admin no puede cambiar su propio rol ni borrarse a sí mismo.
+ * También revisa las solicitudes de obras escritas a mano (WorkRequestsPanel).
  */
 import { computed, onMounted, ref, watch } from 'vue'
 import BaseButton from '../components/BaseButton.vue'
@@ -12,6 +13,7 @@ import BaseSpinner from '../components/BaseSpinner.vue'
 import ConfirmDialog from '../components/ConfirmDialog.vue'
 import EmptyState from '../components/EmptyState.vue'
 import StatCard from '../components/StatCard.vue'
+import WorkRequestsPanel from '../components/admin/WorkRequestsPanel.vue'
 import { useDebouncedSearch } from '../composables/useDebouncedSearch'
 import { ApiError } from '../lib/api'
 import { adminService } from '../services/adminService'
@@ -137,12 +139,17 @@ const joined = (iso: string) => dateFmt.format(new Date(iso))
   <div class="admin">
     <header>
       <h1 class="admin__title">Administración</h1>
-      <p class="admin__subtitle">Gestiona las cuentas de Mosaic y quién tiene permisos de administrador.</p>
+      <p class="admin__subtitle">
+        Gestiona las cuentas de Mosaic, quién tiene permisos de administrador y las obras que los usuarios piden
+        agregar.
+      </p>
     </header>
 
     <section v-if="statCards.length" class="admin__stats" aria-label="Números generales">
       <StatCard v-for="s in statCards" :key="s.label" :icon="s.icon" :value="s.value" :label="s.label" />
     </section>
+
+    <WorkRequestsPanel @reviewed="loadStats" />
 
     <section class="admin__section">
       <h2 class="admin__section-title"><BaseIcon name="people" /> Usuarios</h2>
