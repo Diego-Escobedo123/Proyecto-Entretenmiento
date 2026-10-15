@@ -3,7 +3,7 @@ import type { Prisma, Role } from '@prisma/client'
 import { prisma } from '../lib/prisma'
 import { requireAdmin, requireAuth, type AuthEnv } from '../middleware/auth'
 import { fromMediaInput } from '../lib/serialize'
-import { parseDay, recordStatusChange } from '../lib/logs'
+import { parseDay, recordStatusChange, today } from '../lib/logs'
 import { toWorkRequestDTO } from './workRequests'
 import { checkGoalsCompleted, notify } from '../lib/notifications'
 import { createMediaSchema } from '../lib/schemas'
@@ -182,9 +182,10 @@ adminRoutes.post('/work-requests/:id/approve', async (c) => {
       } as never,
     })
     // Igual que POST /media: si ya la empezó o terminó, queda en su diario con las fechas que eligió.
-    const day = parseDay(payload.logDate) ?? new Date(new Date().toISOString().slice(0, 10))
+    // Con "No recuerdo la fecha" (`undated`) no queda en el diario.
+    const day = payload.undated === true ? null : (parseDay(payload.logDate) ?? today())
     const start = parseDay(payload.startDate)
-    await recordStatusChange(entry, null, day, start && start <= day ? start : null)
+    await recordStatusChange(entry, null, day, day && start && start <= day ? start : null)
     // Si con esta obra cumple una meta anual, le llega la notificación.
     await checkGoalsCompleted(request.userId)
   } catch (err) {

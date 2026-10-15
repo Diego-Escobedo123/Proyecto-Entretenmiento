@@ -16,7 +16,10 @@ export function parseDay(value: unknown): Date | null {
   return Number.isNaN(date.getTime()) ? null : date
 }
 
-const formatDay = (date: Date | null) => (date ? date.toISOString().slice(0, 10) : null)
+/** Hoy a medianoche UTC (columna DATE). */
+export const today = () => new Date(new Date().toISOString().slice(0, 10))
+
+const formatDay =(date: Date | null) => (date ? date.toISOString().slice(0, 10) : null)
 
 type LogWithEntry = LogEntry & {
   entry?: Pick<MediaEntry, 'id' | 'type' | 'title' | 'creator' | 'cover' | 'externalId' | 'genres' | 'year'>
@@ -63,7 +66,8 @@ export async function createLog(
 
 /**
  * Refleja en el diario un cambio de estado de la obra. `prev` es null en un
- * alta. `day` es la fecha que eligió el usuario (hoy por defecto).
+ * alta. `day` es la fecha que eligió el usuario (hoy por defecto); null si no
+ * la recuerda ("No recuerdo la fecha").
  * `startDay` (series, libros y juegos que se terminan o abandonan): cuándo la
  * empezó; corrige el inicio de la entrada abierta o se usa en la nueva.
  *
@@ -72,8 +76,16 @@ export async function createLog(
  *   (terminada → 100% es el mismo recorrido: no crea otra.)
  * - → abandonada: cierra la abierta marcándola como abandonada.
  * - → pendiente: nada; el historial se conserva.
+ * - Sin fecha: no se crea ninguna entrada (la obra sólo queda en la
+ *   colección). Si hay una entrada abierta que cerrar, se cierra hoy: una
+ *   entrada sin `finishedAt` se leería como "en curso".
  */
-export async function recordStatusChange(entry: MediaEntry, prev: string | null, day: Date, startDay: Date | null = null) {
+export async function recordStatusChange(
+  entry: MediaEntry,
+  prev: string | null,
+  day: Date | null,
+  startDay: Date | null = null,
+) {
   const next = entry.status
   if (prev === next) return
   if (next === 'want') return
@@ -83,6 +95,11 @@ export async function recordStatusChange(entry: MediaEntry, prev: string | null,
     where: { entryId: entry.id, finishedAt: null },
     orderBy: { createdAt: 'desc' },
   })
+
+  if (!day) {
+    if (!open || next === 'in-progress') return
+    day = today()
+  }
 
   if (next === 'in-progress') {
     if (!open) await createLog(entry, { startedAt: day })

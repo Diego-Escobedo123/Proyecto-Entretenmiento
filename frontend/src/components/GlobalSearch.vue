@@ -330,7 +330,8 @@ onBeforeUnmount(() => {
   display: flex;
   align-items: center;
   gap: var(--space-sm);
-  background: var(--color-surface);
+  /* Teselas decorativas ancladas a la derecha; el SVG se desvanece hacia la izquierda, donde va el texto. */
+  background: var(--color-surface) url('../assets/bg-buscador.svg') right center / auto 100% no-repeat;
   border: 1px solid var(--color-border);
   border-radius: var(--radius-md);
   padding: 10px var(--space-md);

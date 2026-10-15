@@ -4,8 +4,10 @@
  * contenido) y host de los modales globales. Las screens sólo renderizan su
  * contenido dentro del <slot>.
  */
-import { onBeforeUnmount, onMounted } from 'vue'
+import { computed, onBeforeUnmount, onMounted } from 'vue'
+import { useRoute } from 'vue-router'
 import AppSidebar from '../components/AppSidebar.vue'
+import FloatingSeeds from '../components/FloatingSeeds.vue'
 import AppTopBar from '../components/AppTopBar.vue'
 import WorkDetailModal from '../components/WorkDetailModal.vue'
 import EntryFormModal from '../components/EntryFormModal.vue'
@@ -21,6 +23,10 @@ const media = useMediaStore()
 const profile = useProfileStore()
 const followRequests = useFollowRequestsStore()
 const notifications = useNotificationsStore()
+const route = useRoute()
+
+/** Las semillas flotantes de fondo sólo se ven en Inicio. */
+const showSeeds = computed(() => route.name === 'home')
 
 onMounted(() => {
   void media.ensureLoaded()
@@ -35,6 +41,12 @@ onBeforeUnmount(() => notifications.reset())
 
 <template>
   <div class="app-shell">
+    <!-- Antes que el sidebar: así el sidebar (opaco) queda encima y las semillas
+         sólo se ven detrás del contenido, que sube con z-index 1. -->
+    <Transition name="seeds-fade">
+      <FloatingSeeds v-if="showSeeds" />
+    </Transition>
+
     <AppSidebar />
 
     <div class="app-shell__main">
@@ -63,6 +75,19 @@ onBeforeUnmount(() => notifications.reset())
   display: flex;
   flex-direction: column;
   min-width: 0;
+  /* Por encima de las semillas flotantes (z-index 0). */
+  position: relative;
+  z-index: 1;
+}
+
+.seeds-fade-enter-active,
+.seeds-fade-leave-active {
+  transition: opacity 0.3s ease;
+}
+
+.seeds-fade-enter-from,
+.seeds-fade-leave-to {
+  opacity: 0;
 }
 
 .app-shell__content {

@@ -2,26 +2,30 @@ import { Hono } from 'hono'
 import { prisma } from '../lib/prisma'
 import { requireAuth, type AuthEnv } from '../middleware/auth'
 import { fromMediaInput, toMediaDTO } from '../lib/serialize'
-import { parseDay, recordStatusChange, syncLatestRating } from '../lib/logs'
+import { parseDay, recordStatusChange, syncLatestRating, today } from '../lib/logs'
 import { validateBody } from '../lib/validation'
 import { checkGoalsCompleted } from '../lib/notifications'
 import { createMediaSchema, updateMediaSchema } from '../lib/schemas'
 
 /**
  * Día que el usuario eligió para el cambio de estado (`logDate`, "2026-09-29").
- * No es un campo de la obra: sólo alimenta el diario. Por defecto, hoy (UTC).
+ * No es un campo de la obra: sólo alimenta el diario. Por defecto, hoy (UTC);
+ * null si no la recuerda (`undated`).
  */
-function logDay(body: Record<string, unknown>): Date {
-  return parseDay(body.logDate) ?? new Date(new Date().toISOString().slice(0, 10))
+function logDay(body: Record<string, unknown>): Date | null {
+  if (body.undated === true) return null
+  return parseDay(body.logDate) ?? today()
 }
 
 /**
  * Cuándo la empezó (`startDate`), si la está terminando o abandonando y lo
- * indicó. Error si es posterior al día del cambio.
+ * indicó. Error si es posterior al día del cambio. Sin fecha, tampoco hay inicio.
  */
 function startDay(body: Record<string, unknown>): { day: Date | null } | { error: string } {
+  const end = logDay(body)
+  if (!end) return { day: null }
   const day = parseDay(body.startDate)
-  if (day && day > logDay(body)) return { error: 'La fecha de inicio no puede ser posterior a la de finalización.' }
+  if (day && day > end) return { error: 'La fecha de inicio no puede ser posterior a la de finalización.' }
   return { day }
 }
 

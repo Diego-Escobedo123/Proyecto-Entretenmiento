@@ -101,6 +101,8 @@ const mediaFields = {
 const diaryOptions = {
   logDate: day.optional(),
   startDate: day.optional(),
+  /** "No recuerdo la fecha": el cambio de estado no queda en el diario. */
+  undated: z.boolean({ error: 'undated debe ser verdadero o falso.' }).optional(),
 }
 
 /** POST /media: tipo y título obligatorios, lo demás opcional. */

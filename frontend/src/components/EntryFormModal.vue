@@ -4,7 +4,7 @@
  * si `editingEntryId` es null es alta, si trae id es edición.
  * Escribe a través de `useMediaStore` (que a su vez usa el servicio).
  */
-import { computed, nextTick, reactive, ref, watch } from 'vue'
+import { computed, nextTick, reactive, ref, useId, watch } from 'vue'
 import BaseModal from './BaseModal.vue'
 import BaseButton from './BaseButton.vue'
 import BaseIcon from './BaseIcon.vue'
@@ -12,7 +12,8 @@ import AppField from './AppField.vue'
 import RatingStars from './RatingStars.vue'
 import CommunityReviews from './CommunityReviews.vue'
 import EntryHistory from './EntryHistory.vue'
-import { MEDIA_TYPES, isFinished, statusLabel, statusMeta, statusesFor, typeMeta } from '../lib/catalog'
+import LogDatePicker from './LogDatePicker.vue'
+import { MEDIA_TYPES, isFinished, statusMeta, statusesFor, typeMeta } from '../lib/catalog'
 import { todayISO } from '../lib/dates'
 import { bookProgress, seriesProgress } from '../lib/progress'
 import { useMediaStore } from '../stores/media'
@@ -156,6 +157,10 @@ const startDate = ref('')
 let startDateRequest = 0
 /** El usuario pidió "volver a leerlo": al guardar se abre una entrada nueva. */
 const restarting = ref(false)
+/** "No recuerdo la fecha": el cambio de estado no queda en el diario. */
+const undated = ref(false)
+/** Tiene una entrada en curso en el diario: al cerrarla hace falta una fecha. */
+const hasOpenLog = ref(false)
 
 // Rellena el formulario cuando cambia la obra en edición (o lo limpia en alta).
 // `watch` (no `watchEffect`) a propósito: sólo debe depender del id de la
@@ -170,6 +175,8 @@ watch(
     logDate.value = todayISO()
     startDate.value = ''
     errors.startDate = undefined
+    undated.value = false
+    hasOpenLog.value = false
     if (e) void loadOpenStart(e.id)
     restarting.value = false
     suppressNextSearch = true
@@ -229,9 +236,23 @@ const creatorLabel = computed(() => typeMeta(form.type).creatorLabel)
 const statusChanged = computed(() =>
   editing.value ? form.status !== editing.value.status : form.status !== 'want',
 )
-const logDateLabel = computed(() =>
-  form.status === 'in-progress' ? 'Empezaste el' : `${statusLabel(form.type, form.status)} el`,
-)
+/** Cómo se dice "la terminaste" en cada tipo, para la pregunta de la fecha. */
+const FINISHED_VERB: Record<MediaType, string> = {
+  movie: 'viste',
+  series: 'terminaste',
+  book: 'terminaste',
+  game: 'terminaste',
+  music: 'escuchaste',
+}
+
+/** "¿Cuándo la viste?", "¿Cuándo lo dejaste?"… según el estado y el tipo. */
+const logDateLabel = computed(() => {
+  if (form.status === 'in-progress') return '¿Cuándo empezaste?'
+  const pronoun = typeMeta(form.type).gender === 'f' ? 'la' : 'lo'
+  if (form.status === 'abandoned') return `¿Cuándo ${pronoun} dejaste?`
+  if (form.status === 'mastered') return `¿Cuándo ${pronoun} completaste al 100%?`
+  return `¿Cuándo ${pronoun} ${FINISHED_VERB[form.type]}?`
+})
 
 /** Series, libros y juegos al terminarlos o abandonarlos: fecha de inicio y de finalización. */
 const asksStartDate = computed(
@@ -243,6 +264,21 @@ const asksStartDate = computed(
     form.status !== 'want',
 )
 
+/**
+ * Se puede registrar sin fecha (p. ej. algo que vio hace años), salvo al volver
+ * a verla o al cerrar una entrada en curso del diario: ahí sí hace falta.
+ */
+const canSkipDate = computed(() => statusChanged.value && !restarting.value && !hasOpenLog.value)
+const skipsDate = computed(() => canSkipDate.value && undated.value)
+
+/** El inicio es opcional: sin fecha elegida, el chip "No recuerdo" queda activo. */
+const startUnknown = computed({
+  get: () => !startDate.value,
+  set: (unknown: boolean) => {
+    if (unknown) startDate.value = ''
+  },
+})
+
 // Al corregir cualquiera de las dos fechas, el aviso de "posterior a la finalización" se va.
 watch([startDate, logDate], () => {
   errors.startDate = undefined
@@ -253,7 +289,9 @@ async function loadOpenStart(entryId: string) {
   const current = ++startDateRequest
   try {
     const open = (await logService.list(entryId)).find((l) => !l.finishedAt)
-    if (current === startDateRequest && open?.startedAt && !startDate.value) startDate.value = open.startedAt
+    if (current !== startDateRequest) return
+    hasOpenLog.value = Boolean(open)
+    if (open?.startedAt && !startDate.value) startDate.value = open.startedAt
   } catch {
     // Sin diario a mano: el campo queda vacío y es opcional.
   }
@@ -426,7 +464,8 @@ function toInput(): MediaEntryInput {
     creator: form.creator.trim(),
     year: form.year.trim() ? Number(form.year) : null,
     status: form.status,
-    rating: form.rating > 0 ? form.rating : null,
+    // Sin calificación ni reseña mientras sea "Quiero verla" (los campos están ocultos).
+    rating: canRate.value && form.rating > 0 ? form.rating : null,
     progress: computeProgress(),
     // Un libro terminado se da por leído completo.
     pagesRead:
@@ -444,14 +483,21 @@ function toInput(): MediaEntryInput {
     genres,
     cover: form.cover.trim() || null,
     externalId: form.externalId,
-    review: form.review.trim(),
+    review: canRate.value ? form.review.trim() : '',
     notes: form.notes.trim(),
     notesPublic: form.notesPublic,
   }
 }
 
+/** "Quiero verla/leerlo/…": todavía no la consumió, así que no se califica ni se reseña. */
+const canRate = computed(() => form.status !== 'want')
+
 /** El comentario acompaña a la calificación: aparece al calificar (o si ya había uno). */
-const showReview = computed(() => form.rating > 0 || form.review.trim() !== '')
+const showReview = computed(() => canRate.value && (form.rating > 0 || form.review.trim() !== ''))
+
+/** Notas personales: mismo límite que el backend. */
+const NOTES_MAX = 5000
+const notesId = useId()
 
 /** Clave de la obra para buscar las reseñas de los demás usuarios. */
 const workKey = computed(() => ({ type: form.type, externalId: form.externalId, title: form.title }))
@@ -460,12 +506,14 @@ async function submit() {
   if (!validate() || submitting.value) return
   submitting.value = true
   try {
-    const options = statusChanged.value
-      ? {
-          logDate: logDate.value || todayISO(),
-          ...(asksStartDate.value && startDate.value && { startDate: startDate.value }),
-        }
-      : undefined
+    const options = !statusChanged.value
+      ? undefined
+      : skipsDate.value
+        ? { undated: true }
+        : {
+            logDate: logDate.value || todayISO(),
+            ...(asksStartDate.value && startDate.value && { startDate: startDate.value }),
+          }
     if (sendsRequest.value) {
       await workRequestService.create(toInput(), options)
       requestSent.value = form.title.trim()
@@ -615,39 +663,36 @@ async function submit() {
           </select>
         </AppField>
 
-        <AppField label="Calificación">
+        <AppField v-if="canRate" label="Calificación">
           <RatingStars :value="form.rating" editable @update:value="form.rating = $event" />
         </AppField>
       </div>
 
       <!-- Para el diario: cuándo empezó/terminó (sólo si cambia el estado) -->
       <template v-if="statusChanged">
-        <!-- Series, libros y juegos terminados o abandonados: inicio y fin -->
-        <div v-if="asksStartDate" class="entry-form__dates">
-          <div class="entry-form__row">
-            <AppField v-slot="{ id }" label="Fecha de inicio" hint="Opcional" :error="errors.startDate">
-              <input
-                :id="id"
-                v-model="startDate"
-                type="date"
-                :max="logDate || todayISO()"
-                class="app-input"
-              />
-            </AppField>
-            <AppField v-slot="{ id }" label="Fecha de finalización">
-              <input :id="id" v-model="logDate" type="date" :max="todayISO()" class="app-input" />
-            </AppField>
-          </div>
-          <p class="entry-form__dates-hint">Queda registrado en tu diario</p>
-        </div>
-        <AppField
-          v-else
-          v-slot="{ id }"
+        <LogDatePicker
+          v-model:day="logDate"
+          v-model:undated="undated"
           :label="logDateLabel"
           :hint="restarting ? 'Se registrará en tu diario como una vez más' : 'Queda registrado en tu diario'"
-        >
-          <input :id="id" v-model="logDate" type="date" :max="todayISO()" class="app-input entry-form__date" />
-        </AppField>
+          undated-hint="Queda en tu colección, pero no en tu diario ni en tus metas del año."
+          :allow-undated="canSkipDate"
+        />
+
+        <!-- Series, libros y juegos terminados o abandonados: también cuándo empezó (opcional) -->
+        <Transition name="entry-form-reveal">
+          <LogDatePicker
+            v-if="asksStartDate && !skipsDate"
+            v-model:day="startDate"
+            v-model:undated="startUnknown"
+            label="¿Y cuándo empezaste?"
+            hint="Opcional: así tu diario muestra cuánto te tomó."
+            :presets="[{ label: 'El mismo día', icon: 'lightning-charge', day: logDate || todayISO() }]"
+            :max="logDate || todayISO()"
+            :error="errors.startDate"
+            allow-undated
+          />
+        </Transition>
       </template>
 
       <!-- Avance: específico de cada tipo -->
@@ -745,50 +790,72 @@ async function submit() {
       </Transition>
 
       <!-- Notas: privadas por defecto; si son públicas sólo se ven en el perfil -->
-      <AppField label="Notas personales" hint="Opcional">
-        <!-- Candado cerrado: privadas. Abierto: públicas en el perfil. -->
-        <template #label>
-          Notas personales
-          <BaseIcon
-            :name="form.notesPublic ? 'unlock-fill' : 'lock-fill'"
-            class="entry-form__notes-lock"
-            :title="form.notesPublic ? 'Públicas en tu perfil' : 'Privadas'"
-          />
-        </template>
-        <template #default="{ id }">
-          <textarea
-            :id="id"
-            v-model="form.notes"
-            class="app-textarea"
-            :placeholder="form.notesPublic ? 'Se verán en tu perfil público…' : 'Sólo tú las verás…'"
-          />
-        </template>
-      </AppField>
-      <div class="entry-form__visibility">
-        <button
-          type="button"
-          class="entry-form__visibility-option"
-          :class="{ 'is-active': !form.notesPublic }"
-          :aria-pressed="!form.notesPublic"
-          @click="form.notesPublic = false"
-        >
-          <BaseIcon name="lock-fill" /> Privadas
-        </button>
-        <button
-          type="button"
-          class="entry-form__visibility-option"
-          :class="{ 'is-active': form.notesPublic }"
-          :aria-pressed="form.notesPublic"
-          @click="form.notesPublic = true"
-        >
-          <BaseIcon name="unlock-fill" /> Públicas en mi perfil
-        </button>
-      </div>
+      <!-- Tarjeta tipo cuaderno: hoja con renglones y un interruptor de visibilidad -->
+      <section class="entry-notes" :class="{ 'is-public': form.notesPublic }">
+        <header class="entry-notes__head">
+          <label :for="notesId" class="entry-notes__title">
+            <BaseIcon name="journal-text" /> Notas personales
+          </label>
 
-      <label class="entry-form__check">
-        <input v-model="form.favorite" type="checkbox" />
-        Marcar como favorita
-      </label>
+          <div class="entry-notes__switch" role="group" aria-label="Quién ve tus notas">
+            <span class="entry-notes__thumb" aria-hidden="true" />
+            <button
+              type="button"
+              class="entry-notes__option"
+              :class="{ 'is-active': !form.notesPublic }"
+              :aria-pressed="!form.notesPublic"
+              aria-label="Privadas"
+              title="Privadas"
+              @click="form.notesPublic = false"
+            >
+              <BaseIcon name="lock-fill" />
+            </button>
+            <button
+              type="button"
+              class="entry-notes__option"
+              :class="{ 'is-active': form.notesPublic }"
+              :aria-pressed="form.notesPublic"
+              aria-label="Públicas en mi perfil"
+              title="Públicas en mi perfil"
+              @click="form.notesPublic = true"
+            >
+              <BaseIcon name="globe2" />
+            </button>
+          </div>
+        </header>
+
+        <textarea
+          :id="notesId"
+          v-model="form.notes"
+          class="entry-notes__paper"
+          :maxlength="NOTES_MAX"
+          :placeholder="
+            form.notesPublic
+              ? 'Lo que quieras contar en tu perfil: una cita, un recuerdo, lo que sentiste…'
+              : 'Una cita, un recuerdo, lo que sentiste… sólo para ti.'
+          "
+        />
+
+        <footer class="entry-notes__foot">
+          <Transition name="entry-notes-fade" mode="out-in">
+            <span :key="String(form.notesPublic)" class="entry-notes__who">
+              <template v-if="form.notesPublic"><BaseIcon name="eye" /> Visibles en tu perfil público</template>
+              <template v-else><BaseIcon name="eye-slash" /> Sólo tú puedes verlas</template>
+            </span>
+          </Transition>
+          <span v-if="form.notes.length" class="entry-notes__count">{{ form.notes.length }} / {{ NOTES_MAX }}</span>
+        </footer>
+      </section>
+
+      <button
+        type="button"
+        class="entry-form__favorite"
+        :class="{ 'is-active': form.favorite }"
+        :aria-pressed="form.favorite"
+        @click="form.favorite = !form.favorite"
+      >
+        <BaseIcon :name="form.favorite ? 'heart-fill' : 'heart'" /> Favorita
+      </button>
 
       <!-- Diario de esta obra: fechas, repeticiones, volver a verla -->
       <EntryHistory
@@ -866,22 +933,6 @@ async function submit() {
   background: var(--color-accent-bg);
   color: var(--color-text);
   font-size: 0.875rem;
-}
-
-.entry-form__date {
-  max-width: 220px;
-}
-
-.entry-form__dates {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-xs);
-}
-
-.entry-form__dates-hint {
-  margin: 0;
-  font-size: 0.75rem;
-  color: var(--color-text-subtle);
 }
 
 .entry-form {
@@ -1107,40 +1158,168 @@ async function submit() {
 }
 
 /* Candado junto a "Notas personales": cerrado (privadas) o abierto y dorado (públicas). */
-.entry-form__notes-lock {
-  margin-left: 4px;
-  font-size: 0.75rem;
+/* --- Notas personales: tarjeta tipo cuaderno --- */
+
+.entry-notes {
+  --notes-line: 1.75rem;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+  padding: var(--space-md);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  background: var(--color-surface-2);
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
 }
 
-.entry-form__notes-lock.bi-unlock-fill {
+.entry-notes:focus-within {
+  border-color: var(--color-accent);
+}
+
+/* Públicas: un brillo dorado suave recuerda que otros las verán. */
+.entry-notes.is-public {
+  box-shadow: 0 0 0 3px var(--color-accent-bg);
+}
+
+.entry-notes__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-sm);
+  flex-wrap: wrap;
+}
+
+.entry-notes__title {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-sm);
+  font-size: 0.875rem;
+  font-weight: 700;
+  color: var(--color-text);
+}
+
+.entry-notes__title .bi {
   color: var(--color-accent);
 }
 
-.entry-form__visibility {
-  display: flex;
-  gap: var(--space-xs);
-  margin-top: calc(-1 * var(--space-sm));
+/* Interruptor de dos posiciones con una "pastilla" que se desliza. */
+.entry-notes__switch {
+  position: relative;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  padding: 3px;
+  border-radius: 999px;
+  background: var(--color-bg);
+  border: 1px solid var(--color-border);
 }
 
-.entry-form__visibility-option {
+.entry-notes__thumb {
+  position: absolute;
+  top: 3px;
+  bottom: 3px;
+  left: 3px;
+  width: calc(50% - 3px);
+  border-radius: 999px;
+  background: var(--color-accent);
+  transition: transform 0.25s cubic-bezier(0.3, 1.3, 0.5, 1);
+}
+
+.is-public .entry-notes__thumb {
+  transform: translateX(100%);
+}
+
+.entry-notes__option {
+  position: relative;
   display: inline-flex;
   align-items: center;
-  gap: 6px;
-  padding: 4px var(--space-sm);
-  border: 1px solid var(--color-border);
+  justify-content: center;
+  width: 32px;
+  height: 26px;
+  padding: 0;
+  border: none;
   border-radius: 999px;
   background: none;
   color: var(--color-text-muted);
-  font: inherit;
-  font-size: 0.75rem;
-  font-weight: 600;
+  font-size: 0.8125rem;
   cursor: pointer;
+  transition: color 0.2s ease;
 }
 
-.entry-form__visibility-option.is-active {
-  border-color: var(--color-accent);
-  background: var(--color-accent-bg);
+.entry-notes__option.is-active {
+  color: var(--color-accent-contrast);
+}
+
+.entry-notes__option:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+}
+
+/* Hoja con renglones: las líneas se desplazan junto con el texto. */
+.entry-notes__paper {
+  width: 100%;
+  min-height: calc(var(--notes-line) * 4);
+  box-sizing: border-box;
+  padding: 0 var(--space-xs);
+  border: none;
+  outline: none;
+  resize: vertical;
+  color: var(--color-text);
+  font: inherit;
+  font-size: 0.9375rem;
+  line-height: var(--notes-line);
+  background-color: transparent;
+  background-image: repeating-linear-gradient(
+    to bottom,
+    transparent 0,
+    transparent calc(var(--notes-line) - 1px),
+    var(--color-border) calc(var(--notes-line) - 1px),
+    var(--color-border) var(--notes-line)
+  );
+  background-attachment: local;
+}
+
+.entry-notes__paper::placeholder {
+  color: var(--color-text-subtle);
+  font-style: italic;
+}
+
+.entry-notes__foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-sm);
+  font-size: 0.75rem;
+  color: var(--color-text-subtle);
+}
+
+.entry-notes__who {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.is-public .entry-notes__who {
   color: var(--color-accent);
+}
+
+.entry-notes__count {
+  font-variant-numeric: tabular-nums;
+}
+
+.entry-notes-fade-enter-active,
+.entry-notes-fade-leave-active {
+  transition: opacity 0.15s ease;
+}
+
+.entry-notes-fade-enter-from,
+.entry-notes-fade-leave-to {
+  opacity: 0;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .entry-notes__thumb {
+    transition: none;
+  }
 }
 
 .entry-form__community {
@@ -1159,17 +1338,35 @@ async function submit() {
   transform: translateY(-4px);
 }
 
-.entry-form__check {
-  display: flex;
+.entry-form__favorite {
+  align-self: flex-start;
+  display: inline-flex;
   align-items: center;
   gap: var(--space-sm);
+  padding: 0;
+  border: none;
+  background: none;
+  font: inherit;
   font-size: 0.875rem;
   color: var(--color-text-muted);
   cursor: pointer;
 }
 
-.entry-form__check input {
-  accent-color: var(--color-accent);
+.entry-form__favorite .bi {
+  font-size: 1.125rem;
+  transition: transform 0.15s ease;
+}
+
+.entry-form__favorite:hover {
+  color: var(--color-text);
+}
+
+.entry-form__favorite.is-active {
+  color: var(--color-warning); /* Golden Fig, como el corazón de las tarjetas */
+}
+
+.entry-form__favorite.is-active .bi {
+  transform: scale(1.1);
 }
 
 @media (max-width: 520px) {

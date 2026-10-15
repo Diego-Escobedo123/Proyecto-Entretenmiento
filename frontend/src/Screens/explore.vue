@@ -10,7 +10,6 @@
  */
 import { computed, onMounted, ref, watch } from 'vue'
 import { storeToRefs } from 'pinia'
-import BaseTag from '../components/BaseTag.vue'
 import BaseIcon from '../components/BaseIcon.vue'
 import CatalogResultCard from '../components/explore/CatalogResultCard.vue'
 import ExploreRow from '../components/explore/ExploreRow.vue'
@@ -32,13 +31,13 @@ const { debouncedQuery, isSearching: isDebouncing } = useDebouncedSearch(searchQ
 const isLoading = ref(false)
 const isSearching = computed(() => isDebouncing.value || isLoading.value)
 
-const mediaTabs: { label: string; value: MediaType | null }[] = [
-  { label: 'Todo', value: null },
-  { label: 'Cine', value: 'movie' },
-  { label: 'Series', value: 'series' },
-  { label: 'Literatura', value: 'book' },
-  { label: 'Videojuegos', value: 'game' },
-  { label: 'Música', value: 'music' },
+const mediaTabs: { label: string; value: MediaType | null; icon: string }[] = [
+  { label: 'Todo', value: null, icon: 'grid' },
+  { label: 'Cine', value: 'movie', icon: typeMeta('movie').icon },
+  { label: 'Series', value: 'series', icon: typeMeta('series').icon },
+  { label: 'Literatura', value: 'book', icon: typeMeta('book').icon },
+  { label: 'Videojuegos', value: 'game', icon: typeMeta('game').icon },
+  { label: 'Música', value: 'music', icon: typeMeta('music').icon },
 ]
 const activeType = ref<MediaType | null>(null)
 
@@ -130,15 +129,21 @@ onMounted(() => {
 
 <template>
   <div class="explore">
-    <nav class="explore__tabs">
-      <BaseTag
-        v-for="tab in mediaTabs"
-        :key="tab.label"
-        :active="activeType === tab.value"
-        @click="activeType = tab.value"
-      >
-        <BaseIcon v-if="tab.value" :name="typeMeta(tab.value).icon" /> {{ tab.label }}
-      </BaseTag>
+    <!-- Filtro por tipo: control segmentado; en pantallas angostas se desplaza en horizontal. -->
+    <nav class="explore__filters" aria-label="Filtrar por tipo de obra">
+      <div class="explore__tabs" role="group">
+        <button
+          v-for="tab in mediaTabs"
+          :key="tab.label"
+          type="button"
+          class="explore__tab"
+          :class="{ 'is-active': activeType === tab.value }"
+          :aria-pressed="activeType === tab.value"
+          @click="activeType = tab.value"
+        >
+          <BaseIcon :name="tab.icon" /> {{ tab.label }}
+        </button>
+      </div>
     </nav>
 
     <!-- Modo búsqueda: resultados de los catálogos externos -->
@@ -216,7 +221,43 @@ onMounted(() => {
 
 <style scoped>
 .explore { display: flex; flex-direction: column; gap: var(--space-xl); }
-.explore__tabs { display: flex; flex-wrap: wrap; gap: var(--space-sm); border-bottom: 1px solid var(--color-border); padding-bottom: var(--space-md); }
+.explore__filters { display: flex; min-width: 0; }
+.explore__tabs {
+  display: flex;
+  gap: var(--space-xs);
+  max-width: 100%;
+  padding: var(--space-xs);
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: 999px;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+.explore__tabs::-webkit-scrollbar { display: none; }
+.explore__tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+  padding: var(--space-sm) var(--space-md);
+  border: none;
+  border-radius: 999px;
+  background: none;
+  color: var(--color-text-muted);
+  font: inherit;
+  font-size: 0.875rem;
+  font-weight: 600;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease, box-shadow 0.15s ease;
+}
+.explore__tab:hover { background: var(--color-accent-hover-bg); color: var(--color-text); }
+.explore__tab:focus-visible { outline: 2px solid var(--color-accent); outline-offset: -2px; }
+.explore__tab.is-active {
+  background: var(--color-accent);
+  color: var(--color-accent-contrast);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.25);
+}
 .explore__content { display: flex; flex-direction: column; gap: var(--space-xl); min-width: 0; }
 .explore__searching { display: flex; align-items: center; gap: var(--space-sm); color: var(--color-text-muted); font-size: 0.9375rem; padding: var(--space-xl) 0; justify-content: center; }
 .explore__results-heading { margin: 0; color: var(--color-text-muted); font-size: 0.9375rem; }

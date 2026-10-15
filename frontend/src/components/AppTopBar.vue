@@ -112,7 +112,8 @@ onBeforeUnmount(() => {
   position: sticky;
   top: 0;
   z-index: 40;
-  background: var(--color-bg);
+  /* Aurora decorativa que cubre toda la barra. */
+  background: var(--color-bg) url('../assets/aurora-buscador.svg') center / cover no-repeat;
 }
 
 .app-topbar__nav-toggle {

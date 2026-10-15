@@ -16,6 +16,8 @@ export interface MediaWriteOptions {
   logDate?: string
   /** Al terminar o abandonar una serie, libro o juego: cuándo la empezó ("YYYY-MM-DD"). */
   startDate?: string
+  /** "No recuerdo la fecha": el cambio de estado no queda en el diario. */
+  undated?: boolean
 }
 
 export interface MediaService {
