@@ -182,15 +182,49 @@ export function fromRawg(g: RawgGame): ExternalResult {
   }
 }
 
+/** Nombre comparable: sin mayúsculas, acentos ni signos ("Pokémon: Rojo" -> "pokemon rojo"). */
+const normalizeName = (s: string) =>
+  s
+    .normalize('NFD')
+    .replace(/[̀-ͯ]/g, '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, ' ')
+    .trim()
+
+/** Todas las palabras buscadas aparecen en el nombre (como palabra o su inicio: "zel" -> "Zelda"). */
+function hasAllWords(name: string, queryWords: string[]): boolean {
+  const words = normalizeName(name).split(' ')
+  return queryWords.every((q) => words.some((w) => w.startsWith(q)))
+}
+
 async function searchGames(query: string): Promise<ExternalSearchResponse> {
   const apiKey = process.env.RAWG_API_KEY
   if (!apiKey) return { available: false, results: [] }
 
-  const data = (await fetchJson(
-    `https://api.rawg.io/api/games?key=${apiKey}&page_size=10&search=${encodeURIComponent(query)}`,
-  )) as { results?: RawgGame[] }
+  // El orden por defecto de RAWG es por parecido del nombre: los juegos de
+  // fans ("ZELDA (Raul Fernandes)") tapan a los oficiales. Ordenado por
+  // popularidad, en cambio, con varias palabras se cuela cualquier juego
+  // famoso que tenga una ("tears of the kingdom" -> The Witcher). Se piden
+  // las dos listas a la vez y se rearman: sólo los que tienen todas las
+  // palabras buscadas, de más a menos popular. Si ninguno las tiene (p. ej.
+  // un error de tipeo, "zeldaa"), todo lo que devolvió RAWG.
+  const url = (params: string) =>
+    `https://api.rawg.io/api/games?key=${apiKey}&page_size=20&search=${encodeURIComponent(query)}${params}`
+  const [byName, byPopularity] = await Promise.all(
+    [url(''), url('&search_precise=true&ordering=-added')].map(
+      (u) => fetchJson(u).then((d) => (d as { results?: RawgGame[] }).results ?? []),
+    ),
+  )
 
-  return { available: true, results: (data.results ?? []).map(fromRawg) }
+  const unique = [...new Map([...byName, ...byPopularity].map((g) => [g.id, g])).values()]
+  const queryWords = normalizeName(query).split(' ').filter(Boolean)
+  const matching = unique.filter((g) => hasAllWords(g.name, queryWords))
+  const results = (matching.length ? matching : unique)
+    .sort((a, b) => (b.added ?? 0) - (a.added ?? 0))
+    .slice(0, 10)
+    .map(fromRawg)
+
+  return { available: true, results }
 }
 
 // ---- iTunes Search (música) ---------------------------------------------
