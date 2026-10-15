@@ -44,7 +44,7 @@ export async function tmdbGenres(apiKey: string, kind: TmdbKind): Promise<Map<nu
   const cached = tmdbGenreCache.get(kind)
   if (cached) return cached
   const data = (await fetchJson(
-    `https://api.themoviedb.org/3/genre/${kind}/list?api_key=${apiKey}&language=es-ES`,
+    `https://api.themoviedb.org/3/genre/${kind}/list?api_key=${apiKey}&language=es-MX`,
   )) as { genres?: { id: number; name: string }[] }
   const genres = new Map((data.genres ?? []).map((g) => [g.id, g.name]))
   tmdbGenreCache.set(kind, genres)
@@ -84,7 +84,7 @@ async function searchTmdb(kind: TmdbKind, query: string): Promise<ExternalSearch
   const [genres, data] = await Promise.all([
     tmdbGenres(apiKey, kind),
     fetchJson(
-      `https://api.themoviedb.org/3/search/${kind}?api_key=${apiKey}&language=es-ES&query=${encodeURIComponent(query)}`,
+      `https://api.themoviedb.org/3/search/${kind}?api_key=${apiKey}&language=es-MX&query=${encodeURIComponent(query)}`,
     ) as Promise<{ results?: TmdbResult[] }>,
   ])
 
