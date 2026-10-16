@@ -186,8 +186,10 @@ function open(log: LogEntry) {
   <p v-else-if="failed" class="diary__hint">No se pudo cargar el diario.</p>
 
   <template v-else-if="tab === 'review'">
-    <YearGoals :year="year" :logs="logs" />
-    <YearReview :year="year" :logs="logs" @open="open" />
+    <!-- Las metas van dentro del resumen, justo después de las cifras -->
+    <YearReview :year="year" :logs="logs" @open="open">
+      <template #goals><YearGoals :year="year" :logs="logs" /></template>
+    </YearReview>
   </template>
 
   <template v-else>
