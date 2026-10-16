@@ -10,6 +10,7 @@
  *   colección (abrir = editar) y en los catálogos externos (abrir = ficha
  *   de la obra con reseñas de la comunidad).
  */
+import { coverOk, vCover } from '../lib/cover'
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { storeToRefs } from 'pinia'
 import { useRoute, useRouter } from 'vue-router'
@@ -258,7 +259,7 @@ onBeforeUnmount(() => {
             @mouseenter="activeIndex = indexOf(opt)"
             @click="select(opt)"
           >
-            <img v-if="opt.entry.cover" :src="opt.entry.cover" alt="" class="global-search__cover" />
+            <img v-if="coverOk(opt.entry.cover)" v-cover="opt.entry.cover" :src="opt.entry.cover" alt="" class="global-search__cover" />
             <span v-else class="global-search__cover global-search__cover--empty">
               <BaseIcon :name="typeMeta(opt.entry.type).icon" />
             </span>
@@ -285,7 +286,7 @@ onBeforeUnmount(() => {
             @mouseenter="activeIndex = indexOf(opt)"
             @click="select(opt)"
           >
-            <img v-if="opt.result.cover" :src="opt.result.cover" alt="" class="global-search__cover" />
+            <img v-if="coverOk(opt.result.cover)" v-cover="opt.result.cover" :src="opt.result.cover" alt="" class="global-search__cover" />
             <span v-else class="global-search__cover global-search__cover--empty">
               <BaseIcon :name="typeMeta(group.type).icon" />
             </span>

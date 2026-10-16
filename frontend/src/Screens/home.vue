@@ -5,6 +5,7 @@
  * sigues. No repite la colección
  * (Mi colección), el diario (Diario) ni tu retrato cultural (Perfil).
  */
+import { coverOk, vCover } from '../lib/cover'
 import { computed, onMounted, ref } from 'vue'
 import { storeToRefs } from 'pinia'
 import { useRouter } from 'vue-router'
@@ -15,6 +16,7 @@ import EmptyState from '../components/EmptyState.vue'
 import ProgressBar from '../components/ProgressBar.vue'
 import RatingStars from '../components/RatingStars.vue'
 import ContinueConsumingCard from '../components/home/ContinueConsumingCard.vue'
+import GettingStarted from '../components/home/GettingStarted.vue'
 import FollowingFeed from '../components/home/FollowingFeed.vue'
 import { MEDIA_TYPES, statusLabel, typeMeta } from '../lib/catalog'
 import { formatDay } from '../lib/dates'
@@ -126,6 +128,9 @@ function openLog(log: LogEntry) {
       </p>
     </header>
 
+    <!-- Para quien recién llega; se oculta sola al completar las tareas o con la ✕ -->
+    <GettingStarted />
+
     <section>
       <SectionHeader title="Continuar" />
       <div v-if="inProgress.length" class="home__continue">
@@ -183,7 +188,7 @@ function openLog(log: LogEntry) {
         <ul v-if="recentlyFinished.length" class="home__recent">
           <li v-for="log in recentlyFinished" :key="log.id">
             <button type="button" class="home__recent-row" @click="openLog(log)">
-              <img v-if="log.entry!.cover" :src="log.entry!.cover" alt="" class="home__recent-cover" loading="lazy" />
+              <img v-if="coverOk(log.entry!.cover)" v-cover="log.entry!.cover" :src="log.entry!.cover" alt="" class="home__recent-cover" loading="lazy" />
               <span v-else class="home__recent-cover home__recent-cover--empty" aria-hidden="true">
                 <BaseIcon :name="typeMeta(log.entry!.type).icon" />
               </span>

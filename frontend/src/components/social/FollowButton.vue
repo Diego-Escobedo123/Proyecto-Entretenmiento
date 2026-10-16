@@ -12,6 +12,7 @@
 import { computed, ref, watch } from 'vue'
 import BaseIcon from '../BaseIcon.vue'
 import { socialService } from '../../services/socialService'
+import { useToastStore } from '../../stores/toast'
 import type { FollowStatus } from '../../types/social'
 
 const props = withDefaults(
@@ -36,7 +37,8 @@ async function toggle() {
     state.value = res.status
     emit('change', res.status, res.followers)
   } catch {
-    // Queda como estaba.
+    // Queda como estaba, y se avisa por qué no cambió.
+    useToastStore().error(active.value ? 'No se pudo dejar de seguir. Inténtalo de nuevo.' : 'No se pudo seguir a esta persona. Inténtalo de nuevo.')
   } finally {
     busy.value = false
   }

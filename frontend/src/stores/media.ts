@@ -7,6 +7,7 @@ import { defineStore } from 'pinia'
 import { computed, ref } from 'vue'
 import { mediaService, type MediaWriteOptions } from '../services/mediaService'
 import type { MediaEntry, MediaEntryInput, MediaType } from '../types/media'
+import { useToastStore } from './toast'
 
 /** Datos de catálogo de una obra (lo mismo que `CatalogWork` del store de UI). */
 type CatalogWorkInput = Pick<MediaEntryInput, 'type' | 'title' | 'creator' | 'year' | 'genres' | 'cover' | 'externalId'>
@@ -58,10 +59,78 @@ export const useMediaStore = defineStore('media', () => {
     entries.value = entries.value.filter((e) => e.id !== id)
   }
 
+  // --- Eliminar con "Deshacer" ---
+  // La obra sale de la pantalla al instante, pero el borrado real espera a que
+  // el aviso se cierre: "Deshacer" la devuelve a su lugar sin tocar el backend
+  // (y sin perder su diario, que se borraría en cascada).
+
+  const UNDO_MS = 5000
+  const pendingDeletes = new Map<string, { entry: MediaEntry; index: number; timer: ReturnType<typeof setTimeout> }>()
+
+  function restore(id: string) {
+    const pending = pendingDeletes.get(id)
+    if (!pending) return
+    clearTimeout(pending.timer)
+    pendingDeletes.delete(id)
+    const list = [...entries.value]
+    list.splice(Math.min(pending.index, list.length), 0, pending.entry)
+    entries.value = list
+  }
+
+  async function commitDelete(id: string) {
+    const pending = pendingDeletes.get(id)
+    if (!pending) return
+    try {
+      await mediaService.remove(id)
+      pendingDeletes.delete(id)
+    } catch {
+      restore(id)
+      useToastStore().error(`No se pudo eliminar «${pending.entry.title}».`)
+    }
+  }
+
+  /** Quita la obra con un aviso que permite deshacerlo. `message`: el texto del aviso. */
+  function deleteEntryWithUndo(id: string, message?: string): void {
+    const index = entries.value.findIndex((e) => e.id === id)
+    if (index < 0) return
+    const entry = entries.value[index]
+    entries.value = entries.value.filter((e) => e.id !== id)
+    pendingDeletes.set(id, { entry, index, timer: setTimeout(() => void commitDelete(id), UNDO_MS) })
+    useToastStore().show(message ?? `Se eliminó «${entry.title}» de tu colección.`, {
+      action: { label: 'Deshacer', run: () => restore(id) },
+      duration: UNDO_MS,
+    })
+  }
+
+  // Si cierra la pestaña con un borrado pendiente, se manda igual (ya no hay cómo deshacerlo).
+  if (typeof window !== 'undefined') {
+    window.addEventListener('pagehide', () => {
+      for (const [id, pending] of pendingDeletes) {
+        clearTimeout(pending.timer)
+        void mediaService.remove(id).catch(() => {})
+      }
+      pendingDeletes.clear()
+    })
+  }
+
+  /**
+   * Favorita al instante (el corazón no espera al servidor); si falla, vuelve
+   * a como estaba y avisa.
+   */
   async function toggleFavorite(id: string): Promise<void> {
     const entry = entries.value.find((e) => e.id === id)
     if (!entry) return
-    await editEntry(id, { favorite: !entry.favorite })
+    const next = !entry.favorite
+    const setFavorite = (value: boolean) =>
+      (entries.value = entries.value.map((e) => (e.id === id ? { ...e, favorite: value } : e)))
+    setFavorite(next)
+    try {
+      const updated = await mediaService.update(id, { favorite: next })
+      entries.value = entries.value.map((e) => (e.id === id ? updated : e))
+    } catch {
+      setFavorite(!next)
+      useToastStore().error('No se pudo actualizar tus favoritas. Inténtalo de nuevo.')
+    }
   }
 
   /**
@@ -130,6 +199,7 @@ export const useMediaStore = defineStore('media', () => {
     editEntry,
     reloadEntry,
     deleteEntry,
+    deleteEntryWithUndo,
     toggleFavorite,
     wishlist,
     addToWishlist,

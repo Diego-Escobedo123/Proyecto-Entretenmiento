@@ -19,10 +19,12 @@ import { typeMeta } from '../lib/catalog'
 import { ApiError } from '../lib/api'
 import { listService } from '../services/listService'
 import { useUiStore } from '../stores/ui'
+import { useToastStore } from '../stores/toast'
 import type { ListDetail, ListItem, ListSummary, ListWork } from '../types/list'
 
 const route = useRoute()
 const router = useRouter()
+const toast = useToastStore()
 const ui = useUiStore()
 
 const list = ref<ListDetail | null>(null)
@@ -89,10 +91,46 @@ async function add(work: ListWork) {
   }
 }
 
-async function remove(item: ListItem) {
-  if (!list.value) return
-  await listService.removeItem(list.value.id, item.id)
-  list.value.items = list.value.items.filter((i) => i.id !== item.id)
+/**
+ * Quitar una obra: sale al instante y el aviso permite deshacerlo; el borrado
+ * real se manda cuando el aviso se cierra (así "Deshacer" conserva su nota y
+ * su lugar en el ranking).
+ */
+const REMOVE_UNDO_MS = 5000
+function remove(item: ListItem) {
+  const current = list.value
+  if (!current) return
+  const index = current.items.findIndex((i) => i.id === item.id)
+  current.items = current.items.filter((i) => i.id !== item.id)
+
+  const restore = () => {
+    const items = [...current.items]
+    items.splice(Math.min(index, items.length), 0, item)
+    current.items = items
+  }
+
+  let undone = false
+  const timer = setTimeout(async () => {
+    if (undone) return
+    try {
+      await listService.removeItem(current.id, item.id)
+    } catch {
+      restore()
+      toast.error(`No se pudo quitar «${item.title}» de la lista.`)
+    }
+  }, REMOVE_UNDO_MS)
+
+  toast.show(`Se quitó «${item.title}» de la lista.`, {
+    duration: REMOVE_UNDO_MS,
+    action: {
+      label: 'Deshacer',
+      run: () => {
+        undone = true
+        clearTimeout(timer)
+        restore()
+      },
+    },
+  })
 }
 
 /** Mueve una obra un lugar arriba (-1) o abajo (+1) y guarda el orden completo. */
@@ -108,6 +146,7 @@ async function move(index: number, delta: -1 | 1) {
     await listService.reorder(list.value.id, arr.map((i) => i.id))
   } catch {
     list.value.items = previous
+    toast.error('No se pudo cambiar el orden. Inténtalo de nuevo.')
   }
 }
 
@@ -122,9 +161,13 @@ function startNote(item: ListItem) {
 
 async function saveNote(item: ListItem) {
   if (!list.value) return
-  const updated = await listService.updateNote(list.value.id, item.id, noteDraft.value)
-  item.note = updated.note
-  editingNoteId.value = null
+  try {
+    const updated = await listService.updateNote(list.value.id, item.id, noteDraft.value)
+    item.note = updated.note
+    editingNoteId.value = null
+  } catch {
+    toast.error('No se pudo guardar la nota. Inténtalo de nuevo.')
+  }
 }
 
 // Datos de la lista
@@ -142,8 +185,15 @@ function onListSaved(summary: ListSummary) {
 const confirmingDelete = ref(false)
 async function deleteList() {
   if (!list.value) return
-  await listService.remove(list.value.id)
-  void router.push('/lists')
+  const title = list.value.title
+  try {
+    await listService.remove(list.value.id)
+    toast.show(`Se eliminó la lista «${title}».`)
+    void router.push('/lists')
+  } catch {
+    confirmingDelete.value = false
+    toast.error(`No se pudo eliminar «${title}». Inténtalo de nuevo.`)
+  }
 }
 
 // Compartir

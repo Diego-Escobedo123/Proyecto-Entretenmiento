@@ -4,6 +4,7 @@
  * reseñas de la comunidad y la acción para agregarla (o editarla, si ya está
  * en la colección). Se controla desde `useUiStore().detailWork`.
  */
+import { coverOk, vCover } from '../lib/cover'
 import { computed, ref } from 'vue'
 import BaseModal from './BaseModal.vue'
 import BaseButton from './BaseButton.vue'
@@ -16,9 +17,11 @@ import AddToList from './lists/AddToList.vue'
 import { typeMeta } from '../lib/catalog'
 import { useMediaStore } from '../stores/media'
 import { useUiStore } from '../stores/ui'
+import { useToastStore } from '../stores/toast'
 
 const ui = useUiStore()
 const media = useMediaStore()
+const toast = useToastStore()
 
 const modalRef = ref<InstanceType<typeof BaseModal> | null>(null)
 function closeAnimated() {
@@ -35,16 +38,28 @@ const owned = computed(() =>
  * sólo aparece si la obra no está en la colección o está en la wishlist
  * (una obra ya vista no se "desea"); quitarla la saca de la colección.
  */
-const inWishlist = computed(() => owned.value?.status === 'want')
+/** Mientras se guarda, el botón ya muestra el estado nuevo (no espera al servidor). */
+const wishOptimistic = ref<boolean | null>(null)
+const inWishlist = computed(() => wishOptimistic.value ?? owned.value?.status === 'want')
 const wishBusy = ref(false)
 
 async function toggleWishlist() {
   if (!work.value || wishBusy.value) return
+  const title = work.value.title
+  // Quitar: sale al instante y el aviso permite deshacerlo.
+  if (owned.value) {
+    media.deleteEntryWithUndo(owned.value.id, `Se quitó «${title}» de tu wishlist.`)
+    return
+  }
   wishBusy.value = true
+  wishOptimistic.value = true
   try {
-    if (owned.value) await media.deleteEntry(owned.value.id)
-    else await media.addToWishlist(work.value)
+    await media.addToWishlist(work.value)
+    toast.success(`«${title}» está en tu wishlist.`)
+  } catch {
+    toast.error(`No se pudo agregar «${title}» a tu wishlist.`)
   } finally {
+    wishOptimistic.value = null
     wishBusy.value = false
   }
 }
@@ -67,7 +82,7 @@ function addOrEdit() {
   >
     <div class="work-detail">
       <div class="work-detail__head">
-        <img v-if="work.cover" :src="work.cover" alt="" class="work-detail__cover" />
+        <img v-if="coverOk(work.cover)" v-cover="work.cover" :src="work.cover" alt="" class="work-detail__cover" />
         <div v-else class="work-detail__cover work-detail__cover--empty" aria-hidden="true">
           <BaseIcon :name="typeMeta(work.type).icon" />
         </div>

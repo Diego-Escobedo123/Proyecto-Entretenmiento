@@ -12,11 +12,10 @@ import BaseTag from '../components/BaseTag.vue'
 import BaseIcon from '../components/BaseIcon.vue'
 import BaseButton from '../components/BaseButton.vue'
 import EmptyState from '../components/EmptyState.vue'
-import ConfirmDialog from '../components/ConfirmDialog.vue'
 import { MEDIA_STATUSES, MEDIA_TYPES } from '../lib/catalog'
 import { useMediaStore } from '../stores/media'
 import { useUiStore } from '../stores/ui'
-import type { MediaEntry, MediaStatus, MediaType } from '../types/media'
+import type { MediaStatus, MediaType } from '../types/media'
 
 const media = useMediaStore()
 const ui = useUiStore()
@@ -79,12 +78,6 @@ function clearFilters() {
   ui.setSearch('')
 }
 
-const pendingDelete = ref<MediaEntry | null>(null)
-async function confirmDelete() {
-  if (!pendingDelete.value) return
-  await media.deleteEntry(pendingDelete.value.id)
-  pendingDelete.value = null
-}
 </script>
 
 <template>
@@ -155,7 +148,7 @@ async function confirmDelete() {
         @open="ui.openWorkDetail(entry)"
         @toggle-favorite="media.toggleFavorite(entry.id)"
         @edit="ui.openEditEntry(entry.id)"
-        @delete="pendingDelete = entry"
+        @delete="media.deleteEntryWithUndo(entry.id)"
       />
     </TransitionGroup>
 
@@ -183,13 +176,6 @@ async function confirmDelete() {
     </EmptyState>
   </template>
 
-  <ConfirmDialog
-    v-if="pendingDelete"
-    title="Eliminar obra"
-    :message="`¿Eliminar “${pendingDelete.title}”? Esta acción no se puede deshacer.`"
-    @confirm="confirmDelete"
-    @cancel="pendingDelete = null"
-  />
 </template>
 
 <style scoped>

@@ -7,6 +7,7 @@
  * Uso:
  *   <YearReview :year="2026" :logs="logs" @open="abrirFicha" />
  */
+import { coverOk, vCover } from '../lib/cover'
 import { computed } from 'vue'
 import { storeToRefs } from 'pinia'
 import BaseIcon from './BaseIcon.vue'
@@ -71,7 +72,7 @@ const cards = computed(() => {
           <li v-for="(t, i) in stats.topRated" :key="t.log.id">
             <button type="button" class="review__work" @click="$emit('open', t.log)">
               <span class="review__rank">{{ i + 1 }}</span>
-              <img v-if="t.log.entry!.cover" :src="t.log.entry!.cover" alt="" class="review__cover" />
+              <img v-if="coverOk(t.log.entry!.cover)" v-cover="t.log.entry!.cover" :src="t.log.entry!.cover" alt="" class="review__cover" />
               <span v-else class="review__cover review__cover--empty" aria-hidden="true">
                 <BaseIcon :name="typeMeta(t.log.entry!.type).icon" />
               </span>

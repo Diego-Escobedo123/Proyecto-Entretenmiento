@@ -6,6 +6,7 @@
  * cuentas. Un admin no puede cambiar su propio rol ni borrarse a sí mismo.
  * También revisa las solicitudes de obras escritas a mano (WorkRequestsPanel).
  */
+import SkeletonList from '../components/SkeletonList.vue'
 import { computed, onMounted, ref, watch } from 'vue'
 import BaseButton from '../components/BaseButton.vue'
 import BaseIcon from '../components/BaseIcon.vue'
@@ -184,7 +185,7 @@ const joined = (iso: string) => dateFmt.format(new Date(iso))
 
       <p v-if="actionError" class="admin__error" role="alert">{{ actionError }}</p>
 
-      <p v-if="loading || isSearching" class="admin__hint"><BaseSpinner size="sm" /> Cargando…</p>
+      <SkeletonList v-if="loading || isSearching" :rows="5" avatar />
       <EmptyState
         v-else-if="loadError"
         compact

@@ -197,3 +197,13 @@ img {
   from { background-position: 100% 0; }
   to { background-position: -100% 0; }
 }
+
+/* Portadas (ver lib/cover.ts): aparecen con un fundido al terminar de cargar. */
+img.mosaic-cover {
+  opacity: 0;
+  transition: opacity var(--dur-base) ease;
+}
+
+img.mosaic-cover.is-loaded {
+  opacity: 1;
+}

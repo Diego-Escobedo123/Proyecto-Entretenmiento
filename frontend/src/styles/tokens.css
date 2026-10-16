@@ -73,6 +73,9 @@
   --dur-slow: 600ms;
   --ease-out: cubic-bezier(0.2, 0.7, 0.2, 1); /* frena al llegar: entradas */
   --ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1); /* se pasa un poco y vuelve: pops */
+
+  /* Barra de navegación inferior (sólo celular, ver AppBottomNav) */
+  --bottom-nav-height: 64px;
 }
 
 /**

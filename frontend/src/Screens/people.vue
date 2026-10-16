@@ -5,6 +5,7 @@
  * solicitudes para seguirme (cuenta privada): confirmar o eliminar. En el
  * medio, "Tu red": pestañas con mis seguidores y a quiénes sigo.
  */
+import SkeletonList from '../components/SkeletonList.vue'
 import { computed, onMounted, ref, watch } from 'vue'
 import BaseIcon from '../components/BaseIcon.vue'
 import BaseSpinner from '../components/BaseSpinner.vue'
@@ -137,7 +138,7 @@ function sharedDetail(p: SuggestedPerson): string | undefined {
           <span v-if="!loadingNetwork && !networkFailed" class="people__tab-count">{{ network[t].length }}</span>
         </button>
       </div>
-      <p v-if="loadingNetwork" class="people__hint"><BaseSpinner size="sm" /> Cargando…</p>
+      <SkeletonList v-if="loadingNetwork" :rows="4" avatar />
       <p v-else-if="networkFailed" class="people__hint">No se pudo cargar tu red.</p>
       <EmptyState
         v-else-if="!network[networkTab].length"

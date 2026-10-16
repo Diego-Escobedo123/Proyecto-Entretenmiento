@@ -4,6 +4,7 @@
  * si `editingEntryId` es null es alta, si trae id es edición.
  * Escribe a través de `useMediaStore` (que a su vez usa el servicio).
  */
+import { coverOk, vCover } from '../lib/cover'
 import { computed, nextTick, reactive, ref, useId, watch } from 'vue'
 import BaseModal from './BaseModal.vue'
 import BaseButton from './BaseButton.vue'
@@ -560,7 +561,7 @@ async function submit() {
     <form v-else class="entry-form" @submit.prevent="submit">
       <!-- Obra ya elegida (o en edición): ficha de sólo lectura con datos del catálogo -->
       <div v-if="workLocked" class="entry-form__work">
-        <img v-if="form.cover" :src="form.cover" alt="" class="entry-form__work-cover" />
+        <img v-if="coverOk(form.cover)" v-cover="form.cover" :src="form.cover" alt="" class="entry-form__work-cover" />
         <div v-else class="entry-form__work-cover entry-form__work-cover--empty" aria-hidden="true">
           <BaseIcon :name="typeMeta(form.type).icon" />
         </div>
@@ -614,7 +615,7 @@ async function submit() {
                 <template v-else-if="suggestions.length">
                   <li v-for="s in suggestions" :key="s.externalId">
                     <button type="button" class="entry-form__suggestion" @mousedown.prevent="applySuggestion(s)">
-                      <img v-if="s.cover" :src="s.cover" alt="" class="entry-form__suggestion-cover" />
+                      <img v-if="coverOk(s.cover)" v-cover="s.cover" :src="s.cover" alt="" class="entry-form__suggestion-cover" />
                       <span class="entry-form__suggestion-text">
                         <span class="entry-form__suggestion-title">{{ s.title }}</span>
                         <span class="entry-form__suggestion-meta">{{ [s.creator, s.year].filter(Boolean).join(' · ') }}</span>

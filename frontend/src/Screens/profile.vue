@@ -12,6 +12,7 @@
  *
  * Con perfil privado, los demás sólo ven nombre, contadores y listas públicas.
  */
+import { coverOk, vCover } from '../lib/cover'
 import { computed, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import BaseIcon from '../components/BaseIcon.vue'
@@ -167,7 +168,7 @@ const averageText = computed(() =>
           <ol class="favorites">
             <li v-for="f in profile.favorites" :key="f.id">
               <button type="button" class="favorites__item" :aria-label="`Ver ficha de ${f.title}`" @click="openWork(f)">
-                <img v-if="f.cover" :src="f.cover" alt="" class="favorites__cover" loading="lazy" />
+                <img v-if="coverOk(f.cover)" v-cover="f.cover" :src="f.cover" alt="" class="favorites__cover" loading="lazy" />
                 <span v-else class="favorites__cover favorites__cover--empty" aria-hidden="true">
                   <BaseIcon :name="typeMeta(f.type).icon" />
                 </span>
@@ -203,7 +204,7 @@ const averageText = computed(() =>
             <ul v-else class="recent">
               <li v-for="log in profile.recent" :key="log.id">
                 <button type="button" class="recent__row" @click="openWork(log.entry!)">
-                  <img v-if="log.entry!.cover" :src="log.entry!.cover" alt="" class="recent__cover" loading="lazy" />
+                  <img v-if="coverOk(log.entry!.cover)" v-cover="log.entry!.cover" :src="log.entry!.cover" alt="" class="recent__cover" loading="lazy" />
                   <span v-else class="recent__cover recent__cover--empty" aria-hidden="true">
                     <BaseIcon :name="typeMeta(log.entry!.type).icon" />
                   </span>
