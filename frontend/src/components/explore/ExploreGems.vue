@@ -70,14 +70,15 @@ const kind = (g: ExploreItem) => [typeMeta(g.type).label, g.note].filter(Boolean
     </header>
 
     <div v-if="loading" class="gems__grid" aria-busy="true">
-      <div class="gems__skeleton gems__skeleton--lg" />
+      <div class="gems__skeleton gems__skeleton--lg mosaic-skeleton" />
       <div class="gems__side">
-        <div v-for="n in 4" :key="n" class="gems__skeleton" />
+        <div v-for="n in 4" :key="n" class="gems__skeleton mosaic-skeleton" />
       </div>
     </div>
 
     <div v-else-if="featured" class="gems__grid">
       <HiddenGemCard
+        class="mosaic-enter"
         :kind="kind(featured)"
         :year="featured.year ?? undefined"
         :title="featured.title"
@@ -89,8 +90,10 @@ const kind = (g: ExploreItem) => [typeMeta(g.type).label, g.note].filter(Boolean
       />
       <div v-if="rest.length" class="gems__side">
         <HiddenGemCard
-          v-for="g in rest"
+          v-for="(g, i) in rest"
           :key="g.externalId"
+          class="mosaic-enter"
+          :style="{ '--i': i + 1 }"
           :kind="kind(g)"
           :rating="g.rating"
           :title="g.title"
@@ -137,10 +140,10 @@ const kind = (g: ExploreItem) => [typeMeta(g.type).label, g.note].filter(Boolean
   gap: var(--space-md);
 }
 
+/* El brillo lo pone .mosaic-skeleton (style.css). */
 .gems__skeleton {
   min-height: 160px;
   border-radius: var(--radius-lg);
-  background: var(--color-surface-2);
 }
 
 .gems__skeleton--lg {

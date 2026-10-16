@@ -12,10 +12,10 @@
  * Uso:
  *   <EntryHistory :entry-id="id" :type="type" :finished="true" @restart="..." @changed="..." />
  */
+import SkeletonList from './SkeletonList.vue'
 import { computed, ref, watch } from 'vue'
 import BaseIcon from './BaseIcon.vue'
 import BaseButton from './BaseButton.vue'
-import BaseSpinner from './BaseSpinner.vue'
 import RatingStars from './RatingStars.vue'
 import { statusLabel } from '../lib/catalog'
 import { formatDay, todayISO } from '../lib/dates'
@@ -147,7 +147,7 @@ async function remove(log: LogEntry) {
       </div>
     </div>
 
-    <p v-if="loading" class="history__hint"><BaseSpinner size="sm" /> Cargando…</p>
+    <SkeletonList v-if="loading" :rows="2" />
     <p v-else-if="failed" class="history__hint">No se pudo cargar el historial.</p>
     <p v-else-if="!logs.length" class="history__hint">Aún no hay registros en tu diario.</p>
 

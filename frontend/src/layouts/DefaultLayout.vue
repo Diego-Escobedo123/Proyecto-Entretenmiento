@@ -12,6 +12,8 @@ import AppTopBar from '../components/AppTopBar.vue'
 import WorkDetailModal from '../components/WorkDetailModal.vue'
 import EntryFormModal from '../components/EntryFormModal.vue'
 import SettingsModal from '../components/SettingsModal.vue'
+import AppBottomNav from '../components/AppBottomNav.vue'
+import ToastHost from '../components/ToastHost.vue'
 import { useMediaStore } from '../stores/media'
 import { useProfileStore } from '../stores/profile'
 import { useFollowRequestsStore } from '../stores/followRequests'
@@ -61,6 +63,10 @@ onBeforeUnmount(() => notifications.reset())
     <WorkDetailModal v-if="ui.detailWork" />
     <EntryFormModal v-if="ui.isEntryFormOpen" />
     <SettingsModal v-if="ui.isSettingsOpen" />
+
+    <!-- Sólo en el celular -->
+    <AppBottomNav />
+    <ToastHost />
   </div>
 </template>
 
@@ -98,9 +104,17 @@ onBeforeUnmount(() => notifications.reset())
   gap: var(--space-xl);
 }
 
+/* Con la barra inferior (≤ 860px), el final del contenido no queda tapado por ella. */
+@media (max-width: 860px) {
+  .app-shell__content {
+    padding-bottom: calc(var(--bottom-nav-height) + var(--space-xl) + env(safe-area-inset-bottom, 0px));
+  }
+}
+
 @media (max-width: 640px) {
   .app-shell__content {
-    padding: var(--space-lg) var(--space-md) var(--space-xl);
+    padding-left: var(--space-md);
+    padding-right: var(--space-md);
   }
 }
 </style>

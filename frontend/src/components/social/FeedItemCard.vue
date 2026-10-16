@@ -7,6 +7,7 @@
  * Uso:
  *   <FeedItemCard :item="item" />
  */
+import { coverOk, vCover } from '../../lib/cover'
 import { computed } from 'vue'
 import BaseIcon from '../BaseIcon.vue'
 import RatingStars from '../RatingStars.vue'
@@ -72,13 +73,13 @@ function openWork() {
     </div>
 
     <button
-      v-if="item.kind !== 'list' && item.work.cover"
+      v-if="item.kind !== 'list' && coverOk(item.work.cover)"
       type="button"
       class="feed-item__cover-btn"
       :aria-label="`Ver ficha de ${item.work.title}`"
       @click="openWork"
     >
-      <img :src="item.work.cover" alt="" class="feed-item__cover" loading="lazy" />
+      <img v-cover="item.work.cover" :src="item.work.cover" alt="" class="feed-item__cover" loading="lazy" />
     </button>
     <RouterLink
       v-else-if="item.kind === 'list' && item.list.covers.length"
@@ -86,7 +87,7 @@ function openWork() {
       class="feed-item__collage"
       :aria-label="`Ver lista ${item.list.title}`"
     >
-      <img v-for="c in item.list.covers.slice(0, 4)" :key="c" :src="c" alt="" loading="lazy" />
+      <img v-for="c in item.list.covers.filter(coverOk).slice(0, 4)" :key="c" v-cover="c" :src="c" alt="" loading="lazy" />
     </RouterLink>
   </article>
 </template>

@@ -5,6 +5,7 @@
  * aprueba (la obra se agrega a la colección de quien la pidió) o la rechaza.
  * Emite `reviewed` para que la pantalla actualice sus números.
  */
+import SkeletonList from '../SkeletonList.vue'
 import { onMounted, ref } from 'vue'
 import BaseButton from '../BaseButton.vue'
 import BaseIcon from '../BaseIcon.vue'
@@ -71,7 +72,7 @@ onMounted(load)
 
     <p v-if="actionError" class="requests__error" role="alert">{{ actionError }}</p>
 
-    <p v-if="loading" class="requests__hint"><BaseSpinner size="sm" /> Cargando…</p>
+    <SkeletonList v-if="loading" :rows="3" />
     <EmptyState v-else-if="loadError" compact icon="exclamation-triangle" title="No se pudo cargar" :text="loadError">
       <BaseButton variant="outline" @click="load">Reintentar</BaseButton>
     </EmptyState>

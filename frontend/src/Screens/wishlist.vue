@@ -6,6 +6,7 @@
  * terminarlas salen solas. Se agregan desde la ficha de cualquier obra o con
  * "+ Agregar obra" (el formulario ya empieza en "Quiero verla/leerlo…").
  */
+import SkeletonCard from '../components/SkeletonCard.vue'
 import { computed, ref } from 'vue'
 import { storeToRefs } from 'pinia'
 import { useRouter } from 'vue-router'
@@ -14,7 +15,6 @@ import BaseTag from '../components/BaseTag.vue'
 import BaseIcon from '../components/BaseIcon.vue'
 import BaseButton from '../components/BaseButton.vue'
 import EmptyState from '../components/EmptyState.vue'
-import ConfirmDialog from '../components/ConfirmDialog.vue'
 import { MEDIA_TYPES } from '../lib/catalog'
 import { useMediaStore } from '../stores/media'
 import { useUiStore } from '../stores/ui'
@@ -61,11 +61,9 @@ const visible = computed(() => {
   return list
 })
 
-const pendingRemove = ref<MediaEntry | null>(null)
-async function confirmRemove() {
-  if (!pendingRemove.value) return
-  await media.deleteEntry(pendingRemove.value.id)
-  pendingRemove.value = null
+/** Quitarla de la wishlist la saca de la colección; el aviso permite deshacerlo. */
+function remove(entry: MediaEntry) {
+  media.deleteEntryWithUndo(entry.id, `Se quitó «${entry.title}» de tu wishlist.`)
 }
 </script>
 
@@ -85,7 +83,9 @@ async function confirmRemove() {
       <BaseButton class="wishlist__add" @click="ui.openCreateEntry()">+ Agregar obra</BaseButton>
     </header>
 
-    <p v-if="loading && !media.loaded" class="wishlist__hint">Cargando…</p>
+    <div v-if="loading && !media.loaded" class="wishlist__grid" aria-busy="true" aria-label="Cargando tu wishlist">
+      <SkeletonCard v-for="n in 6" :key="n" />
+    </div>
 
     <EmptyState
       v-else-if="!wishlist.length"
@@ -122,19 +122,12 @@ async function confirmRemove() {
           @open="ui.openWorkDetail(entry)"
           @toggle-favorite="media.toggleFavorite(entry.id)"
           @edit="ui.openEditEntry(entry.id)"
-          @delete="pendingRemove = entry"
+          @delete="remove(entry)"
         />
       </div>
       <EmptyState v-else compact icon="search" title="Nada coincide" text="Prueba con otro tipo o búsqueda." />
     </template>
 
-    <ConfirmDialog
-      v-if="pendingRemove"
-      title="Quitar de la wishlist"
-      :message="`¿Quitar “${pendingRemove.title}” de tu wishlist? También sale de tu colección.`"
-      @confirm="confirmRemove"
-      @cancel="pendingRemove = null"
-    />
   </div>
 </template>
 
@@ -190,8 +183,7 @@ async function confirmRemove() {
   color: var(--color-text);
 }
 
-.wishlist__subtitle,
-.wishlist__hint {
+.wishlist__subtitle {
   margin: var(--space-xs) 0 0 0;
   color: var(--color-text-muted);
   font-size: 0.9375rem;

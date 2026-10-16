@@ -40,4 +40,13 @@ withDefaults(defineProps<{ size?: 'sm' | 'md' | 'lg' }>(), { size: 'md' })
     transform: rotate(360deg);
   }
 }
+
+/* Excepción a la regla global de "reducir movimiento" (style.css): un spinner
+   quieto no dice que algo está cargando. Gira, pero más lento. */
+@media (prefers-reduced-motion: reduce) {
+  .base-spinner {
+    animation-duration: 1.5s !important;
+    animation-iteration-count: infinite !important;
+  }
+}
 </style>

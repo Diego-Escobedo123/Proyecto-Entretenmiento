@@ -9,6 +9,7 @@
  * Uso:
  *   <WorkInfo :type="work.type" :external-id="work.externalId" />
  */
+import { coverOk, vCover } from '../lib/cover'
 import { computed, ref, watch } from 'vue'
 import BaseIcon from './BaseIcon.vue'
 import BaseSpinner from './BaseSpinner.vue'
@@ -94,7 +95,7 @@ function formatDuration(seconds: number | null): string {
       <h4 class="work-info__title"><BaseIcon name="person-video2" /> Reparto</h4>
       <ul class="work-info__cast">
         <li v-for="c in data.cast" :key="c.name + c.character" class="work-info__actor">
-          <img v-if="c.photo" :src="c.photo" alt="" loading="lazy" class="work-info__photo" />
+          <img v-if="coverOk(c.photo)" v-cover="c.photo" :src="c.photo" alt="" loading="lazy" class="work-info__photo" />
           <span v-else class="work-info__photo work-info__photo--empty" aria-hidden="true">
             <BaseIcon name="person" />
           </span>
@@ -134,7 +135,7 @@ function formatDuration(seconds: number | null): string {
         <ul class="work-info__links">
           <li v-for="p in g.items" :key="p.name">
             <a :href="p.url" target="_blank" rel="noopener" class="work-info__link" :title="`Abrir en ${p.name}`">
-              <img v-if="p.logo" :src="p.logo" alt="" class="work-info__logo" />
+              <img v-if="coverOk(p.logo)" v-cover="p.logo" :src="p.logo" alt="" class="work-info__logo" />
               {{ p.name }}
             </a>
           </li>

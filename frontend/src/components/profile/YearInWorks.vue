@@ -19,6 +19,7 @@ import FaIcon from '../FaIcon.vue'
 import { isoDay, parseISODay } from '../../lib/dates'
 import { GENRE_COLORS, OTHER_GENRES_COLOR, OTHER_GENRES_LABEL } from '../../lib/genreColors'
 import type { ActivityEvent } from '../../types/review'
+import { useInView } from '../../composables/useInView'
 
 const props = defineProps<{ activity: ActivityEvent[]; topGenres: string[]; self?: boolean }>()
 
@@ -73,6 +74,10 @@ const weeks = computed<Week[]>(() => {
  * del gráfico, no un dato): una hélice de ADN vista de costado, que se repite
  * cada 8 barras (alta, casi alta, media, baja, mínima y vuelve a subir).
  */
+/** Las barras crecen cuando el gráfico llega a verse, no al cargar la página. */
+const chartEl = ref<HTMLElement | null>(null)
+const chartInView = useInView(chartEl)
+
 const HELIX_PERIOD = 8
 const waveHeight = (i: number) => 20 + 80 * Math.abs(Math.cos((Math.PI * i) / HELIX_PERIOD))
 
@@ -168,7 +173,7 @@ const ariaWeek = (w: Week) =>
       </p>
     </div>
 
-    <div class="year__chart">
+    <div ref="chartEl" class="year__chart" :class="{ 'is-revealed': chartInView }">
       <div
         class="year__bars"
         :style="{ gridTemplateColumns: `repeat(${weeks.length}, minmax(0, 1fr))` }"
@@ -187,7 +192,7 @@ const ariaWeek = (w: Week) =>
             @click="onWeekClick($event, w)"
             @dblclick="openDiary(w)"
           >
-            <span class="year__bar" :style="{ height: `${waveHeight(i)}%` }">
+            <span class="year__bar" :style="{ height: `${waveHeight(i)}%`, '--i': i }">
               <span
                 v-for="s in w.segments"
                 :key="s.index"
@@ -204,7 +209,7 @@ const ariaWeek = (w: Week) =>
             aria-hidden="true"
             @mouseenter="hovered = i"
           >
-            <span class="year__stub" :style="{ height: `${waveHeight(i)}%` }" />
+            <span class="year__stub" :style="{ height: `${waveHeight(i)}%`, '--i': i }" />
           </span>
         </template>
       </div>
@@ -341,6 +346,25 @@ const ariaWeek = (w: Week) =>
 
 .year__segment {
   min-height: 3px;
+}
+
+/* Al aparecer, las barras crecen desde la línea central, en ola de izquierda a derecha.
+   En pausa (aplanadas) hasta que el gráfico entra en pantalla. */
+.year__bar,
+.year__stub {
+  animation: year-grow 450ms var(--ease-out) both paused;
+  animation-delay: calc(var(--i) * 12ms);
+}
+
+.year__chart.is-revealed .year__bar,
+.year__chart.is-revealed .year__stub {
+  animation-play-state: running;
+}
+
+@keyframes year-grow {
+  from {
+    transform: scaleY(0);
+  }
 }
 
 .year__stub {

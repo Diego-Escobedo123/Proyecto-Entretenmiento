@@ -7,6 +7,7 @@
  * Uso:
  *   <ListAddSearch :has="yaEsta" @add="agregar" />
  */
+import { coverOk, vCover } from '../../lib/cover'
 import { computed, ref, watch } from 'vue'
 import BaseIcon from '../BaseIcon.vue'
 import BaseSpinner from '../BaseSpinner.vue'
@@ -111,7 +112,7 @@ const hasQuery = computed(() => debouncedQuery.value.trim().length >= 2)
           <h4 class="add-search__label">{{ group.label }}</h4>
           <ul class="add-search__results">
             <li v-for="w in group.items" :key="`${w.type}|${w.externalId ?? w.title}`" class="add-search__result">
-              <img v-if="w.cover" :src="w.cover" alt="" class="add-search__cover" loading="lazy" />
+              <img v-if="coverOk(w.cover)" v-cover="w.cover" :src="w.cover" alt="" class="add-search__cover" loading="lazy" />
               <span v-else class="add-search__cover add-search__cover--empty" aria-hidden="true">
                 <BaseIcon :name="typeMeta(w.type).icon" />
               </span>

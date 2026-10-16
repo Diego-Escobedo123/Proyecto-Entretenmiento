@@ -8,6 +8,7 @@
  * Dune") y `rating` (0–5) una estrella con su valor; `showType` antepone
  * el tipo cuando la lista mezcla tipos.
  */
+import { coverOk, vCover } from '../../lib/cover'
 import BaseIcon from '../BaseIcon.vue'
 import { typeMeta } from '../../lib/catalog'
 import type { MediaType } from '../../types/media'
@@ -35,7 +36,7 @@ defineEmits<{ add: []; open: []; details: [] }>()
       :aria-label="`Ver ficha y reseñas de ${result.title}`"
       @click="$emit('details')"
     >
-      <img v-if="result.cover" :src="result.cover" :alt="result.title" class="catalog-card__cover" loading="lazy" />
+      <img v-if="coverOk(result.cover)" v-cover="result.cover" :src="result.cover" :alt="result.title" class="catalog-card__cover" loading="lazy" />
       <span v-else class="catalog-card__cover catalog-card__cover--empty">
         <BaseIcon :name="typeMeta(type).icon" />
       </span>

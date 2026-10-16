@@ -10,6 +10,7 @@
  */
 import { computed, ref } from 'vue'
 import BaseIcon from '../BaseIcon.vue'
+import CountUp from '../CountUp.vue'
 import UserAvatar from '../social/UserAvatar.vue'
 import FollowButton from '../social/FollowButton.vue'
 import mosaicArt from '../../assets/profile-mosaic.svg'
@@ -22,7 +23,6 @@ const emit = defineEmits<{ 'follow-change': [status: FollowStatus, followers: nu
 
 const ui = useUiStore()
 const isSelf = computed(() => props.profile.isSelf)
-const nf = (n: number) => n.toLocaleString('es')
 
 /** La cita sin las comillas que haya escrito la persona: las tipográficas las pone la plantilla. */
 const quote = computed(() => props.profile.quote.trim().replace(/^["“”'«»]+|["“”'«»]+$/g, '').trim())
@@ -145,7 +145,7 @@ async function share() {
         >
           <span class="profile-stats__tile" :style="{ background: s.color }" aria-hidden="true" />
           <span class="profile-stats__text">
-            <strong>{{ nf(s.value) }}</strong>
+            <strong><CountUp :value="s.value" /></strong>
             <span>{{ s.label }}</span>
           </span>
         </component>

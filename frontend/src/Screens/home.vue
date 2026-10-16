@@ -5,6 +5,7 @@
  * sigues. No repite la colección
  * (Mi colección), el diario (Diario) ni tu retrato cultural (Perfil).
  */
+import { coverOk, vCover } from '../lib/cover'
 import { computed, onMounted, ref } from 'vue'
 import { storeToRefs } from 'pinia'
 import { useRouter } from 'vue-router'
@@ -15,6 +16,7 @@ import EmptyState from '../components/EmptyState.vue'
 import ProgressBar from '../components/ProgressBar.vue'
 import RatingStars from '../components/RatingStars.vue'
 import ContinueConsumingCard from '../components/home/ContinueConsumingCard.vue'
+import GettingStarted from '../components/home/GettingStarted.vue'
 import FollowingFeed from '../components/home/FollowingFeed.vue'
 import { MEDIA_TYPES, statusLabel, typeMeta } from '../lib/catalog'
 import { formatDay } from '../lib/dates'
@@ -95,9 +97,17 @@ function openLog(log: LogEntry) {
 </script>
 
 <template>
-  <template v-if="loading && !media.loaded">
-    <p class="home__loading">Cargando…</p>
-  </template>
+  <!-- Siluetas con la forma de Inicio (saludo, Continuar y las dos columnas) mientras carga -->
+  <div v-if="loading && !media.loaded" class="home__skeleton" aria-busy="true" aria-label="Cargando inicio">
+    <span class="home__skeleton-line home__skeleton-line--title mosaic-skeleton" />
+    <span class="home__skeleton-line mosaic-skeleton" />
+    <div class="home__continue">
+      <div v-for="n in 3" :key="n" class="home__skeleton-block mosaic-skeleton" />
+    </div>
+    <div class="home__columns">
+      <div v-for="n in 2" :key="n" class="home__skeleton-block home__skeleton-block--tall mosaic-skeleton" />
+    </div>
+  </div>
 
   <EmptyState
     v-else-if="isEmpty"
@@ -118,12 +128,17 @@ function openLog(log: LogEntry) {
       </p>
     </header>
 
+    <!-- Para quien recién llega; se oculta sola al completar las tareas o con la ✕ -->
+    <GettingStarted />
+
     <section>
       <SectionHeader title="Continuar" />
       <div v-if="inProgress.length" class="home__continue">
         <ContinueConsumingCard
-          v-for="entry in inProgress"
+          v-for="(entry, i) in inProgress"
           :key="entry.id"
+          class="mosaic-enter"
+          :style="{ '--i': i }"
           :entry="entry"
           @open="ui.openWorkDetail(entry)"
           @update="ui.openEditEntry(entry.id)"
@@ -173,7 +188,7 @@ function openLog(log: LogEntry) {
         <ul v-if="recentlyFinished.length" class="home__recent">
           <li v-for="log in recentlyFinished" :key="log.id">
             <button type="button" class="home__recent-row" @click="openLog(log)">
-              <img v-if="log.entry!.cover" :src="log.entry!.cover" alt="" class="home__recent-cover" loading="lazy" />
+              <img v-if="coverOk(log.entry!.cover)" v-cover="log.entry!.cover" :src="log.entry!.cover" alt="" class="home__recent-cover" loading="lazy" />
               <span v-else class="home__recent-cover home__recent-cover--empty" aria-hidden="true">
                 <BaseIcon :name="typeMeta(log.entry!.type).icon" />
               </span>
@@ -200,8 +215,31 @@ function openLog(log: LogEntry) {
 </template>
 
 <style scoped>
-.home__loading {
-  color: var(--color-text-muted);
+/* Siluetas de carga (el brillo lo pone .mosaic-skeleton, en style.css). */
+.home__skeleton {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-lg);
+}
+
+.home__skeleton-line {
+  width: min(320px, 70%);
+  height: 14px;
+  border-radius: 999px;
+}
+
+.home__skeleton-line--title {
+  width: min(220px, 50%);
+  height: 28px;
+}
+
+.home__skeleton-block {
+  height: 140px;
+  border-radius: var(--radius-lg);
+}
+
+.home__skeleton-block--tall {
+  height: 260px;
 }
 
 .home__hello {

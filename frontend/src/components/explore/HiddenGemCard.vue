@@ -4,6 +4,7 @@
  * título encima. La grande (`size="lg"`) muestra año y sinopsis. `rating`
  * (0–5) se dibuja con el ícono de estrella de Bootstrap.
  */
+import { coverOk, vCover } from '../../lib/cover'
 import BaseIcon from '../BaseIcon.vue'
 
 withDefaults(defineProps<{
@@ -23,7 +24,8 @@ const formatRating = (r: number) => r.toLocaleString('es', { minimumFractionDigi
 
 <template>
   <button class="gem-card" :class="`gem-card--${size}`" type="button" @click="$emit('open')">
-    <img class="gem-card__image" :src="cover" :alt="title" />
+    <!-- Sin portada (o rota), queda el fondo de la tarjeta con el título encima. -->
+    <img v-if="coverOk(cover)" v-cover="cover" class="gem-card__image" :src="cover" :alt="title" />
     <div class="gem-card__overlay" />
     <div class="gem-card__content">
       <span v-if="size === 'lg'" class="gem-card__kind">

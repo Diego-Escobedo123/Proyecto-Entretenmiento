@@ -4,10 +4,10 @@
  * /users/:id/following; `me` = el usuario actual). Pestañas para cambiar
  * entre ambas listas.
  */
+import SkeletonList from '../components/SkeletonList.vue'
 import { computed, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import BaseIcon from '../components/BaseIcon.vue'
-import BaseSpinner from '../components/BaseSpinner.vue'
 import EmptyState from '../components/EmptyState.vue'
 import PersonRow from '../components/social/PersonRow.vue'
 import { socialService } from '../services/socialService'
@@ -74,7 +74,7 @@ const EMPTY = {
       </RouterLink>
     </nav>
 
-    <p v-if="loading" class="follows__hint"><BaseSpinner size="sm" /> Cargando…</p>
+    <SkeletonList v-if="loading" :rows="5" avatar />
     <EmptyState
       v-else-if="isPrivate"
       icon="lock"
@@ -135,14 +135,6 @@ const EMPTY = {
 .follows__tab.is-active {
   color: var(--color-text);
   border-bottom-color: var(--color-accent);
-}
-
-.follows__hint {
-  display: flex;
-  align-items: center;
-  gap: var(--space-sm);
-  margin: 0;
-  color: var(--color-text-muted);
 }
 
 .follows__list {

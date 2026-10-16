@@ -11,7 +11,10 @@ import { computed, ref } from 'vue'
 import BaseIcon from '../BaseIcon.vue'
 import BaseSpinner from '../BaseSpinner.vue'
 import { listService } from '../../services/listService'
+import { useToastStore } from '../../stores/toast'
 import type { ListSummary, ListWork } from '../../types/list'
+
+const toast = useToastStore()
 
 const props = defineProps<{ work: ListWork }>()
 
@@ -46,11 +49,15 @@ async function toggle(list: ListSummary) {
       await listService.removeItem(list.id, list.workItemId)
       list.workItemId = null
       list.itemCount--
+      toast.show(`Se quitó de «${list.title}».`)
     } else {
       const item = await listService.addItem(list.id, props.work)
       list.workItemId = item.id
       list.itemCount++
+      toast.success(`Agregada a «${list.title}».`)
     }
+  } catch {
+    toast.error(`No se pudo actualizar «${list.title}». Inténtalo de nuevo.`)
   } finally {
     busy.value.delete(list.id)
   }
@@ -69,6 +76,9 @@ async function createWithWork() {
     const item = await listService.addItem(list.id, props.work)
     lists.value = [{ ...list, itemCount: 1, workItemId: item.id }, ...lists.value]
     newTitle.value = ''
+    toast.success(`Creaste «${list.title}» con esta obra.`)
+  } catch {
+    toast.error('No se pudo crear la lista. Inténtalo de nuevo.')
   } finally {
     creating.value = false
   }

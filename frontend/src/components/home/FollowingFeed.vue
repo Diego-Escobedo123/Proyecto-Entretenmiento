@@ -65,7 +65,13 @@ const detail = (p: SuggestedPerson) =>
 
     <template v-else-if="items.length">
       <div class="feed__list">
-        <FeedItemCard v-for="item in items" :key="item.id" :item="item" />
+        <FeedItemCard
+          v-for="(item, i) in items"
+          :key="item.id"
+          class="mosaic-enter"
+          :style="{ '--i': i }"
+          :item="item"
+        />
       </div>
       <button v-if="nextBefore" type="button" class="feed__more" :disabled="loadingMore" @click="loadMore">
         <BaseSpinner v-if="loadingMore" size="sm" /> Ver más

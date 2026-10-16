@@ -11,6 +11,7 @@
  * del perfil) abre el diario en esa semana: elige el año, resalta lo que se
  * empezó o terminó esos 7 días y baja hasta ahí.
  */
+import { coverOk, vCover } from '../lib/cover'
 import { computed, nextTick, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import BaseIcon from '../components/BaseIcon.vue'
@@ -216,7 +217,7 @@ function open(log: LogEntry) {
       <li v-for="log in m.items" :key="log.id">
         <button type="button" class="diary__row" :class="{ 'is-week': inWeek(log) }" @click="open(log)">
           <span class="diary__day">{{ parseISODay(dayOf(log)).getDate() }}</span>
-          <img v-if="log.entry!.cover" :src="log.entry!.cover" alt="" class="diary__cover" loading="lazy" />
+          <img v-if="coverOk(log.entry!.cover)" v-cover="log.entry!.cover" :src="log.entry!.cover" alt="" class="diary__cover" loading="lazy" />
           <span v-else class="diary__cover diary__cover--empty" aria-hidden="true">
             <BaseIcon :name="typeMeta(log.entry!.type).icon" />
           </span>

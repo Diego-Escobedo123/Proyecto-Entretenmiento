@@ -9,8 +9,10 @@
  * Uso:
  *   <MediaCard :entry="entry" @open="..." @toggle-favorite="..." @edit="..." @delete="..." />
  */
+import { coverOk, vCover } from '../lib/cover'
 import BaseBadge from './BaseBadge.vue'
 import BaseIcon from './BaseIcon.vue'
+import ToggleIcon from './ToggleIcon.vue'
 import RatingStars from './RatingStars.vue'
 import ProgressBar from './ProgressBar.vue'
 import { computed } from 'vue'
@@ -39,7 +41,7 @@ const emit = defineEmits<{ open: []; 'toggle-favorite': []; edit: []; delete: []
         tabindex="-1"
         @click="emit('open')"
       >
-        <img v-if="entry.cover" :src="entry.cover" :alt="entry.title" loading="lazy" />
+        <img v-if="coverOk(entry.cover)" v-cover="entry.cover" :src="entry.cover" :alt="entry.title" loading="lazy" />
         <div v-else class="media-card__cover-placeholder" aria-hidden="true">
           <BaseIcon :name="typeMeta(entry.type).icon" />
         </div>
@@ -53,7 +55,7 @@ const emit = defineEmits<{ open: []; 'toggle-favorite': []; edit: []; delete: []
         :aria-label="entry.favorite ? 'Quitar de favoritos' : 'Añadir a favoritos'"
         @click="emit('toggle-favorite')"
       >
-        <BaseIcon :name="entry.favorite ? 'heart-fill' : 'heart'" />
+        <ToggleIcon :on="entry.favorite" icon="heart" icon-on="heart-fill" burst />
       </button>
     </div>
 

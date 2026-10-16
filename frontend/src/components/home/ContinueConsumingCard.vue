@@ -7,6 +7,7 @@
  * Uso:
  *   <ContinueConsumingCard :entry="entry" @open="…" @update="…" />
  */
+import { coverOk, vCover } from '../../lib/cover'
 import { computed } from 'vue'
 import BaseBadge from '../BaseBadge.vue'
 import BaseIcon from '../BaseIcon.vue'
@@ -28,7 +29,7 @@ const progressText = computed(() => {
 <template>
   <div class="continue-card">
     <button type="button" class="continue-card__cover-btn" :aria-label="`Ver ficha de ${entry.title}`" @click="$emit('open')">
-      <img v-if="entry.cover" class="continue-card__cover" :src="entry.cover" alt="" />
+      <img v-if="coverOk(entry.cover)" v-cover="entry.cover" class="continue-card__cover" :src="entry.cover" alt="" />
       <span v-else class="continue-card__cover continue-card__cover--empty" aria-hidden="true">
         <BaseIcon :name="typeMeta(entry.type).icon" />
       </span>

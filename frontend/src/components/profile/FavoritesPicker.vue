@@ -7,6 +7,7 @@
  * Uso:
  *   <FavoritesPicker v-if="abierto" :initial="profile.topPicks" @close="…" @saved="…" />
  */
+import { coverOk, vCover } from '../../lib/cover'
 import { computed, ref } from 'vue'
 import { storeToRefs } from 'pinia'
 import BaseModal from '../BaseModal.vue'
@@ -89,7 +90,13 @@ async function save() {
       <ol class="picker__slots">
         <li v-for="n in MAX" :key="n" class="picker__slot">
           <template v-if="chosen[n - 1]">
-            <img v-if="chosen[n - 1].cover" :src="chosen[n - 1].cover!" alt="" class="picker__cover" />
+            <img
+              v-if="coverOk(chosen[n - 1].cover)"
+              v-cover="chosen[n - 1].cover"
+              :src="chosen[n - 1].cover!"
+              alt=""
+              class="picker__cover"
+            />
             <span v-else class="picker__cover picker__cover--empty" aria-hidden="true">
               <BaseIcon :name="typeMeta(chosen[n - 1].type).icon" />
             </span>
@@ -139,7 +146,7 @@ async function save() {
             :title="chosen.length >= MAX ? 'Ya elegiste 5: quita una para cambiarla' : `Agregar ${e.title}`"
             @click="add(e)"
           >
-            <img v-if="e.cover" :src="e.cover" alt="" class="picker__cover" loading="lazy" />
+            <img v-if="coverOk(e.cover)" v-cover="e.cover" :src="e.cover" alt="" class="picker__cover" loading="lazy" />
             <span v-else class="picker__cover picker__cover--empty" aria-hidden="true">
               <BaseIcon :name="typeMeta(e.type).icon" />
             </span>
