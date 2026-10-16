@@ -1,6 +1,7 @@
 <script setup lang="ts">
 /**
- * ListCard — tarjeta de una lista: collage de hasta 4 portadas, nombre,
+ * ListCard — tarjeta de una lista: su portada (la que subió o, si no, un
+ * collage de hasta 4 portadas de sus obras), nombre,
  * cuántas obras tiene y si es pública. Lleva al detalle (/lists/:id).
  *
  * Uso:
@@ -20,7 +21,15 @@ const covers = computed(() => props.list.covers.filter((c) => !broken.value.has(
 
 <template>
   <RouterLink :to="`/lists/${list.id}`" class="list-card">
-    <div class="list-card__collage" :class="covers.length ? `list-card__collage--${covers.length}` : 'list-card__collage--empty'">
+    <!-- Portada propia, si la subió; si no, el collage automático -->
+    <div v-if="list.coverImage" class="list-card__collage list-card__collage--1">
+      <img :src="list.coverImage" alt="" class="list-card__cover" loading="lazy" />
+    </div>
+    <div
+      v-else
+      class="list-card__collage"
+      :class="covers.length ? `list-card__collage--${covers.length}` : 'list-card__collage--empty'"
+    >
       <img
         v-for="cover in covers"
         :key="cover"

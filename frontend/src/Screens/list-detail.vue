@@ -16,6 +16,7 @@ import EmptyState from '../components/EmptyState.vue'
 import ListAddSearch from '../components/lists/ListAddSearch.vue'
 import ListFormModal from '../components/lists/ListFormModal.vue'
 import { typeMeta } from '../lib/catalog'
+import { coverOk } from '../lib/cover'
 import { ApiError } from '../lib/api'
 import { listService } from '../services/listService'
 import { useUiStore } from '../stores/ui'
@@ -179,8 +180,17 @@ function onListSaved(summary: ListSummary) {
     description: summary.description,
     isPublic: summary.isPublic,
     ranked: summary.ranked,
+    coverImage: summary.coverImage,
   })
 }
+
+/** Portadas de las primeras obras: la portada automática (collage) si no subió una. */
+const autoCovers = computed(() =>
+  items.value
+    .map((i) => i.cover)
+    .filter(coverOk)
+    .slice(0, 4),
+)
 
 const confirmingDelete = ref(false)
 async function deleteList() {
@@ -220,6 +230,24 @@ async function copyLink() {
 
     <template v-else-if="list">
       <header class="list-detail__head">
+        <!-- Portada: la propia o el collage de las primeras obras. Al dueño, tocarla abre "Editar". -->
+        <component
+          :is="list.isOwner ? 'button' : 'div'"
+          v-if="list.coverImage || autoCovers.length"
+          :type="list.isOwner ? 'button' : undefined"
+          class="list-detail__cover"
+          :class="{ 'is-editable': list.isOwner }"
+          :aria-label="list.isOwner ? 'Cambiar portada' : undefined"
+          :title="list.isOwner ? 'Cambiar portada' : undefined"
+          @click="list.isOwner && (editingList = true)"
+        >
+          <img v-if="list.coverImage" :src="list.coverImage" alt="" />
+          <span v-else class="list-detail__collage" :class="`list-detail__collage--${autoCovers.length}`">
+            <img v-for="c in autoCovers" :key="c" :src="c" alt="" />
+          </span>
+          <span v-if="list.isOwner" class="list-detail__cover-edit" aria-hidden="true"><BaseIcon name="image" /></span>
+        </component>
+
         <div class="list-detail__heading">
           <h1 class="list-detail__title">{{ list.title }}</h1>
           <p class="list-detail__byline">
@@ -340,7 +368,13 @@ async function copyLink() {
         </li>
       </ol>
 
-      <ListFormModal v-if="editingList" :list="list" @close="editingList = false" @saved="onListSaved" />
+      <ListFormModal
+        v-if="editingList"
+        :list="list"
+        :preview-covers="autoCovers"
+        @close="editingList = false"
+        @saved="onListSaved"
+      />
       <ConfirmDialog
         v-if="confirmingDelete"
         title="Eliminar lista"
@@ -394,6 +428,84 @@ async function copyLink() {
   flex-direction: column;
   gap: var(--space-xs);
   min-width: 0;
+  flex: 1;
+}
+
+/* Portada de la lista, a la izquierda del título. */
+.list-detail__cover {
+  position: relative;
+  flex-shrink: 0;
+  width: 132px;
+  height: 132px;
+  padding: 0;
+  overflow: hidden;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  background: var(--color-surface-2);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.25);
+}
+
+.list-detail__cover > img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.list-detail__cover.is-editable {
+  cursor: pointer;
+}
+
+/* Al dueño: al pasar el mouse aparece el ícono para cambiarla. */
+.list-detail__cover-edit {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  background: rgba(0, 0, 0, 0.45);
+  color: var(--fig-cream);
+  font-size: 1.5rem;
+  opacity: 0;
+  transition: opacity var(--dur-fast) ease;
+}
+
+.list-detail__cover.is-editable:hover .list-detail__cover-edit,
+.list-detail__cover.is-editable:focus-visible .list-detail__cover-edit {
+  opacity: 1;
+}
+
+.list-detail__collage {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  grid-template-rows: 1fr 1fr;
+  gap: 2px;
+  width: 100%;
+  height: 100%;
+}
+
+.list-detail__collage img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.list-detail__collage--1 {
+  grid-template-columns: 1fr;
+  grid-template-rows: 1fr;
+}
+
+.list-detail__collage--2 {
+  grid-template-rows: 1fr;
+}
+
+.list-detail__collage--3 img:first-child {
+  grid-row: span 2;
+}
+
+@media (max-width: 640px) {
+  .list-detail__cover {
+    width: 96px;
+    height: 96px;
+  }
 }
 
 .list-detail__title {

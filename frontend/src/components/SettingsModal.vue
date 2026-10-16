@@ -16,6 +16,7 @@ import BaseButton from './BaseButton.vue'
 import BaseIcon from './BaseIcon.vue'
 import AppField from './AppField.vue'
 import { ApiError } from '../lib/api'
+import { ACCEPTED_IMAGE_TYPES, toSquareDataUrl } from '../lib/image'
 import { useProfileStore } from '../stores/profile'
 import { useUiStore } from '../stores/ui'
 
@@ -61,52 +62,13 @@ function pickFile() {
   fileInput.value?.click()
 }
 
-/** Recorta al centro en un cuadrado y la achica a 256 × 256 (WebP si el navegador puede; si no, JPEG). */
-async function toSquareDataUrl(file: File): Promise<string> {
-  const url = URL.createObjectURL(file)
-  try {
-    const img = new Image()
-    img.src = url
-    await img.decode()
-    const side = Math.min(img.naturalWidth, img.naturalHeight)
-    const canvas = document.createElement('canvas')
-    canvas.width = PHOTO_SIZE
-    canvas.height = PHOTO_SIZE
-    const ctx = canvas.getContext('2d')!
-    ctx.imageSmoothingQuality = 'high'
-    ctx.drawImage(
-      img,
-      (img.naturalWidth - side) / 2,
-      (img.naturalHeight - side) / 2,
-      side,
-      side,
-      0,
-      0,
-      PHOTO_SIZE,
-      PHOTO_SIZE,
-    )
-    const webp = canvas.toDataURL('image/webp', 0.85)
-    if (webp.startsWith('data:image/webp')) return webp
-    // JPEG no tiene transparencia: el fondo, del color de la app.
-    const flat = document.createElement('canvas')
-    flat.width = flat.height = PHOTO_SIZE
-    const fctx = flat.getContext('2d')!
-    fctx.fillStyle = '#3b1f3a'
-    fctx.fillRect(0, 0, PHOTO_SIZE, PHOTO_SIZE)
-    fctx.drawImage(canvas, 0, 0)
-    return flat.toDataURL('image/jpeg', 0.85)
-  } finally {
-    URL.revokeObjectURL(url)
-  }
-}
-
 async function onFile(event: Event) {
   const input = event.target as HTMLInputElement
   const file = input.files?.[0]
   input.value = '' // permite volver a elegir el mismo archivo
   errors.avatar = undefined
   if (!file) return
-  if (!/^image\/(jpeg|png|webp)$/.test(file.type)) {
+  if (!ACCEPTED_IMAGE_TYPES.test(file.type)) {
     errors.avatar = 'Elige una imagen JPG, PNG o WebP.'
     return
   }
@@ -116,7 +78,7 @@ async function onFile(event: Event) {
   }
   processing.value = true
   try {
-    form.avatar = await toSquareDataUrl(file)
+    form.avatar = await toSquareDataUrl(file, PHOTO_SIZE)
   } catch {
     errors.avatar = 'No se pudo leer la imagen.'
   } finally {

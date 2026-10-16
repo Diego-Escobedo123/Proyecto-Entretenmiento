@@ -29,6 +29,7 @@ export function toListSummaryDTO(row: ListWithPreview) {
     description: row.description,
     isPublic: row.isPublic,
     ranked: row.ranked,
+    coverImage: row.coverImage,
     itemCount: row._count.items,
     covers: row.items.map((i) => upgradeBookCover(i.cover)).filter((c): c is string => Boolean(c)),
     updatedAt: row.updatedAt.toISOString(),
@@ -99,7 +100,7 @@ listRoutes.get('/', async (c) => {
   )
 })
 
-// POST /lists { title, description?, isPublic?, ranked? } -> resumen
+// POST /lists { title, description?, isPublic?, ranked?, coverImage? } -> resumen
 listRoutes.post('/', async (c) => {
   const parsed = await validateBody(c, createListSchema)
   if (!parsed.ok) return parsed.response
@@ -128,6 +129,7 @@ listRoutes.get('/:id', async (c) => {
     description: row.description,
     isPublic: row.isPublic,
     ranked: row.ranked,
+    coverImage: row.coverImage,
     isOwner,
     owner: toPublicUserDTO(row.user),
     items: row.items.map(toItemDTO),
@@ -136,7 +138,7 @@ listRoutes.get('/:id', async (c) => {
   })
 })
 
-// PATCH /lists/:id { title?, description?, isPublic?, ranked? } -> resumen
+// PATCH /lists/:id { title?, description?, isPublic?, ranked?, coverImage? } -> resumen (coverImage null = automática)
 listRoutes.patch('/:id', async (c) => {
   const owned = await findOwnedList(c.req.param('id'), c.get('userId'))
   if (!owned) return c.json({ message: 'No existe la lista.' }, 404)
