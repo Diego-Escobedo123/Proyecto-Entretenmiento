@@ -7,6 +7,7 @@
  *   <YearGoals :year="2026" :logs="logs" />
  */
 import { computed, ref, watch } from 'vue'
+import { useInView } from '../composables/useInView'
 import BaseIcon from './BaseIcon.vue'
 import BaseButton from './BaseButton.vue'
 import ProgressBar from './ProgressBar.vue'
@@ -51,6 +52,50 @@ const rows = computed(() =>
 )
 
 /** Ritmo: cuántas debería llevar a hoy para cumplir la meta. */
+// --- Celebración al cumplir una meta: una vez por meta (y objetivo) en este navegador ---
+
+const celebrating = ref(new Set<string>())
+const celebratedKey = (g: Goal) => `mosaic:goal-celebrated:${g.id}:${g.target}`
+
+/** Sólo se celebra (y se marca como celebrada) cuando las metas llegan a verse en pantalla. */
+const goalsEl = ref<HTMLElement | null>(null)
+const goalsInView = useInView(goalsEl)
+
+watch(
+  [rows, goalsInView],
+  ([list, visible]) => {
+    if (!visible) return
+    for (const r of list) {
+      if (r.done < r.goal.target || celebrating.value.has(r.goal.id)) continue
+      try {
+        if (localStorage.getItem(celebratedKey(r.goal))) continue
+        localStorage.setItem(celebratedKey(r.goal), '1')
+      } catch {
+        // Sin almacenamiento (modo privado…): mejor no celebrar que celebrar en cada visita.
+        continue
+      }
+      celebrating.value = new Set(celebrating.value).add(r.goal.id)
+    }
+  },
+  { immediate: true },
+)
+
+/** Teselas del confeti: hacia dónde saltan, cuánto giran y su color (los del mosaico). */
+const CONFETTI = [
+  { x: -34, y: -26, r: -40, c: 'var(--golden-fig)' },
+  { x: -18, y: -38, r: 25, c: 'var(--fig-stem-green)' },
+  { x: -4, y: -30, r: -15, c: 'var(--rose)' },
+  { x: 12, y: -40, r: 50, c: 'var(--deep-raspberry)' },
+  { x: 26, y: -24, r: -30, c: 'var(--golden-fig)' },
+  { x: 40, y: -34, r: 35, c: 'var(--burnt-copper)' },
+].map((t, i) => ({
+  '--x': `${t.x}px`,
+  '--y': `${t.y}px`,
+  '--r': `${t.r}deg`,
+  background: t.c,
+  animationDelay: `${600 + i * 30}ms`,
+}))
+
 function paceText(done: number, target: number): string {
   if (done >= target) return '¡Meta cumplida!'
   if (!isCurrentYear.value) return `Faltaron ${target - done}`
@@ -113,7 +158,7 @@ async function remove(goal: Goal) {
 </script>
 
 <template>
-  <section class="goals">
+  <section ref="goalsEl" class="goals">
     <header class="goals__head">
       <h2 class="goals__title"><BaseIcon name="trophy" /> Reto {{ year }}</h2>
       <button v-if="!editing && availableOptions.length" type="button" class="goals__add" @click="startNew">
@@ -142,9 +187,13 @@ async function remove(goal: Goal) {
             </button>
           </span>
         </div>
-        <ProgressBar :percent="r.percent" />
+        <ProgressBar :percent="r.percent" :complete="r.done >= r.goal.target" />
         <span class="goals__pace" :class="{ 'is-done': r.done >= r.goal.target }">
           {{ r.percent }}% · {{ paceText(r.done, r.goal.target) }}
+          <!-- Meta recién cumplida: teselas del mosaico que saltan (una sola vez por meta) -->
+          <span v-if="celebrating.has(r.goal.id)" class="goals__confetti" aria-hidden="true">
+            <span v-for="(t, i) in CONFETTI" :key="i" class="goals__tile" :style="t" />
+          </span>
         </span>
       </li>
     </ul>
@@ -275,6 +324,7 @@ async function remove(goal: Goal) {
 }
 
 .goals__pace {
+  position: relative;
   font-size: 0.8125rem;
   color: var(--color-text-muted);
 }
@@ -282,6 +332,41 @@ async function remove(goal: Goal) {
 .goals__pace.is-done {
   color: var(--color-success);
   font-weight: 600;
+}
+
+.goals__confetti {
+  position: absolute;
+  left: 2.5em;
+  top: 50%;
+  pointer-events: none;
+}
+
+.goals__tile {
+  position: absolute;
+  width: 6px;
+  height: 6px;
+  border-radius: 1px;
+  opacity: 0;
+  animation: goals-tile 800ms var(--ease-out) both;
+}
+
+/* Cada tesela salta hacia su lado, gira y cae un poco mientras se desvanece. */
+@keyframes goals-tile {
+  0% {
+    opacity: 0;
+    transform: translate(0, 0) rotate(0) scale(0.4);
+  }
+  20% {
+    opacity: 1;
+  }
+  70% {
+    opacity: 1;
+    transform: translate(var(--x), var(--y)) rotate(var(--r)) scale(1);
+  }
+  100% {
+    opacity: 0;
+    transform: translate(var(--x), calc(var(--y) + 10px)) rotate(var(--r)) scale(1);
+  }
 }
 
 .goals__form {

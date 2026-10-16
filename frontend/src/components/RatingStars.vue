@@ -6,7 +6,7 @@
  *                 Click en la mitad izquierda de una estrella = media estrella;
  *                 click en el mismo valor lo limpia a 0. Flechas: ±½.
  */
-import { computed } from 'vue'
+import { computed, ref, watch } from 'vue'
 import BaseIcon from './BaseIcon.vue'
 
 const props = withDefaults(
@@ -27,6 +27,24 @@ const stars = computed(() =>
 )
 
 const label = computed(() => `${rounded.value.toLocaleString('es')} de ${props.max}`)
+
+/**
+ * Al subir la calificación (sólo en edición), las estrellas que se llenan
+ * hacen pop en cascada, de la primera nueva a la elegida. `key` reinicia la
+ * animación aunque se vuelva a elegir el mismo tramo.
+ */
+const cascade = ref<{ from: number; to: number; key: number } | null>(null)
+watch(rounded, (now, before) => {
+  if (!props.editable || now <= before) return
+  cascade.value = { from: Math.floor(before), to: Math.ceil(now), key: (cascade.value?.key ?? 0) + 1 }
+})
+
+const STAR_STAGGER_MS = 45
+function popOf(i: number): { key: string; delay: string } | null {
+  const c = cascade.value
+  if (!c || i < c.from || i >= c.to) return null
+  return { key: `${i}-${c.key}`, delay: `${(i - c.from) * STAR_STAGGER_MS}ms` }
+}
 
 function set(next: number) {
   emit('update:value', Math.min(props.max, Math.max(0, next)))
@@ -67,9 +85,10 @@ function onKey(event: KeyboardEvent) {
   >
     <span
       v-for="(icon, i) in stars"
-      :key="i"
+      :key="popOf(i)?.key ?? i"
       class="rating-stars__star"
-      :class="{ 'rating-stars__star--filled': icon !== 'star' }"
+      :class="{ 'rating-stars__star--filled': icon !== 'star', 'is-popping': popOf(i) }"
+      :style="popOf(i) ? { animationDelay: popOf(i)!.delay } : undefined"
       aria-hidden="true"
       @click="pick(i, $event)"
     ><BaseIcon :name="icon" /></span>
@@ -83,9 +102,20 @@ function onKey(event: KeyboardEvent) {
 }
 
 .rating-stars__star {
+  display: inline-block;
   color: var(--color-text-subtle);
   font-size: 1rem;
   line-height: 1;
+}
+
+/* `backwards`: espera su turno en su tamaño y, al terminar, deja libre el transform (para el hover). */
+.rating-stars__star.is-popping {
+  animation: mosaic-pop var(--dur-base) var(--ease-spring) backwards;
+}
+
+.rating-stars--editable .rating-stars__star:hover {
+  transform: scale(1.15);
+  transition: transform var(--dur-fast) var(--ease-out);
 }
 
 .rating-stars--editable {

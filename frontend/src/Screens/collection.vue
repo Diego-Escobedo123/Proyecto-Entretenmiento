@@ -7,6 +7,7 @@ import { computed, ref } from 'vue'
 import { storeToRefs } from 'pinia'
 import { useRouter } from 'vue-router'
 import MediaCard from '../components/MediaCard.vue'
+import SkeletonCard from '../components/SkeletonCard.vue'
 import BaseTag from '../components/BaseTag.vue'
 import BaseIcon from '../components/BaseIcon.vue'
 import BaseButton from '../components/BaseButton.vue'
@@ -99,7 +100,9 @@ async function confirmDelete() {
     <BaseButton @click="ui.openCreateEntry()">+ Agregar obra</BaseButton>
   </header>
 
-  <p v-if="loading && !media.loaded" class="collection__loading">Cargando…</p>
+  <div v-if="loading && !media.loaded" class="collection__grid" aria-busy="true" aria-label="Cargando tu colección">
+    <SkeletonCard v-for="n in 8" :key="n" />
+  </div>
 
   <EmptyState
     v-else-if="isEmpty"
@@ -141,17 +144,20 @@ async function confirmDelete() {
       </BaseTag>
     </div>
 
-    <div v-if="visible.length" class="collection__grid">
+    <!-- Al cargar, las tarjetas entran escalonadas; al filtrar u ordenar, las que
+         quedan se deslizan a su nuevo lugar (las que salen se van sin animación). -->
+    <TransitionGroup v-if="visible.length" tag="div" name="collection-card" appear class="collection__grid">
       <MediaCard
-        v-for="entry in visible"
+        v-for="(entry, i) in visible"
         :key="entry.id"
+        :style="{ '--i': i }"
         :entry="entry"
         @open="ui.openWorkDetail(entry)"
         @toggle-favorite="media.toggleFavorite(entry.id)"
         @edit="ui.openEditEntry(entry.id)"
         @delete="pendingDelete = entry"
       />
-    </div>
+    </TransitionGroup>
 
     <EmptyState
       v-else-if="searchText"
@@ -208,8 +214,22 @@ async function confirmDelete() {
   margin: var(--space-xs) 0 0 0;
 }
 
-.collection__loading {
-  color: var(--color-text-muted);
+/* Tarjetas: entran escalonadas (hasta la 10.ª; las demás, juntas)… */
+.collection-card-enter-active {
+  transition:
+    opacity 400ms var(--ease-out),
+    transform 400ms var(--ease-out);
+  transition-delay: calc(min(var(--i, 0), 10) * 40ms);
+}
+
+.collection-card-enter-from {
+  opacity: 0;
+  transform: translateY(8px) scale(0.98);
+}
+
+/* …y al filtrar u ordenar, las que quedan se deslizan a su nuevo lugar. */
+.collection-card-move {
+  transition: transform 450ms var(--ease-out);
 }
 
 .collection__toolbar {

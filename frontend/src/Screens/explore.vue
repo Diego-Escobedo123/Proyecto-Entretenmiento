@@ -20,6 +20,7 @@ import { MEDIA_TYPES, typeMeta } from '../lib/catalog'
 import { useMediaStore } from '../stores/media'
 import { useUiStore } from '../stores/ui'
 import { useDebouncedSearch } from '../composables/useDebouncedSearch'
+import { useSlidingIndicator } from '../composables/useSlidingIndicator'
 import { searchCatalogs, type CatalogGroup } from '../services/searchService'
 import type { MediaType } from '../types/media'
 import type { ExternalSearchResult } from '../types/search'
@@ -40,6 +41,10 @@ const mediaTabs: { label: string; value: MediaType | null; icon: string }[] = [
   { label: 'Música', value: 'music', icon: typeMeta('music').icon },
 ]
 const activeType = ref<MediaType | null>(null)
+
+/** Pastilla dorada que se desliza a la pestaña elegida. */
+const tabsEl = ref<HTMLElement | null>(null)
+const { style: pillStyle, ready: pillReady } = useSlidingIndicator(tabsEl, '.explore__tab.is-active', activeType)
 
 /** Con 2+ caracteres se busca en los catálogos externos en vez del curado. */
 const catalogQuery = computed(() => {
@@ -131,7 +136,8 @@ onMounted(() => {
   <div class="explore">
     <!-- Filtro por tipo: control segmentado; en pantallas angostas se desplaza en horizontal. -->
     <nav class="explore__filters" aria-label="Filtrar por tipo de obra">
-      <div class="explore__tabs" role="group">
+      <div ref="tabsEl" class="explore__tabs" role="group">
+        <span class="explore__pill" :class="{ 'is-ready': pillReady }" :style="pillStyle" aria-hidden="true" />
         <button
           v-for="tab in mediaTabs"
           :key="tab.label"
@@ -170,8 +176,10 @@ onMounted(() => {
           </h2>
           <div class="explore__catalog-grid">
             <CatalogResultCard
-              v-for="r in group.results"
+              v-for="(r, i) in group.results"
               :key="r.externalId"
+              class="mosaic-enter"
+              :style="{ '--i': i }"
               :result="r"
               :type="group.type"
               :owned="!!findOwned(group.type, r)"
@@ -223,6 +231,7 @@ onMounted(() => {
 .explore { display: flex; flex-direction: column; gap: var(--space-xl); }
 .explore__filters { display: flex; min-width: 0; }
 .explore__tabs {
+  position: relative;
   display: flex;
   gap: var(--space-xs);
   max-width: 100%;
@@ -249,14 +258,29 @@ onMounted(() => {
   font-weight: 600;
   white-space: nowrap;
   cursor: pointer;
-  transition: background 0.15s ease, color 0.15s ease, box-shadow 0.15s ease;
+  /* Por encima de la pastilla deslizante. */
+  position: relative;
+  transition: background var(--dur-fast) ease, color var(--dur-base) ease;
 }
 .explore__tab:hover { background: var(--color-accent-hover-bg); color: var(--color-text); }
 .explore__tab:focus-visible { outline: 2px solid var(--color-accent); outline-offset: -2px; }
-.explore__tab.is-active {
-  background: var(--color-accent);
+/* El fondo dorado lo pone la pastilla deslizante; aquí sólo el texto. */
+.explore__tab.is-active,
+.explore__tab.is-active:hover {
+  background: transparent;
   color: var(--color-accent-contrast);
+}
+.explore__pill {
+  position: absolute;
+  top: 0;
+  left: 0;
+  border-radius: 999px;
+  background: var(--color-accent);
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.25);
+  pointer-events: none;
+}
+.explore__pill.is-ready {
+  transition: transform var(--dur-base) var(--ease-out), width var(--dur-base) var(--ease-out), opacity var(--dur-fast) ease;
 }
 .explore__content { display: flex; flex-direction: column; gap: var(--space-xl); min-width: 0; }
 .explore__searching { display: flex; align-items: center; gap: var(--space-sm); color: var(--color-text-muted); font-size: 0.9375rem; padding: var(--space-xl) 0; justify-content: center; }

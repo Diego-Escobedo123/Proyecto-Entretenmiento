@@ -7,7 +7,7 @@
  * pediste agregar. Al hacer clic en una se marca como leída y lleva a donde
  * corresponde (el perfil de esa persona, Personas, el Diario o tu colección).
  */
-import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import BaseIcon from './BaseIcon.vue'
 import UserAvatar from './social/UserAvatar.vue'
@@ -23,6 +23,18 @@ const open = ref(false)
 const wrapEl = ref<HTMLElement | null>(null)
 
 const badge = computed(() => (notifications.unread > 9 ? '9+' : String(notifications.unread)))
+
+/**
+ * Llegó algo nuevo (el refresco de cada minuto trajo más sin leer): la campana
+ * se balancea y el número hace pop. No en la primera carga, al entrar a la app.
+ */
+const ringKey = ref(0)
+watch(
+  () => [notifications.unread, notifications.loaded] as const,
+  ([unread, loaded], [before, wasLoaded]) => {
+    if (wasLoaded && loaded && unread > before) ringKey.value++
+  },
+)
 
 function toggle() {
   open.value = !open.value
@@ -107,8 +119,16 @@ onBeforeUnmount(() => {
       :aria-expanded="open"
       @click="toggle"
     >
-      <BaseIcon :name="notifications.unread ? 'bell-fill' : 'bell'" />
-      <span v-if="notifications.unread" class="bell__badge" aria-hidden="true">{{ badge }}</span>
+      <span :key="ringKey" class="bell__icon" :class="{ 'is-ringing': ringKey > 0 }">
+        <BaseIcon :name="notifications.unread ? 'bell-fill' : 'bell'" />
+      </span>
+      <span
+        v-if="notifications.unread"
+        :key="`badge-${ringKey}`"
+        class="bell__badge"
+        :class="{ 'is-popping': ringKey > 0 }"
+        aria-hidden="true"
+      >{{ badge }}</span>
     </button>
 
     <Transition name="bell-panel">
@@ -170,6 +190,30 @@ onBeforeUnmount(() => {
   color: var(--color-text-muted);
   font-size: 1.125rem;
   cursor: pointer;
+}
+
+.bell__icon {
+  display: inline-flex;
+}
+
+/* Notificación nueva: la campana se balancea desde su argolla… */
+.bell__icon.is-ringing {
+  transform-origin: 50% 10%;
+  animation: bell-ring 800ms ease-in-out;
+}
+
+@keyframes bell-ring {
+  0%, 100% { transform: rotate(0); }
+  15% { transform: rotate(16deg); }
+  30% { transform: rotate(-14deg); }
+  45% { transform: rotate(10deg); }
+  60% { transform: rotate(-6deg); }
+  75% { transform: rotate(3deg); }
+}
+
+/* …y el número entra con un pop. */
+.bell__badge.is-popping {
+  animation: mosaic-pop var(--dur-base) var(--ease-spring) 150ms both;
 }
 
 .bell__button:hover,

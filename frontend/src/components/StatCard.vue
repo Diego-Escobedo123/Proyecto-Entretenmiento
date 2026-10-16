@@ -4,10 +4,12 @@
  * de fondo (usado en Profile: "146 Películas", "42 Libros", etc.)
  * `icon` es un nombre de Bootstrap Icons (sin el prefijo `bi-`).
  * `delta`, si es > 0, muestra un badge "+N este mes".
+ * Un `value` numérico sube desde 0 al aparecer (ver CountUp).
  * Uso:
  *   <StatCard icon="film" :value="146" label="Películas" :delta="8" />
  */
 import BaseIcon from './BaseIcon.vue'
+import CountUp from './CountUp.vue'
 
 defineProps<{
   icon: string
@@ -21,7 +23,10 @@ defineProps<{
   <div class="stat-card">
     <BaseIcon :name="icon" class="stat-card__watermark" />
     <span v-if="delta" class="stat-card__badge">+{{ delta }} este mes</span>
-    <strong class="stat-card__value">{{ value }}</strong>
+    <strong class="stat-card__value">
+      <CountUp v-if="typeof value === 'number'" :value="value" />
+      <template v-else>{{ value }}</template>
+    </strong>
     <p class="stat-card__label">{{ label }}</p>
   </div>
 </template>

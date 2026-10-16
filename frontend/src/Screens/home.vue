@@ -95,9 +95,17 @@ function openLog(log: LogEntry) {
 </script>
 
 <template>
-  <template v-if="loading && !media.loaded">
-    <p class="home__loading">Cargando…</p>
-  </template>
+  <!-- Siluetas con la forma de Inicio (saludo, Continuar y las dos columnas) mientras carga -->
+  <div v-if="loading && !media.loaded" class="home__skeleton" aria-busy="true" aria-label="Cargando inicio">
+    <span class="home__skeleton-line home__skeleton-line--title mosaic-skeleton" />
+    <span class="home__skeleton-line mosaic-skeleton" />
+    <div class="home__continue">
+      <div v-for="n in 3" :key="n" class="home__skeleton-block mosaic-skeleton" />
+    </div>
+    <div class="home__columns">
+      <div v-for="n in 2" :key="n" class="home__skeleton-block home__skeleton-block--tall mosaic-skeleton" />
+    </div>
+  </div>
 
   <EmptyState
     v-else-if="isEmpty"
@@ -122,8 +130,10 @@ function openLog(log: LogEntry) {
       <SectionHeader title="Continuar" />
       <div v-if="inProgress.length" class="home__continue">
         <ContinueConsumingCard
-          v-for="entry in inProgress"
+          v-for="(entry, i) in inProgress"
           :key="entry.id"
+          class="mosaic-enter"
+          :style="{ '--i': i }"
           :entry="entry"
           @open="ui.openWorkDetail(entry)"
           @update="ui.openEditEntry(entry.id)"
@@ -200,8 +210,31 @@ function openLog(log: LogEntry) {
 </template>
 
 <style scoped>
-.home__loading {
-  color: var(--color-text-muted);
+/* Siluetas de carga (el brillo lo pone .mosaic-skeleton, en style.css). */
+.home__skeleton {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-lg);
+}
+
+.home__skeleton-line {
+  width: min(320px, 70%);
+  height: 14px;
+  border-radius: 999px;
+}
+
+.home__skeleton-line--title {
+  width: min(220px, 50%);
+  height: 28px;
+}
+
+.home__skeleton-block {
+  height: 140px;
+  border-radius: var(--radius-lg);
+}
+
+.home__skeleton-block--tall {
+  height: 260px;
 }
 
 .home__hello {

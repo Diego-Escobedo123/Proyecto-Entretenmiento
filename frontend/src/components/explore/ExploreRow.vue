@@ -91,13 +91,14 @@ function scroll(direction: -1 | 1) {
 
     <div ref="track" class="explore-row__track" :aria-busy="loading">
       <template v-if="loading">
-        <div v-for="n in 6" :key="n" class="explore-row__skeleton" aria-hidden="true" />
+        <div v-for="n in 6" :key="n" class="explore-row__skeleton mosaic-skeleton" aria-hidden="true" />
       </template>
       <CatalogResultCard
-        v-for="item in items"
+        v-for="(item, i) in items"
         v-else
         :key="`${item.type}|${item.externalId}`"
-        class="explore-row__card"
+        class="explore-row__card mosaic-enter"
+        :style="{ '--i': i }"
         :result="item"
         :type="item.type"
         :owned="!!owned(item)"
@@ -179,20 +180,10 @@ function scroll(direction: -1 | 1) {
   scroll-snap-align: start;
 }
 
+/* El brillo lo pone .mosaic-skeleton (style.css). */
 .explore-row__skeleton {
   aspect-ratio: 2 / 3;
   border-radius: var(--radius-md);
-  background: var(--color-surface-2);
-  animation: explore-row-pulse 1.2s ease-in-out infinite alternate;
-}
-
-@keyframes explore-row-pulse {
-  from {
-    opacity: 0.55;
-  }
-  to {
-    opacity: 1;
-  }
 }
 
 @media (max-width: 480px) {
@@ -202,12 +193,6 @@ function scroll(direction: -1 | 1) {
 
   .explore-row__arrows {
     display: none;
-  }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .explore-row__skeleton {
-    animation: none;
   }
 }
 </style>

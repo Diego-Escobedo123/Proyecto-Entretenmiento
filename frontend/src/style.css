@@ -120,3 +120,80 @@ img {
 .app-input[type='date'] {
   color-scheme: light dark;
 }
+
+/* --- Microanimaciones compartidas (duraciones y curvas en tokens.css) --- */
+
+/* "Pop": el elemento crece un poco y vuelve, al activarse (corazón, marcador…). */
+@keyframes mosaic-pop {
+  0% { transform: scale(1); }
+  40% { transform: scale(1.35); }
+  100% { transform: scale(1); }
+}
+
+/* Entrada: aparece subiendo un poco. */
+@keyframes mosaic-fade-up {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: none; }
+}
+
+/*
+ * "Reducir movimiento" del sistema: todas las animaciones y transiciones de la
+ * app terminan al instante (el estado final se ve igual, sin movimiento).
+ */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    animation-delay: 0ms !important;
+    transition-duration: 0.01ms !important;
+    transition-delay: 0ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/*
+ * Barrido circular (la dona del ADN se "dibuja" al aparecer): una máscara
+ * cónica que va de 0% a 100%. @property hace que el porcentaje se pueda
+ * animar; donde no hay soporte, la dona aparece completa a mitad de tiempo.
+ */
+@property --mosaic-sweep {
+  syntax: '<percentage>';
+  inherits: false;
+  initial-value: 100%;
+}
+
+@keyframes mosaic-sweep {
+  from { --mosaic-sweep: 0%; }
+  to { --mosaic-sweep: 100%; }
+}
+
+/*
+ * Entrada escalonada de tarjetas (Explorar, feed…): cada una aparece subiendo,
+ * un poco después de la anterior. `--i` es su posición; desde la 10.ª entran
+ * todas juntas para que una lista larga no tarde en mostrarse.
+ *   <Card v-for="(x, i) in list" class="mosaic-enter" :style="{ '--i': i }" />
+ */
+.mosaic-enter {
+  /* backwards: espera escondida su turno y, al terminar, no fija transform (no pisa un hover). */
+  animation: mosaic-fade-up 400ms var(--ease-out) backwards;
+  animation-delay: calc(min(var(--i, 0), 10) * 40ms);
+}
+
+/* Silueta de carga: un brillo que pasa de izquierda a derecha. */
+.mosaic-skeleton {
+  background: linear-gradient(
+    100deg,
+    var(--color-surface-2) 40%,
+    color-mix(in srgb, var(--color-surface-2) 82%, var(--color-text)) 50%,
+    var(--color-surface-2) 60%
+  );
+  background-size: 200% 100%;
+  animation: mosaic-shimmer 1.4s linear infinite;
+}
+
+@keyframes mosaic-shimmer {
+  from { background-position: 100% 0; }
+  to { background-position: -100% 0; }
+}

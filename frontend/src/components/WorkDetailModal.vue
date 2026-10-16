@@ -8,6 +8,7 @@ import { computed, ref } from 'vue'
 import BaseModal from './BaseModal.vue'
 import BaseButton from './BaseButton.vue'
 import BaseIcon from './BaseIcon.vue'
+import ToggleIcon from './ToggleIcon.vue'
 import CommunityReviews from './CommunityReviews.vue'
 import WorkStats from './WorkStats.vue'
 import WorkInfo from './WorkInfo.vue'
@@ -96,7 +97,7 @@ function addOrEdit() {
           :title="inWishlist ? 'Quitar de tu wishlist' : undefined"
           @click="toggleWishlist"
         >
-          <BaseIcon :name="inWishlist ? 'bookmark-heart-fill' : 'bookmark-heart'" />
+          <ToggleIcon :on="inWishlist" icon="bookmark-heart" icon-on="bookmark-heart-fill" />
           {{ inWishlist ? 'En tu wishlist' : 'Agregar a wishlist' }}
         </button>
         <AddToList :work="work" />

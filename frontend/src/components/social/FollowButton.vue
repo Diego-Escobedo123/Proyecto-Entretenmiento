@@ -52,15 +52,20 @@ async function toggle() {
     :disabled="busy"
     @click.stop.prevent="toggle"
   >
-    <template v-if="state === 'following'">
-      <span class="follow-btn__on"><BaseIcon name="check2" /> Siguiendo</span>
-      <span class="follow-btn__off"><BaseIcon name="x-lg" /> Dejar de seguir</span>
-    </template>
-    <template v-else-if="state === 'requested'">
-      <span class="follow-btn__on"><BaseIcon name="hourglass-split" /> Solicitud enviada</span>
-      <span class="follow-btn__off"><BaseIcon name="x-lg" /> Cancelar solicitud</span>
-    </template>
-    <template v-else><BaseIcon name="person-plus" /> Seguir</template>
+    <!-- Al cambiar de estado, el texto sale y entra el nuevo (con pop en su ícono). -->
+    <Transition name="follow-swap" mode="out-in">
+      <span :key="state" class="follow-btn__content">
+        <template v-if="state === 'following'">
+          <span class="follow-btn__on"><BaseIcon name="check2" /> Siguiendo</span>
+          <span class="follow-btn__off"><BaseIcon name="x-lg" /> Dejar de seguir</span>
+        </template>
+        <template v-else-if="state === 'requested'">
+          <span class="follow-btn__on"><BaseIcon name="hourglass-split" /> Solicitud enviada</span>
+          <span class="follow-btn__off"><BaseIcon name="x-lg" /> Cancelar solicitud</span>
+        </template>
+        <template v-else><BaseIcon name="person-plus" /> Seguir</template>
+      </span>
+    </Transition>
   </button>
 </template>
 
@@ -79,7 +84,41 @@ async function toggle() {
   font-weight: 700;
   cursor: pointer;
   white-space: nowrap;
-  transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+  transition:
+    background var(--dur-base) ease,
+    color var(--dur-base) ease,
+    border-color var(--dur-base) ease,
+    transform var(--dur-fast) ease;
+}
+
+.follow-btn:active:not(:disabled) {
+  transform: scale(0.96);
+}
+
+.follow-btn__content {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.follow-swap-enter-active,
+.follow-swap-leave-active {
+  transition: opacity var(--dur-fast) ease, transform var(--dur-fast) var(--ease-out);
+}
+
+.follow-swap-enter-from {
+  opacity: 0;
+  transform: translateY(4px);
+}
+
+.follow-swap-leave-to {
+  opacity: 0;
+  transform: translateY(-4px);
+}
+
+.follow-swap-enter-active .follow-btn__on .bi {
+  display: inline-block; /* transform no aplica a elementos inline */
+  animation: mosaic-pop var(--dur-base) var(--ease-spring) var(--dur-fast) both;
 }
 
 .follow-btn--md {

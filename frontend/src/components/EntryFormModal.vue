@@ -13,6 +13,7 @@ import RatingStars from './RatingStars.vue'
 import CommunityReviews from './CommunityReviews.vue'
 import EntryHistory from './EntryHistory.vue'
 import LogDatePicker from './LogDatePicker.vue'
+import ToggleIcon from './ToggleIcon.vue'
 import { MEDIA_TYPES, isFinished, statusMeta, statusesFor, typeMeta } from '../lib/catalog'
 import { todayISO } from '../lib/dates'
 import { bookProgress, seriesProgress } from '../lib/progress'
@@ -91,6 +92,9 @@ function blank(): FormShape {
 const form = reactive<FormShape>(blank())
 const errors = reactive<{ title?: string; year?: string; startDate?: string }>({})
 const submitting = ref(false)
+/** Se guardó: el botón muestra "✓ Guardado" un momento y el modal se cierra. */
+const saved = ref(false)
+const SAVED_PAUSE_MS = 500
 
 // --- Datos de la obra vs. datos del usuario ---
 // Tipo, título, creador, año, géneros y portada son datos de la obra: vienen
@@ -524,6 +528,9 @@ async function submit() {
     } else {
       await media.addEntry(toInput(), options)
     }
+    // Un instante con "✓ Guardado" en el botón antes de cerrar: confirma que se guardó.
+    saved.value = true
+    await new Promise((resolve) => setTimeout(resolve, SAVED_PAUSE_MS))
     closeAnimated()
   } catch (e) {
     errors.title = e instanceof Error ? e.message : 'No se pudo guardar.'
@@ -854,7 +861,7 @@ async function submit() {
         :aria-pressed="form.favorite"
         @click="form.favorite = !form.favorite"
       >
-        <BaseIcon :name="form.favorite ? 'heart-fill' : 'heart'" /> Favorita
+        <ToggleIcon :on="form.favorite" icon="heart" icon-on="heart-fill" burst /> Favorita
       </button>
 
       <!-- Diario de esta obra: fechas, repeticiones, volver a verla -->
@@ -881,7 +888,8 @@ async function submit() {
       <template v-else>
         <BaseButton variant="ghost" @click="closeAnimated">Cancelar</BaseButton>
         <BaseButton :disabled="submitting" @click="submit">
-          <template v-if="submitting">{{ sendsRequest ? 'Enviando…' : 'Guardando…' }}</template>
+          <span v-if="saved" class="entry-form__saved"><BaseIcon name="check2" /> Guardado</span>
+          <template v-else-if="submitting">{{ sendsRequest ? 'Enviando…' : 'Guardando…' }}</template>
           <template v-else>{{ editing ? 'Guardar cambios' : sendsRequest ? 'Enviar solicitud' : 'Agregar obra' }}</template>
         </BaseButton>
       </template>
@@ -1158,6 +1166,19 @@ async function submit() {
 }
 
 /* Candado junto a "Notas personales": cerrado (privadas) o abierto y dorado (públicas). */
+/* "✓ Guardado": el check entra con un pop. */
+.entry-form__saved {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  animation: mosaic-fade-up var(--dur-base) var(--ease-out);
+}
+
+.entry-form__saved .bi {
+  display: inline-block; /* transform no aplica a elementos inline */
+  animation: mosaic-pop var(--dur-base) var(--ease-spring) var(--dur-fast) both;
+}
+
 /* --- Notas personales: tarjeta tipo cuaderno --- */
 
 .entry-notes {
@@ -1352,9 +1373,9 @@ async function submit() {
   cursor: pointer;
 }
 
-.entry-form__favorite .bi {
+.entry-form__favorite .toggle-icon {
   font-size: 1.125rem;
-  transition: transform 0.15s ease;
+  transition: transform var(--dur-fast) ease;
 }
 
 .entry-form__favorite:hover {
@@ -1365,7 +1386,7 @@ async function submit() {
   color: var(--color-warning); /* Golden Fig, como el corazón de las tarjetas */
 }
 
-.entry-form__favorite.is-active .bi {
+.entry-form__favorite.is-active .toggle-icon {
   transform: scale(1.1);
 }
 

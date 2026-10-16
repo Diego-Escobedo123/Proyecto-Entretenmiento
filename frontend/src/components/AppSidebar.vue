@@ -15,6 +15,7 @@ import { useProfileStore } from '../stores/profile'
 import { useUiStore } from '../stores/ui'
 import { useAuthStore } from '../stores/auth'
 import { useFollowRequestsStore } from '../stores/followRequests'
+import { useSlidingIndicator } from '../composables/useSlidingIndicator'
 
 const route = useRoute()
 const router = useRouter()
@@ -27,6 +28,14 @@ const { profile } = storeToRefs(useProfileStore())
 function isActive(to: string): boolean {
   return route.path === to || (to !== '/' && route.path.startsWith(`${to}/`))
 }
+
+/** Resaltado de la sección activa: se desliza de una a otra al navegar. */
+const navEl = ref<HTMLElement | null>(null)
+const { style: indicatorStyle, ready: indicatorReady } = useSlidingIndicator(
+  navEl,
+  '.app-sidebar__link--active',
+  () => [route.path, auth.isAdmin],
+)
 
 // Menú desplegable del usuario (Editar perfil / Cerrar sesión).
 const userMenuOpen = ref(false)
@@ -94,7 +103,13 @@ watch(
       </div>
     </RouterLink>
 
-    <nav class="app-sidebar__nav">
+    <nav ref="navEl" class="app-sidebar__nav">
+      <span
+        class="app-sidebar__indicator"
+        :class="{ 'is-ready': indicatorReady }"
+        :style="indicatorStyle"
+        aria-hidden="true"
+      />
       <RouterLink
         v-for="item in NAV_ITEMS"
         :key="item.to"
@@ -240,10 +255,29 @@ watch(
 }
 
 .app-sidebar__nav {
+  position: relative;
   display: flex;
   flex-direction: column;
   gap: 2px;
   flex: 1;
+}
+
+/* Fondo y borde dorado de la sección activa: una sola pieza que se desliza (useSlidingIndicator). */
+.app-sidebar__indicator {
+  position: absolute;
+  top: 0;
+  left: 0;
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
+  border-left: 3px solid var(--color-accent);
+  pointer-events: none;
+}
+
+.app-sidebar__indicator.is-ready {
+  transition:
+    transform var(--dur-base) var(--ease-out),
+    height var(--dur-base) var(--ease-out),
+    opacity var(--dur-fast) ease;
 }
 
 /* Solicitudes pendientes para seguirme, junto a "Personas". */
@@ -269,7 +303,9 @@ watch(
   font-weight: 600;
   font-size: 0.9375rem;
   border-left: 3px solid transparent;
-  transition: background 0.15s ease, color 0.15s ease;
+  /* Por encima del indicador deslizante. */
+  position: relative;
+  transition: background var(--dur-fast) ease, color var(--dur-base) ease;
 }
 
 .app-sidebar__link:hover,
@@ -278,10 +314,15 @@ watch(
   color: var(--color-accent-hover-contrast);
 }
 
+/* El fondo y el borde los pone el indicador deslizante; aquí sólo el color del texto. */
 .app-sidebar__link--active {
-  background: var(--color-surface);
   color: var(--color-accent);
-  border-left-color: var(--color-accent);
+}
+
+/* Sobre la sección activa, el hover no tapa el indicador. */
+.app-sidebar__link--active:hover {
+  background: transparent;
+  color: var(--color-accent);
 }
 
 .app-sidebar__icon {

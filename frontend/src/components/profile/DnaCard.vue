@@ -7,8 +7,13 @@
  * Uso:
  *   <DnaCard :top-genres="…" :favorite-decade="…" dominant-label="Películas" :completion-rate="62" self />
  */
-import { computed } from 'vue'
+import { computed, ref } from 'vue'
 import BaseIcon from '../BaseIcon.vue'
+import { useInView } from '../../composables/useInView'
+
+/** La dona se dibuja cuando llega a verse, no al cargar la página. */
+const donutEl = ref<HTMLElement | null>(null)
+const donutInView = useInView(donutEl)
 
 const props = defineProps<{
   topGenres: { name: string; count: number; percent: number }[]
@@ -43,7 +48,7 @@ const donutGradient = computed(() => {
     <div class="dna">
       <div class="dna__chart">
       <template v-if="topGenres.length">
-        <div class="donut" :style="{ background: donutGradient }">
+        <div ref="donutEl" class="donut" :class="{ 'is-revealed': donutInView }" :style="{ '--donut': donutGradient }">
           <div class="donut__hole">
             <strong>{{ topGenres[0].percent }}%</strong>
             <span>{{ topGenres[0].name }}</span>
@@ -133,9 +138,28 @@ const donutGradient = computed(() => {
   margin: 0 auto;
 }
 
+/* El anillo de colores se dibuja en círculo al aparecer; el centro llega después. */
+.donut::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  background: var(--donut);
+  -webkit-mask: conic-gradient(#000 var(--mosaic-sweep), transparent 0);
+  mask: conic-gradient(#000 var(--mosaic-sweep), transparent 0);
+  animation: mosaic-sweep 900ms var(--ease-out) both paused;
+}
+
+/* En pausa (vacía) hasta que la dona entra en pantalla. */
+.donut.is-revealed::before,
+.donut.is-revealed .donut__hole {
+  animation-play-state: running;
+}
+
 .donut__hole {
   position: absolute;
   inset: 16px;
+  animation: mosaic-fade-up var(--dur-base) var(--ease-out) 500ms both paused;
   border-radius: 50%;
   background: var(--color-surface);
   display: flex;
