@@ -153,6 +153,9 @@ export const createGoalSchema = z.object({
 
 // --- Listas (/lists) ----------------------------------------------------------
 
+/** Tope de la portada como data URL (~300 KB): una imagen de 512 × 512 en WebP pesa bastante menos. */
+const LIST_COVER_MAX = 400_000
+
 const listFields = {
   title: z
     .string({ error: 'El nombre de la lista es obligatorio.' })
@@ -165,6 +168,12 @@ const listFields = {
     .max(1000, 'La descripción es demasiado larga (máximo 1000).'),
   isPublic: z.boolean({ error: 'isPublic debe ser verdadero o falso.' }),
   ranked: z.boolean({ error: 'ranked debe ser verdadero o falso.' }),
+  /** Portada propia: imagen ya recortada y achicada en el navegador. null = la automática (collage). */
+  coverImage: z
+    .string({ error: 'La portada no es válida.' })
+    .max(LIST_COVER_MAX, 'La portada es demasiado pesada.')
+    .regex(/^data:image\/(jpeg|png|webp);base64,[A-Za-z0-9+/=]+$/, 'La portada no es válida.')
+    .nullable(),
 }
 
 const listNote = z.string({ error: 'La nota debe ser texto.' }).trim().max(500, 'La nota es demasiado larga (máximo 500).')

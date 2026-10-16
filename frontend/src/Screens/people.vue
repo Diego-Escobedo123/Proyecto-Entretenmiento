@@ -1,14 +1,15 @@
 <script setup lang="ts">
 /**
- * Personas — encontrar gente para seguir: buscador por nombre o @usuario y
- * sugerencias según las obras que tienen en común contigo. Arriba, las
- * solicitudes para seguirme (cuenta privada): confirmar o eliminar. En el
- * medio, "Tu red": pestañas con mis seguidores y a quiénes sigo.
+ * Personas — encontrar gente para seguir. Buscador por nombre o @usuario
+ * (mientras se busca, sólo se ven los resultados). Si no: las solicitudes
+ * para seguirme (cuenta privada), las sugerencias como tarjetas con la
+ * afinidad y las obras en común, y al final "Tu red" (seguidores / seguidos,
+ * con "Te sigue" en quienes te siguen).
  */
 import SkeletonList from '../components/SkeletonList.vue'
+import SuggestionCard from '../components/social/SuggestionCard.vue'
 import { computed, onMounted, ref, watch } from 'vue'
 import BaseIcon from '../components/BaseIcon.vue'
-import BaseSpinner from '../components/BaseSpinner.vue'
 import EmptyState from '../components/EmptyState.vue'
 import PersonRow from '../components/social/PersonRow.vue'
 import FollowRequestRow from '../components/social/FollowRequestRow.vue'
@@ -74,11 +75,8 @@ onMounted(async () => {
   }
 })
 
-function sharedDetail(p: SuggestedPerson): string | undefined {
-  if (!p.shared) return undefined
-  const titles = p.sharedTitles.join(', ')
-  return `${p.shared} ${p.shared === 1 ? 'obra' : 'obras'} en común${titles ? `: ${titles}` : ''}`
-}
+/** Quienes me siguen: para marcar "Te sigue" en la pestaña de seguidos. */
+const followerIds = computed(() => new Set(network.value.followers.map((p) => p.id)))
 </script>
 
 <template>
@@ -100,72 +98,91 @@ function sharedDetail(p: SuggestedPerson): string | undefined {
       />
     </div>
 
-    <section v-if="requests.count || requests.accepted.length" class="people__section">
-      <h2 class="people__section-title">
-        <BaseIcon name="person-plus" /> Solicitudes
-        <span v-if="requests.count" class="people__count">{{ requests.count }}</span>
-      </h2>
-      <div class="people__list">
-        <FollowRequestRow v-for="p in requests.items" :key="p.id" :person="p" />
-        <!-- Aceptadas en esta sesión: para seguirlas de vuelta. -->
-        <PersonRow v-for="p in requests.accepted" :key="`ok-${p.id}`" :person="p" detail="Ahora te sigue." />
-      </div>
-    </section>
-
+    <!-- Buscando: sólo los resultados (lo demás vuelve al borrar el texto) -->
     <section v-if="hasQuery || isSearching" class="people__section">
-      <h2 class="people__section-title">Resultados</h2>
-      <p v-if="isSearching || searching" class="people__hint"><BaseSpinner size="sm" /> Buscando…</p>
+      <h2 class="people__section-title"><BaseIcon name="search" /> Resultados</h2>
+      <SkeletonList v-if="isSearching || searching" :rows="3" avatar />
       <p v-else-if="!results.length" class="people__hint">Nadie coincide con “{{ debouncedQuery.trim() }}”.</p>
       <div v-else class="people__list">
-        <PersonRow v-for="p in results" :key="p.id" :person="p" />
+        <PersonRow v-for="p in results" :key="p.id" :person="p" :follows-you="followerIds.has(p.id)" />
       </div>
     </section>
 
-    <section class="people__section">
-      <h2 class="people__section-title"><BaseIcon name="people" /> Tu red</h2>
-      <div class="people__tabs" role="tablist" aria-label="Seguidores y seguidos">
-        <button
-          v-for="t in (['followers', 'following'] as const)"
-          :key="t"
-          type="button"
-          role="tab"
-          class="people__tab"
-          :class="{ 'is-active': networkTab === t }"
-          :aria-selected="networkTab === t"
-          @click="networkTab = t"
-        >
-          {{ t === 'followers' ? 'Seguidores' : 'Seguidos' }}
-          <span v-if="!loadingNetwork && !networkFailed" class="people__tab-count">{{ network[t].length }}</span>
-        </button>
-      </div>
-      <SkeletonList v-if="loadingNetwork" :rows="4" avatar />
-      <p v-else-if="networkFailed" class="people__hint">No se pudo cargar tu red.</p>
-      <EmptyState
-        v-else-if="!network[networkTab].length"
-        compact
-        icon="people"
-        :title="NETWORK_EMPTY[networkTab].title"
-        :text="NETWORK_EMPTY[networkTab].text"
-      />
-      <div v-else class="people__list" role="tabpanel">
-        <PersonRow v-for="p in network[networkTab]" :key="p.id" :person="p" />
-      </div>
-    </section>
+    <template v-else>
+      <section v-if="requests.count || requests.accepted.length" class="people__section">
+        <h2 class="people__section-title">
+          <BaseIcon name="person-plus" /> Solicitudes
+          <span v-if="requests.count" class="people__count">{{ requests.count }}</span>
+        </h2>
+        <div class="people__list">
+          <FollowRequestRow v-for="p in requests.items" :key="p.id" :person="p" />
+          <!-- Aceptadas en esta sesión: para seguirlas de vuelta. -->
+          <PersonRow v-for="p in requests.accepted" :key="`ok-${p.id}`" :person="p" follows-you />
+        </div>
+      </section>
 
-    <section class="people__section">
-      <h2 class="people__section-title"><BaseIcon name="stars" /> Gustos parecidos a los tuyos</h2>
-      <p v-if="loadingSuggestions" class="people__hint"><BaseSpinner size="sm" /> Buscando personas…</p>
-      <EmptyState
-        v-else-if="!suggestions.length"
-        compact
-        icon="people"
-        title="Todavía no hay sugerencias"
-        text="Cuando más gente con perfil público registre obras, aparecerán aquí las que tengan gustos parecidos a los tuyos."
-      />
-      <div v-else class="people__list">
-        <PersonRow v-for="p in suggestions" :key="p.id" :person="p" :detail="sharedDetail(p)" />
-      </div>
-    </section>
+      <!-- Para descubrir gente: tarjetas que muestran por qué (afinidad y obras en común) -->
+      <section class="people__section">
+        <h2 class="people__section-title"><BaseIcon name="stars" /> Gustos parecidos a los tuyos</h2>
+        <div v-if="loadingSuggestions" class="people__suggestions" aria-busy="true" aria-label="Buscando personas">
+          <div v-for="n in 3" :key="n" class="people__suggestion-skeleton mosaic-skeleton" />
+        </div>
+        <EmptyState
+          v-else-if="!suggestions.length"
+          compact
+          icon="people"
+          title="Todavía no hay sugerencias"
+          text="Cuando más gente con perfil público registre obras, aparecerán aquí las que tengan gustos parecidos a los tuyos."
+        />
+        <div v-else class="people__suggestions">
+          <SuggestionCard
+            v-for="(p, i) in suggestions"
+            :key="p.id"
+            class="mosaic-enter"
+            :style="{ '--i': i }"
+            :person="p"
+          />
+        </div>
+      </section>
+
+      <!-- Tu red, al final: también está en tu perfil (seguidores / seguidos) -->
+      <section class="people__section">
+        <h2 class="people__section-title"><BaseIcon name="people" /> Tu red</h2>
+        <div class="people__tabs" role="tablist" aria-label="Seguidores y seguidos">
+          <button
+            v-for="t in (['followers', 'following'] as const)"
+            :key="t"
+            type="button"
+            role="tab"
+            class="people__tab"
+            :class="{ 'is-active': networkTab === t }"
+            :aria-selected="networkTab === t"
+            @click="networkTab = t"
+          >
+            {{ t === 'followers' ? 'Seguidores' : 'Seguidos' }}
+            <span v-if="!loadingNetwork && !networkFailed" class="people__tab-count">{{ network[t].length }}</span>
+          </button>
+        </div>
+        <SkeletonList v-if="loadingNetwork" :rows="4" avatar />
+        <p v-else-if="networkFailed" class="people__hint">No se pudo cargar tu red.</p>
+        <EmptyState
+          v-else-if="!network[networkTab].length"
+          compact
+          icon="people"
+          :title="NETWORK_EMPTY[networkTab].title"
+          :text="NETWORK_EMPTY[networkTab].text"
+        />
+        <!-- En Seguidores todos te siguen; en Seguidos, se marca quién te sigue de vuelta -->
+        <div v-else class="people__list" role="tabpanel">
+          <PersonRow
+            v-for="p in network[networkTab]"
+            :key="p.id"
+            :person="p"
+            :follows-you="networkTab === 'followers' || followerIds.has(p.id)"
+          />
+        </div>
+      </section>
+    </template>
   </div>
 </template>
 
@@ -174,7 +191,19 @@ function sharedDetail(p: SuggestedPerson): string | undefined {
   display: flex;
   flex-direction: column;
   gap: var(--space-lg);
-  max-width: 720px;
+  max-width: 960px;
+}
+
+/* Sugerencias: tarjetas en cuadrícula (2–3 por fila según el ancho). */
+.people__suggestions {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+  gap: var(--space-md);
+}
+
+.people__suggestion-skeleton {
+  height: 220px;
+  border-radius: var(--radius-lg);
 }
 
 .people__title {

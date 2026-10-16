@@ -1,6 +1,6 @@
 /** Seguir personas y el feed de actividad (backend `/users` y `/feed`). */
 import type { ListSummary } from './list'
-import type { MediaEntry } from './media'
+import type { MediaEntry, MediaType } from './media'
 import type { PublicUser } from './review'
 
 /** Una persona en listas de seguidores, búsqueda o sugerencias. */
@@ -25,6 +25,10 @@ export interface SuggestedPerson extends Person {
   /** Obras en común con el usuario actual, y hasta 3 títulos de ejemplo. */
   shared: number
   sharedTitles: string[]
+  /** Hasta 4 obras en común, con su portada (para mostrar por qué se sugiere). */
+  sharedWorks: { title: string; type: MediaType; cover: string | null }[]
+  /** 0–100: qué parte de la colección más chica de los dos está en la otra; null sin nada en común. */
+  affinity: number | null
 }
 
 type FeedWork = Pick<MediaEntry, 'type' | 'title' | 'creator' | 'year' | 'cover' | 'genres' | 'externalId'>

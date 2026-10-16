@@ -6,6 +6,7 @@ import { LIST_SUMMARY_INCLUDE, toListSummaryDTO } from './lists'
 import { toLogDTO } from '../lib/logs'
 import { ratingSummary } from '../lib/ratings'
 import { culturalDna } from '../lib/dna'
+import { upgradeBookCover } from '../lib/externalSearch'
 import { profileInsights } from '../lib/insights'
 import { clearFollowRequestNotification, notify } from '../lib/notifications'
 
@@ -96,8 +97,11 @@ userRoutes.get('/search', async (c) => {
  * GET /users/suggestions -> personas con gustos parecidos, para empezar a seguir.
  *
  * Perfiles públicos que todavía no sigues, ordenados por cuántas obras tienen
- * en común contigo (mismo id de catálogo). Cada una trae `shared` (cuántas) y
- * hasta 3 títulos de ejemplo. Si no hay coincidencias, las más activas.
+ * en común contigo (mismo id de catálogo). Cada una trae `shared` (cuántas),
+ * hasta 3 títulos de ejemplo, hasta 4 obras en común con su portada
+ * (`sharedWorks`) y `affinity`: qué parte de la colección más chica de los
+ * dos está en la otra (0–100; null sin nada en común). Si no hay
+ * coincidencias, las más activas.
  */
 userRoutes.get('/suggestions', async (c) => {
   const me = c.get('userId')
@@ -133,27 +137,41 @@ userRoutes.get('/suggestions', async (c) => {
   if (!rows.length) return c.json([])
 
   const ids = rows.map((r) => r.userId)
-  const [users, samples] = await Promise.all([
+  const [users, samples, sizes] = await Promise.all([
     prisma.user.findMany({ where: { id: { in: ids } }, select: PUBLIC_USER_SELECT }),
     myIds.length
       ? prisma.mediaEntry.findMany({
           where: { userId: { in: ids }, externalId: { in: myIds } },
-          select: { userId: true, title: true },
+          select: { userId: true, title: true, type: true, cover: true },
           orderBy: { rating: { sort: 'desc', nulls: 'last' } },
         })
-      : Promise.resolve([] as { userId: string; title: string }[]),
+      : Promise.resolve([] as { userId: string; title: string; type: string; cover: string | null }[]),
+    // Tamaño de cada colección (con id de catálogo), para la afinidad.
+    prisma.mediaEntry.groupBy({
+      by: ['userId'],
+      where: { userId: { in: ids }, externalId: { not: null } },
+      _count: { _all: true },
+    }),
   ])
   const byId = new Map(users.map((u) => [u.id, u]))
+  const sizeOf = new Map(sizes.map((s) => [s.userId, s._count._all]))
   const people = await withFollowState(
     me,
     ids.map((id) => byId.get(id)).filter((u): u is NonNullable<typeof u> => Boolean(u)),
   )
   return c.json(
-    people.map((p) => ({
-      ...p,
-      shared: rows.find((r) => r.userId === p.id)?.shared ?? 0,
-      sharedTitles: samples.filter((s) => s.userId === p.id).slice(0, 3).map((s) => s.title),
-    })),
+    people.map((p) => {
+      const shared = rows.find((r) => r.userId === p.id)?.shared ?? 0
+      const theirs = samples.filter((s) => s.userId === p.id)
+      const smaller = Math.min(myIds.length, sizeOf.get(p.id) ?? 0)
+      return {
+        ...p,
+        shared,
+        sharedTitles: theirs.slice(0, 3).map((s) => s.title),
+        sharedWorks: theirs.slice(0, 4).map((s) => ({ title: s.title, type: s.type, cover: upgradeBookCover(s.cover) })),
+        affinity: shared && smaller ? Math.min(100, Math.round((shared / smaller) * 100)) : null,
+      }
+    }),
   )
 })
 

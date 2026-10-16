@@ -82,12 +82,17 @@ function openWork() {
       <img v-cover="item.work.cover" :src="item.work.cover" alt="" class="feed-item__cover" loading="lazy" />
     </button>
     <RouterLink
-      v-else-if="item.kind === 'list' && item.list.covers.length"
+      v-else-if="item.kind === 'list' && (item.list.coverImage || item.list.covers.length)"
       :to="`/lists/${item.list.id}`"
       class="feed-item__collage"
+      :class="{ 'feed-item__collage--single': item.list.coverImage }"
       :aria-label="`Ver lista ${item.list.title}`"
     >
-      <img v-for="c in item.list.covers.filter(coverOk).slice(0, 4)" :key="c" v-cover="c" :src="c" alt="" loading="lazy" />
+      <!-- La portada propia de la lista, o el collage automático -->
+      <img v-if="item.list.coverImage" :src="item.list.coverImage" alt="" loading="lazy" />
+      <template v-else>
+        <img v-for="c in item.list.covers.filter(coverOk).slice(0, 4)" :key="c" v-cover="c" :src="c" alt="" loading="lazy" />
+      </template>
     </RouterLink>
   </article>
 </template>
@@ -205,6 +210,10 @@ function openWork() {
   width: 100%;
   height: 100%;
   object-fit: cover;
+}
+
+.feed-item__collage--single {
+  grid-template-columns: 1fr;
 }
 
 @media (max-width: 480px) {

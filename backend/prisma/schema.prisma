@@ -157,6 +157,9 @@ model List {
   isPublic    Boolean    @default(false)
   /// Con ranking: el orden importa y se muestra numerado.
   ranked      Boolean    @default(false)
+  /// Portada subida por el usuario (data URL, cuadrada y achicada en el
+  /// navegador). null = la automática: collage de las primeras obras.
+  coverImage  String?
   items       ListItem[]
   createdAt   DateTime   @default(now())
   updatedAt   DateTime   @updatedAt

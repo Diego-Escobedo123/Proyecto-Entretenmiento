@@ -44,3 +44,35 @@ export function progressSummary(entry: MediaEntry): string | null {
       return null
   }
 }
+
+/**
+ * El episodio que sigue al actual ("+1 episodio" en Inicio). Si se termina
+ * la temporada pasa a la siguiente; `last` indica que ya era el último
+ * episodio de la serie (no hay siguiente). Sin temporadas conocidas, sólo suma.
+ */
+export function nextEpisode(
+  seasons: SeasonInfo[],
+  season: number | null,
+  episode: number | null,
+): { season: number; episode: number; last: boolean } {
+  const s = season ?? 1
+  if (episode == null) return { season: s, episode: 1, last: false }
+  const current = seasons.find((x) => x.number === s)
+  if (current && episode >= current.episodes) {
+    const next = seasons.filter((x) => x.number > s).sort((a, b) => a.number - b.number)[0]
+    if (next) return { season: next.number, episode: 1, last: false }
+    return { season: s, episode, last: true }
+  }
+  return { season: s, episode: episode + 1, last: false }
+}
+
+/** Ya llegó al final: último episodio de la serie o última página del libro. */
+export function reachedEnd(entry: MediaEntry, seasons: SeasonInfo[]): boolean {
+  if (entry.type === 'book') return !!entry.pagesTotal && (entry.pagesRead ?? 0) >= entry.pagesTotal
+  if (entry.type === 'series' && entry.season != null && entry.episode != null && seasons.length) {
+    const lastSeason = Math.max(...seasons.map((x) => x.number))
+    const episodes = seasons.find((x) => x.number === lastSeason)?.episodes ?? 0
+    return entry.season >= lastSeason && entry.episode >= episodes
+  }
+  return false
+}

@@ -16,8 +16,15 @@ import { useToastStore } from '../../stores/toast'
 import type { FollowStatus } from '../../types/social'
 
 const props = withDefaults(
-  defineProps<{ userId: string; following: boolean; requested?: boolean; size?: 'sm' | 'md' }>(),
-  { requested: false, size: 'md' },
+  defineProps<{
+    userId: string
+    following: boolean
+    requested?: boolean
+    size?: 'sm' | 'md'
+    /** Esa persona ya te sigue: el botón dice "Seguir de vuelta". */
+    followBack?: boolean
+  }>(),
+  { requested: false, size: 'md', followBack: false },
 )
 const emit = defineEmits<{ change: [status: FollowStatus, followers: number | null] }>()
 
@@ -65,7 +72,7 @@ async function toggle() {
           <span class="follow-btn__on"><BaseIcon name="hourglass-split" /> Solicitud enviada</span>
           <span class="follow-btn__off"><BaseIcon name="x-lg" /> Cancelar solicitud</span>
         </template>
-        <template v-else><BaseIcon name="person-plus" /> Seguir</template>
+        <template v-else><BaseIcon name="person-plus" /> {{ followBack ? 'Seguir de vuelta' : 'Seguir' }}</template>
       </span>
     </Transition>
   </button>

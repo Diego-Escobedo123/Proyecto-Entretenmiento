@@ -9,6 +9,8 @@ export interface ListSummary {
   description: string
   isPublic: boolean
   ranked: boolean
+  /** Portada subida (data URL); null = la automática, collage de `covers`. */
+  coverImage: string | null
   itemCount: number
   covers: string[]
   updatedAt: string
@@ -37,6 +39,7 @@ export interface ListDetail {
   description: string
   isPublic: boolean
   ranked: boolean
+  coverImage: string | null
   /** La lista es del usuario actual: puede editarla. */
   isOwner: boolean
   owner: PublicUser
@@ -50,6 +53,8 @@ export interface ListInput {
   description?: string
   isPublic?: boolean
   ranked?: boolean
+  /** null vuelve a la portada automática (collage). */
+  coverImage?: string | null
 }
 
 /** Obra que se agrega a una lista: los datos del catálogo. */
