@@ -8,6 +8,7 @@ import { storeToRefs } from 'pinia'
 import { useRouter } from 'vue-router'
 import MediaCard from '../components/MediaCard.vue'
 import SkeletonCard from '../components/SkeletonCard.vue'
+import ToggleIcon from '../components/ToggleIcon.vue'
 import BaseTag from '../components/BaseTag.vue'
 import BaseIcon from '../components/BaseIcon.vue'
 import BaseButton from '../components/BaseButton.vue'
@@ -34,6 +35,9 @@ function searchInCatalogs() {
 type TypeFilter = MediaType | 'all'
 const typeFilter = ref<TypeFilter>('all')
 const statusFilter = ref<MediaStatus | 'all'>('all')
+/** Sólo las marcadas con ♥ (se combina con el tipo y el estado). */
+const favoritesOnly = ref(false)
+const favoriteCount = computed(() => entries.value.filter((e) => e.favorite).length)
 
 type SortKey = 'recent' | 'title' | 'rating'
 const sortKey = ref<SortKey>('recent')
@@ -53,12 +57,13 @@ const visible = computed(() => {
   let list = entries.value.filter((e) => {
     const okType = typeFilter.value === 'all' || e.type === typeFilter.value
     const okStatus = statusFilter.value === 'all' || e.status === statusFilter.value
+    const okFavorite = !favoritesOnly.value || e.favorite
     const okSearch =
       !q ||
       e.title.toLowerCase().includes(q) ||
       e.creator.toLowerCase().includes(q) ||
       e.genres.some((g) => g.toLowerCase().includes(q))
-    return okType && okStatus && okSearch
+    return okType && okStatus && okFavorite && okSearch
   })
 
   list = [...list]
@@ -69,12 +74,14 @@ const visible = computed(() => {
 })
 
 const hasActiveFilters = computed(
-  () => typeFilter.value !== 'all' || statusFilter.value !== 'all' || searchQuery.value.trim() !== '',
+  () =>
+    typeFilter.value !== 'all' || statusFilter.value !== 'all' || favoritesOnly.value || searchQuery.value.trim() !== '',
 )
 
 function clearFilters() {
   typeFilter.value = 'all'
   statusFilter.value = 'all'
+  favoritesOnly.value = false
   ui.setSearch('')
 }
 
@@ -126,6 +133,18 @@ function clearFilters() {
     </div>
 
     <div class="collection__filters">
+      <!-- Interruptor aparte (se suma al estado). Sigue visible mientras está activo,
+           aunque se quite el último corazón, para poder apagarlo. -->
+      <template v-if="favoriteCount || favoritesOnly">
+        <BaseTag
+          class="collection__fav-filter"
+          :active="favoritesOnly"
+          @click="favoritesOnly = !favoritesOnly"
+        >
+          <ToggleIcon :on="favoritesOnly" icon="heart" icon-on="heart-fill" /> Favoritas · {{ favoriteCount }}
+        </BaseTag>
+        <span class="collection__filters-divider" aria-hidden="true" />
+      </template>
       <BaseTag :active="statusFilter === 'all'" @click="statusFilter = 'all'">Cualquier estado</BaseTag>
       <BaseTag
         v-for="s in MEDIA_STATUSES"
@@ -229,7 +248,20 @@ function clearFilters() {
 .collection__filters {
   display: flex;
   flex-wrap: wrap;
+  align-items: center;
   gap: var(--space-sm);
+}
+
+/* ♥ Favoritas: el corazón hace pop al activarlo (ToggleIcon). */
+.collection__fav-filter {
+  gap: 6px;
+}
+
+/* Separa el interruptor de favoritas de los estados (que son de a uno). */
+.collection__filters-divider {
+  width: 1px;
+  height: 20px;
+  background: var(--color-border);
 }
 
 .collection__sort {
