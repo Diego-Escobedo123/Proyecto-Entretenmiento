@@ -70,9 +70,30 @@ export const useUiStore = defineStore('ui', () => {
     mobileNavOpen.value = force ?? !mobileNavOpen.value
   }
 
+  /**
+   * Cambia cada vez que se pide volver a una pantalla "de cero". App.vue lo
+   * usa en la `key` de la pantalla: al cambiar, se vuelve a montar y pierde
+   * filtros, pestañas, orden… (todo su estado local).
+   */
+  const screenKey = ref(0)
+
+  /**
+   * Tocar en la navegación la sección en la que ya estás: la pantalla vuelve a
+   * como se abre (sin filtros ni búsqueda) y sube al principio.
+   */
+  function resetScreen(): void {
+    screenKey.value++
+    searchQuery.value = ''
+    mobileNavOpen.value = false
+    const reduceMotion = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
+    window.scrollTo({ top: 0, behavior: reduceMotion ? 'auto' : 'smooth' })
+  }
+
   return {
     searchQuery,
     mobileNavOpen,
+    screenKey,
+    resetScreen,
     isEntryFormOpen,
     isSettingsOpen,
     editingEntryId,

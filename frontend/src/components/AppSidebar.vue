@@ -29,6 +29,16 @@ function isActive(to: string): boolean {
   return route.path === to || (to !== '/' && route.path.startsWith(`${to}/`))
 }
 
+/**
+ * Tocar la sección en la que ya estás la deja como recién abierta: sin
+ * filtros, búsqueda ni pestañas, y arriba. (Desde una subpágina, como
+ * /lists/:id, el enlace navega normal a la sección.)
+ */
+function onNavClick(to: string) {
+  if (route.path === to) ui.resetScreen()
+  else ui.toggleMobileNav(false)
+}
+
 /** Resaltado de la sección activa: se desliza de una a otra al navegar. */
 const navEl = ref<HTMLElement | null>(null)
 const { style: indicatorStyle, ready: indicatorReady } = useSlidingIndicator(
@@ -89,12 +99,12 @@ watch(
   />
 
   <aside class="app-sidebar" :class="{ 'app-sidebar--open': ui.mobileNavOpen }">
-    <!-- Logo + nombre: vuelve a Inicio (y cierra el drawer si ya estabas ahí). -->
+    <!-- Logo + nombre: vuelve a Inicio (si ya estabas ahí, la deja como recién abierta). -->
     <RouterLink
       to="/"
       class="app-sidebar__header"
       aria-label="Mosaic — ir al inicio"
-      @click="ui.toggleMobileNav(false)"
+      @click="onNavClick('/')"
     >
       <img class="app-sidebar__logo" :src="figLogo" alt="" aria-hidden="true" />
       <div class="app-sidebar__brand-text">
@@ -116,6 +126,7 @@ watch(
         :to="item.to"
         class="app-sidebar__link"
         :class="{ 'app-sidebar__link--active': isActive(item.to) }"
+        @click="onNavClick(item.to)"
       >
         <span class="app-sidebar__icon"><BaseIcon :name="item.icon" /></span>
         {{ item.label }}
@@ -134,6 +145,7 @@ watch(
         to="/admin"
         class="app-sidebar__link"
         :class="{ 'app-sidebar__link--active': isActive('/admin') }"
+        @click="onNavClick('/admin')"
       >
         <span class="app-sidebar__icon"><BaseIcon name="shield-lock" /></span>
         Administración

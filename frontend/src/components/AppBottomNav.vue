@@ -5,6 +5,7 @@
  * diario y, al centro, "Agregar obra". El resto (Listas, Personas, Perfil…)
  * sigue en el cajón, que abre el botón de la barra superior.
  * La sección activa lleva una pastilla que se desliza (useSlidingIndicator).
+ * Tocar la sección en la que ya estás la deja como recién abierta (ui.resetScreen).
  */
 import { ref } from 'vue'
 import { useRoute } from 'vue-router'
@@ -44,6 +45,7 @@ const { style: pillStyle, ready: pillReady } = useSlidingIndicator(barEl, '.bott
       class="bottom-nav__link"
       :class="{ 'is-active': isActive(item.to) }"
       :aria-current="isActive(item.to) ? 'page' : undefined"
+      @click="route.path === item.to && ui.resetScreen()"
     >
       <BaseIcon :name="isActive(item.to) ? item.iconActive : item.icon" />
       <span>{{ item.label }}</span>
@@ -60,6 +62,7 @@ const { style: pillStyle, ready: pillReady } = useSlidingIndicator(barEl, '.bott
       class="bottom-nav__link"
       :class="{ 'is-active': isActive(item.to) }"
       :aria-current="isActive(item.to) ? 'page' : undefined"
+      @click="route.path === item.to && ui.resetScreen()"
     >
       <BaseIcon :name="isActive(item.to) ? item.iconActive : item.icon" />
       <span>{{ item.label }}</span>
