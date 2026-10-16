@@ -36,7 +36,7 @@ export interface MediaStatusMeta {
 export const MEDIA_STATUSES: readonly MediaStatusMeta[] = [
   { value: 'want', label: 'Pendiente', color: 'var(--color-neutral)' },
   { value: 'in-progress', label: 'En progreso', color: 'var(--color-warning)' },
-  { value: 'completed', label: 'Completada', color: 'var(--color-success)' },
+  { value: 'completed', label: 'Terminada', color: 'var(--color-success)' },
   { value: 'mastered', label: 'Al 100%', color: 'var(--color-accent)' },
   { value: 'abandoned', label: 'Abandonada', color: 'var(--color-text-subtle)' },
 ] as const
