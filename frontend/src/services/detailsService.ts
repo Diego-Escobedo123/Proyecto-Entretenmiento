@@ -16,3 +16,23 @@ export const detailsService = {
     return apiFetch<WorkDetails | null>(`/details?${params.toString()}`)
   },
 }
+
+/** Temporadas ya pedidas en esta sesión (el "+1 episodio" de Inicio no vuelve a pedirlas). */
+const seasonsCache = new Map<string, Promise<WorkDetails['seasons']>>()
+
+/** Temporadas de una serie (episodios por temporada); [] si no se conocen. */
+export function seriesSeasons(externalId: string | null | undefined): Promise<WorkDetails['seasons']> {
+  if (!hasDetails(externalId)) return Promise.resolve([])
+  let seasons = seasonsCache.get(externalId)
+  if (!seasons) {
+    seasons = detailsService
+      .get(externalId)
+      .then((d) => d?.seasons ?? [])
+      .catch(() => {
+        seasonsCache.delete(externalId) // que se pueda reintentar
+        return []
+      })
+    seasonsCache.set(externalId, seasons)
+  }
+  return seasons
+}

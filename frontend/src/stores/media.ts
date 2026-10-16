@@ -48,6 +48,31 @@ export const useMediaStore = defineStore('media', () => {
     entries.value = entries.value.map((e) => (e.id === id ? updated : e))
   }
 
+  /**
+   * Cambio rápido (avance desde Inicio, empezar algo de la wishlist…): se ve
+   * al instante y, si el servidor falla, vuelve a como estaba y avisa.
+   * Devuelve si se guardó.
+   */
+  async function patchEntryOptimistic(
+    id: string,
+    patch: Partial<MediaEntryInput>,
+    options?: MediaWriteOptions,
+    errorMessage = 'No se pudo guardar el cambio. Inténtalo de nuevo.',
+  ): Promise<boolean> {
+    const before = entries.value.find((e) => e.id === id)
+    if (!before) return false
+    entries.value = entries.value.map((e) => (e.id === id ? { ...e, ...patch } : e))
+    try {
+      const updated = await mediaService.update(id, patch, options)
+      entries.value = entries.value.map((e) => (e.id === id ? updated : e))
+      return true
+    } catch {
+      entries.value = entries.value.map((e) => (e.id === id ? before : e))
+      useToastStore().error(errorMessage)
+      return false
+    }
+  }
+
   /** Vuelve a leer una obra del backend (p. ej. después de registrarla otra vez en el diario). */
   async function reloadEntry(id: string): Promise<void> {
     const fresh = await mediaService.get(id)
@@ -197,6 +222,7 @@ export const useMediaStore = defineStore('media', () => {
     fetchAll,
     addEntry,
     editEntry,
+    patchEntryOptimistic,
     reloadEntry,
     deleteEntry,
     deleteEntryWithUndo,

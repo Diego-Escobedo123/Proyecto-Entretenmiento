@@ -1,12 +1,16 @@
 <script setup lang="ts">
 /**
- * Inicio — "¿qué sigue?": lo que tienes a medias para retomarlo, cómo vas
- * con tu reto del año, lo último que terminaste y la actividad de quienes
- * sigues. No repite la colección
- * (Mi colección), el diario (Diario) ni tu retrato cultural (Perfil).
+ * Inicio, de arriba a abajo por intención:
+ * - lo que estás haciendo: Continuar (con atajos para anotar el avance);
+ * - qué hacer después: ¿Qué sigue? (ideas de tu wishlist) y Para ti;
+ * - cómo vas: tu reto del año y lo último que terminaste;
+ * - qué hacen los demás: la actividad de quienes sigues, al final porque es
+ *   una lista que crece y no debe empujar lo demás hacia abajo.
+ * No repite la colección (Mi colección), el diario (Diario) ni tu retrato
+ * cultural (Perfil).
  */
 import { coverOk, vCover } from '../lib/cover'
-import { computed, onMounted, ref } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { storeToRefs } from 'pinia'
 import { useRouter } from 'vue-router'
 import SectionHeader from '../components/SectionHeader.vue'
@@ -18,9 +22,12 @@ import RatingStars from '../components/RatingStars.vue'
 import ContinueConsumingCard from '../components/home/ContinueConsumingCard.vue'
 import GettingStarted from '../components/home/GettingStarted.vue'
 import FollowingFeed from '../components/home/FollowingFeed.vue'
+import WhatsNext from '../components/home/WhatsNext.vue'
+import ExploreRow from '../components/explore/ExploreRow.vue'
 import { MEDIA_TYPES, statusLabel, typeMeta } from '../lib/catalog'
 import { formatDay } from '../lib/dates'
-import { finishedIn, goalProgress } from '../lib/yearStats'
+import { goalProgress } from '../lib/yearStats'
+import { homeInsights, insightOfTheDay } from '../lib/homeInsight'
 import { goalService } from '../services/goalService'
 import { logService } from '../services/logService'
 import { useMediaStore } from '../stores/media'
@@ -59,9 +66,31 @@ onMounted(async () => {
   diaryLoaded.value = true
 })
 
-const GOAL_LABEL = new Map<string, { label: string; icon: string }>([
-  ['all', { label: 'obras', icon: 'collection' }],
-  ...MEDIA_TYPES.map((t) => [t.value, { label: t.plural.toLowerCase(), icon: t.icon }] as const),
+// Al terminar o empezar algo desde Inicio (Continuar, ¿Qué sigue?), el diario
+// cambia: se vuelve a leer para que el reto y "Lo último que terminaste" se
+// pongan al día sin recargar.
+let reloadTimer: ReturnType<typeof setTimeout> | undefined
+watch(
+  () => entries.value.map((e) => `${e.id}:${e.status}`).join(),
+  () => {
+    if (!diaryLoaded.value) return
+    clearTimeout(reloadTimer)
+    reloadTimer = setTimeout(async () => {
+      try {
+        logs.value = await logService.list()
+      } catch {
+        // Se queda con lo que había; al volver a Inicio se recarga.
+      }
+    }, 600)
+  },
+)
+onBeforeUnmount(() => clearTimeout(reloadTimer))
+
+const GOAL_LABEL = new Map<string, { label: string; singular: string; icon: string }>([
+  ['all', { label: 'obras', singular: 'obra', icon: 'collection' }],
+  ...MEDIA_TYPES.map(
+    (t) => [t.value, { label: t.plural.toLowerCase(), singular: t.label.toLowerCase(), icon: t.icon }] as const,
+  ),
 ])
 
 const goalRows = computed(() =>
@@ -71,16 +100,26 @@ const goalRows = computed(() =>
       goal: g,
       done,
       percent: Math.min(100, Math.round((done / g.target) * 100)),
-      ...(GOAL_LABEL.get(g.type) ?? { label: 'obras', icon: 'collection' }),
+      ...(GOAL_LABEL.get(g.type) ?? { label: 'obras', singular: 'obra', icon: 'collection' }),
     }
   }),
+)
+
+/** El dato bajo el saludo: cambia cada día (racha, meta cerca, género del mes…). */
+const insight = computed(() =>
+  insightOfTheDay(
+    homeInsights(
+      logs.value,
+      goalRows.value.map((r) => ({ done: r.done, target: r.goal.target, singular: r.singular, plural: r.label })),
+      currentYear,
+    ),
+  ),
 )
 
 const MAX_RECENT = 5
 const recentlyFinished = computed(() =>
   logs.value.filter((l) => l.entry && l.finishedAt && !l.abandoned).slice(0, MAX_RECENT),
 )
-const finishedThisYear = computed(() => finishedIn(logs.value, currentYear).length)
 
 function openLog(log: LogEntry) {
   const e = log.entry!
@@ -122,9 +161,9 @@ function openLog(log: LogEntry) {
     <header class="home__hello">
       <h1 class="home__title">Hola, {{ firstName }}</h1>
       <p class="home__subtitle">
-        <template v-if="diaryLoaded">
-          Llevas {{ finishedThisYear }} {{ finishedThisYear === 1 ? 'obra terminada' : 'obras terminadas' }} en {{ currentYear }}.
-        </template>
+        <Transition name="home-insight">
+          <span v-if="diaryLoaded" class="home__insight">{{ insight }}</span>
+        </Transition>
       </p>
     </header>
 
@@ -154,6 +193,18 @@ function openLog(log: LogEntry) {
         <BaseButton variant="outline" @click="ui.openCreateEntry()">+ Agregar obra</BaseButton>
       </EmptyState>
     </section>
+
+    <!-- Ideas de la wishlist para hoy (no aparece si está vacía) -->
+    <WhatsNext />
+
+    <!-- Recomendaciones según tus gustos (la misma fila de Explorar; se oculta si no hay) -->
+    <ExploreRow
+      section="foryou"
+      :type="null"
+      title="Para ti"
+      icon="stars"
+      subtitle="A partir de lo que más te gustó de tu colección. Hay más en Explorar."
+    />
 
     <div class="home__columns">
       <section class="home__card">
@@ -210,6 +261,7 @@ function openLog(log: LogEntry) {
       </section>
     </div>
 
+    <!-- Al final: es una lista que crece ("Ver más") y no debe empujar lo demás hacia abajo -->
     <FollowingFeed />
   </template>
 </template>
@@ -260,6 +312,20 @@ function openLog(log: LogEntry) {
   min-height: 1.5em;
   color: var(--color-text-muted);
   font-size: 0.9375rem;
+}
+
+/* El dato del día aparece cuando carga el diario (el espacio ya está reservado). */
+.home__insight {
+  display: inline-block;
+}
+
+.home-insight-enter-active {
+  transition: opacity var(--dur-base) ease, transform var(--dur-base) var(--ease-out);
+}
+
+.home-insight-enter-from {
+  opacity: 0;
+  transform: translateY(4px);
 }
 
 .home__continue {
