@@ -1,4 +1,8 @@
+# No copiar a la imagen: dependencias locales, secretos ni basura.
 node_modules
 .git
 .env
+.env.*
+!.env.example
 dist
+*.log
