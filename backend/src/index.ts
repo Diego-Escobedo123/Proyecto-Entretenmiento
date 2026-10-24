@@ -32,6 +32,7 @@ app.use(
 
 app.get('/', (c) => c.json({ name: 'mosaic-api', status: 'ok' }))
 app.get('/health', (c) => c.json({ status: 'ok' }))
+app.get('/ping', (c) => c.json({ message: 'pong' }))   // ruta ping para tarea de docker 
 
 app.route('/auth', authRoutes)
 // Obras escritas a mano: un USER las manda como solicitud (ver routes/workRequests).
