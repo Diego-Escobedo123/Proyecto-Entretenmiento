@@ -1,0 +1,9 @@
+# No copiar a la imagen: dependencias locales, builds viejos ni el .env
+# (Vite lo leería y metería sus valores en el build; van por --build-arg).
+node_modules
+dist
+.git
+.env
+.env.*
+!.env.example
+*.log
