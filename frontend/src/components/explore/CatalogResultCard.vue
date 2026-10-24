@@ -45,7 +45,7 @@ defineEmits<{ add: []; open: []; details: [] }>()
         <span class="catalog-card__title" :title="result.title">{{ result.title }}</span>
         <span class="catalog-card__meta">
           <BaseIcon v-if="showType" :name="typeMeta(type).icon" class="catalog-card__type" />
-          {{ [result.creator, result.year].filter(Boolean).join(' · ') || (showType ? typeMeta(type).label : ' ') }}
+          {{ [result.creator, result.year].filter(Boolean).join(' · ') || (showType ? typeMeta(type).label : '\u00a0') }}
         </span>
         <span v-if="note || rating != null" class="catalog-card__note" :title="note">
           {{ note }}<template v-if="note && rating != null"> · </template>
