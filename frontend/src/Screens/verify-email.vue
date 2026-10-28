@@ -26,6 +26,8 @@ const canResend = computed(() => auth.isAuthenticated && auth.user?.emailVerifie
 
 onMounted(async () => {
   const token = typeof route.query.token === 'string' ? route.query.token : ''
+  // Fuera de la barra de direcciones (y del historial) apenas se lee.
+  if (token) void router.replace({ query: {} })
   if (!token) {
     status.value = 'error'
     message.value = 'El enlace está incompleto. Ábrelo de nuevo desde el correo.'
