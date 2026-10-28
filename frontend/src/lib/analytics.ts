@@ -11,9 +11,10 @@
  *   $pageview        (automático)                    cada cambio de pantalla
  *
  * A PostHog solo se le manda el id del usuario y su rol, nunca su correo ni
- * su nombre.
+ * su nombre. Los tokens de los enlaces de correo (?token=...) se borran de las
+ * URLs antes de mandarlas (ver redactTokens).
  */
-import type { PostHog } from 'posthog-js'
+import type { CaptureResult, PostHog } from 'posthog-js'
 
 export type AnalyticsEvent = 'user_registered' | 'user_logged_in'
 export type AuthMethod = 'email' | 'google'
@@ -27,6 +28,24 @@ const HOST = import.meta.env.VITE_POSTHOG_HOST || 'https://us.i.posthog.com'
  * las llamadas esperan en orden a que esté listo.
  */
 let client: Promise<PostHog | null> | null = null
+
+const TOKEN_PARAM = /([?&]token=)[^&#]*/g
+
+/**
+ * Borra el valor de `token` en cualquier URL del evento (p. ej. la visita a
+ * /verify-email?token=...): esos tokens son de un solo uso y no deben quedar
+ * guardados en PostHog.
+ */
+function redactTokens(event: CaptureResult | null): CaptureResult | null {
+  if (!event) return event
+  for (const props of [event.properties, event.$set, event.$set_once]) {
+    if (!props) continue
+    for (const [key, value] of Object.entries(props)) {
+      if (typeof value === 'string' && value.includes('token=')) props[key] = value.replace(TOKEN_PARAM, '$1[redacted]')
+    }
+  }
+  return event
+}
 
 /** Se llama una vez al arrancar la app (main.ts). */
 export function initAnalytics(): void {
@@ -42,6 +61,7 @@ export function initAnalytics(): void {
         disable_session_recording: true,
         // Solo crea perfiles de personas que iniciaron sesión.
         person_profiles: 'identified_only',
+        before_send: redactTokens,
       })
       return posthog
     })

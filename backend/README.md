@@ -52,8 +52,16 @@ Base URL: `http://localhost:3000`
 | POST   | `/auth/register` | `{ name, email, password }`   | `201 { token, user }`           |
 | POST   | `/auth/login`    | `{ email, password }`         | `200 { token, user }`           |
 | GET    | `/auth/me`       | —  (header `Authorization`)   | `200 { user }`                  |
+| POST   | `/auth/verify-email` | `{ token }` (del enlace del correo) | `200 { user }` · `400` si no sirve o caducó |
+| POST   | `/auth/resend-verification` | —  (header `Authorization`) | `200 { message }` · `429` si pasó menos de 1 min |
 
-`user` = `{ id, name, email }`. `password` mínimo 6 caracteres.
+`user` = `{ id, name, email, role, emailVerified }`. `password` mínimo 6 caracteres.
+
+**Verificación de correo:** al registrarse se manda un enlace de un solo uso
+(caduca en 24 h) a `APP_URL/verify-email?token=...` con [Resend](https://resend.com).
+Sin `RESEND_API_KEY` en `.env` no se envía nada: el correo se imprime en la
+consola del servidor. Las cuentas de Google nacen verificadas. Ver
+`src/lib/emailVerification.ts`.
 
 ### Obras — `Authorization: Bearer <token>` obligatorio
 

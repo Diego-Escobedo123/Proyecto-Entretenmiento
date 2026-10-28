@@ -14,6 +14,10 @@
  * ocultar cosas en la interfaz; quien de verdad protege las rutas /admin es
  * el backend (responde 403 a quien no sea ADMIN).
  *
+ * Correo: al registrarse el backend manda un enlace de verificación (Resend).
+ * Mientras `user.emailVerified` sea false se puede usar la app; solo se ve el
+ * aviso de EmailVerifyBanner. El enlace abre /verify-email (verifyEmail).
+ *
  * Analítica: al entrar se manda a PostHog `user_registered` (cuenta nueva) o
  * `user_logged_in` (cuenta existente). Ver lib/analytics.
  */
@@ -28,6 +32,8 @@ interface AuthUser {
   name: string
   email: string
   role: Role
+  /** false hasta que abre el enlace que le llegó al correo (las cuentas de Google nacen verificadas). */
+  emailVerified: boolean
   avatarUrl?: string
 }
 
@@ -106,6 +112,33 @@ export const useAuthStore = defineStore('auth', () => {
   }
 
   /**
+   * Confirma el correo con el token del enlace (POST /auth/verify-email). No
+   * pide sesión; si la sesión abierta es de esa misma cuenta, la actualiza.
+   */
+  async function verifyEmail(token: string): Promise<Result> {
+    try {
+      const { user: verified } = await apiFetch<{ user: AuthUser }>('/auth/verify-email', {
+        method: 'POST',
+        body: { token },
+      })
+      if (user.value?.id === verified.id) user.value = verified
+      return { ok: true }
+    } catch (e) {
+      return { ok: false, message: e instanceof ApiError ? e.message : 'No se pudo verificar el correo.' }
+    }
+  }
+
+  /** Pide otro enlace de verificación (POST /auth/resend-verification). */
+  async function resendVerification(): Promise<{ ok: boolean; message: string }> {
+    try {
+      const { message } = await apiFetch<{ message: string }>('/auth/resend-verification', { method: 'POST' })
+      return { ok: true, message }
+    } catch (e) {
+      return { ok: false, message: e instanceof ApiError ? e.message : 'No se pudo enviar el correo.' }
+    }
+  }
+
+  /**
    * Revalida la sesión contra /auth/me. Si el token no sirve, cierra sesión.
    * Si ya hay una revalidación en curso, devuelve esa misma (el guard del
    * router la espera antes de decidir si dejar entrar a /admin).
@@ -130,5 +163,16 @@ export const useAuthStore = defineStore('auth', () => {
     return restoring
   }
 
-  return { user, isAuthenticated, isAdmin, login, loginWithGoogleCredential, register, logout, restore }
+  return {
+    user,
+    isAuthenticated,
+    isAdmin,
+    login,
+    loginWithGoogleCredential,
+    register,
+    logout,
+    restore,
+    verifyEmail,
+    resendVerification,
+  }
 })

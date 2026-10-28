@@ -14,6 +14,7 @@ import PeopleScreen from '../Screens/people.vue'
 import FollowsScreen from '../Screens/follows.vue'
 import NotFoundScreen from '../Screens/not-found.vue'
 import AdminScreen from '../Screens/admin.vue'
+import VerifyEmailScreen from '../Screens/verify-email.vue'
 
 /**
  * Rutas de la app. Importaciones normales (no lazy) a propósito: mezclar
@@ -27,6 +28,8 @@ export const router = createRouter({
   routes: [
     { path: '/login', name: 'login', component: LoginScreen, meta: { public: true } },
     { path: '/register', name: 'register', component: RegisterScreen, meta: { public: true } },
+    // Destino del enlace del correo: se abre con o sin sesión (puede llegar desde otro dispositivo).
+    { path: '/verify-email', name: 'verify-email', component: VerifyEmailScreen, meta: { public: true, anyAuth: true } },
     { path: '/', name: 'home', component: HomeScreen },
     { path: '/explore', name: 'explore', component: ExploreScreen },
     { path: '/collection', name: 'collection', component: CollectionScreen },
@@ -48,7 +51,7 @@ export const router = createRouter({
 
 /**
  * Guard de autenticación y de rol.
- * - Sin sesión → /login. Con sesión en login/register → Inicio.
+ * - Sin sesión → /login. Con sesión en login/register → Inicio (salvo `meta.anyAuth`).
  * - Rutas con `meta.admin`: espera a conocer al usuario (/auth/me) y, si no
  *   es ADMIN, lo manda a Inicio. Es solo comodidad de interfaz: el backend
  *   también rechaza con 403 a quien no sea admin.
@@ -60,7 +63,7 @@ router.beforeEach(async (to) => {
     return { path: '/login', query: { redirect: to.fullPath } }
   }
 
-  if (to.meta.public && auth.isAuthenticated) {
+  if (to.meta.public && !to.meta.anyAuth && auth.isAuthenticated) {
     return { path: '/' }
   }
 

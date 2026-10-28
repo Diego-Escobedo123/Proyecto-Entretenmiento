@@ -66,6 +66,10 @@ export const googleLoginSchema = z.object({
   idToken: z.string({ error: 'Falta el token de Google.' }).min(1, 'Falta el token de Google.'),
 })
 
+export const verifyEmailSchema = z.object({
+  token: z.string({ error: 'Falta el token de verificación.' }).trim().min(1, 'Falta el token de verificación.'),
+})
+
 // --- Obras (/media) ---------------------------------------------------------
 
 /** Campos de una obra que el usuario puede escribir. */
