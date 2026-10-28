@@ -15,21 +15,24 @@ export function verifyPassword(plain: string, hash: string): Promise<boolean> {
 
 export interface TokenPayload {
   sub: string // id del usuario
+  /** User.sessionVersion al firmarlo; si ya no coincide, la sesión se cerró. */
+  ver: number
   exp: number
 }
 
-export function signToken(userId: string): Promise<string> {
+export function signToken(user: { id: string; sessionVersion: number }): Promise<string> {
   const exp = Math.floor(Date.now() / 1000) + TOKEN_TTL_SECONDS
-  return sign({ sub: userId, exp }, SECRET, ALG)
+  return sign({ sub: user.id, ver: user.sessionVersion, exp }, SECRET, ALG)
 }
 
 export async function verifyToken(token: string): Promise<TokenPayload | null> {
   try {
     const payload = await verify(token, SECRET, ALG)
-    const sub = payload.sub
-    const exp = payload.exp
-    if (typeof sub !== 'string' || typeof exp !== 'number') return null
-    return { sub, exp }
+    const { sub, exp } = payload
+    // Los tokens firmados antes de existir `ver` cuentan como versión 0.
+    const ver = payload.ver ?? 0
+    if (typeof sub !== 'string' || typeof exp !== 'number' || typeof ver !== 'number') return null
+    return { sub, ver, exp }
   } catch {
     return null
   }
@@ -62,7 +65,7 @@ export async function verifyGoogleIdToken(idToken: string): Promise<GoogleIdenti
     })
     const { email, email_verified, name } = payload
     if (typeof email !== 'string' || email_verified !== true) return null
-    return { email, name: typeof name === 'string' && name.trim() ? name.trim() : email.split('@')[0] }
+    return { email: email.toLowerCase(), name: typeof name === 'string' && name.trim() ? name.trim() : email.split('@')[0] }
   } catch {
     return null
   }

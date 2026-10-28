@@ -9,6 +9,8 @@ export interface AdminUser {
   name: string
   email: string
   role: Role
+  /** Ya abrió el enlace de verificación (o entró con Google). */
+  emailVerified: boolean
   handle: string
   avatar: string | null
   /** ISO 8601. */

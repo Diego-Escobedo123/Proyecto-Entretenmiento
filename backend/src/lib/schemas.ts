@@ -48,18 +48,37 @@ const genres = z
 
 // --- Autenticación ----------------------------------------------------------
 
+/**
+ * Contraseña nueva (registro, recuperación y cambio). bcrypt solo usa los
+ * primeros 72 bytes. Las cuentas con contraseñas más cortas de antes siguen
+ * entrando: el mínimo solo aplica al elegir una nueva.
+ */
+const newPassword = z
+  .string({ error: 'Ingresa una contraseña.' })
+  .min(8, 'La contraseña debe tener al menos 8 caracteres.')
+  .max(72, 'La contraseña es demasiado larga (máximo 72 caracteres).')
+
+const currentPassword = z.string({ error: 'Ingresa tu contraseña.' }).min(1, 'Ingresa tu contraseña.')
+
+/** Los correos se guardan y se buscan siempre en minúsculas. */
+const emailAddress = z
+  .string({ error: 'Ingresa un correo válido.' })
+  .trim()
+  .toLowerCase()
+  .pipe(z.email('Ingresa un correo válido.'))
+
+/** Token de un enlace mandado por correo. */
+const linkToken = z.string({ error: 'Falta el token del enlace.' }).trim().min(1, 'Falta el token del enlace.')
+
 export const registerSchema = z.object({
   name: z.string({ error: 'Ingresa tu nombre.' }).trim().min(1, 'Ingresa tu nombre.').max(80, 'El nombre es demasiado largo.'),
-  email: z.string({ error: 'Ingresa un correo válido.' }).trim().pipe(z.email('Ingresa un correo válido.')),
-  password: z
-    .string({ error: 'Ingresa una contraseña.' })
-    .min(6, 'La contraseña debe tener al menos 6 caracteres.')
-    .max(72, 'La contraseña es demasiado larga (máximo 72 caracteres).'),
+  email: emailAddress,
+  password: newPassword,
 })
 
 export const loginSchema = z.object({
-  email: z.string({ error: 'Ingresa tu correo.' }).trim().min(1, 'Ingresa tu correo.'),
-  password: z.string({ error: 'Ingresa tu contraseña.' }).min(1, 'Ingresa tu contraseña.'),
+  email: z.string({ error: 'Ingresa tu correo.' }).trim().toLowerCase().min(1, 'Ingresa tu correo.'),
+  password: currentPassword,
 })
 
 export const googleLoginSchema = z.object({
@@ -67,7 +86,34 @@ export const googleLoginSchema = z.object({
 })
 
 export const verifyEmailSchema = z.object({
-  token: z.string({ error: 'Falta el token de verificación.' }).trim().min(1, 'Falta el token de verificación.'),
+  token: linkToken,
+})
+
+export const forgotPasswordSchema = z.object({
+  email: emailAddress,
+})
+
+export const resetPasswordSchema = z.object({
+  token: linkToken,
+  password: newPassword,
+})
+
+export const changePasswordSchema = z.object({
+  currentPassword,
+  newPassword,
+})
+
+export const changeEmailSchema = z.object({
+  email: emailAddress,
+  password: currentPassword,
+})
+
+export const confirmEmailChangeSchema = z.object({
+  token: linkToken,
+})
+
+export const deleteAccountSchema = z.object({
+  confirm: z.literal('ELIMINAR', { error: 'Escribe ELIMINAR para confirmar.' }),
 })
 
 // --- Obras (/media) ---------------------------------------------------------

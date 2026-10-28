@@ -9,12 +9,16 @@
  * servidor de archivos. Una foto por enlace guardada antes se sigue mostrando
  * y se puede quitar o reemplazar. Los errores del backend llegan con su campo
  * y se muestran debajo de ese campo.
+ *
+ * Debajo del formulario va la sección "Cuenta" (correo, contraseña y
+ * eliminar cuenta), que se guarda aparte: ver AccountSettings.
  */
 import { computed, reactive, ref, watchEffect } from 'vue'
 import BaseModal from './BaseModal.vue'
 import BaseButton from './BaseButton.vue'
 import BaseIcon from './BaseIcon.vue'
 import AppField from './AppField.vue'
+import AccountSettings from './AccountSettings.vue'
 import { ApiError } from '../lib/api'
 import { ACCEPTED_IMAGE_TYPES, toSquareDataUrl } from '../lib/image'
 import { useProfileStore } from '../stores/profile'
@@ -242,6 +246,9 @@ async function save() {
 
       <p v-if="formError" class="settings__error" role="alert">{{ formError }}</p>
     </form>
+
+    <!-- Fuera del <form>: cada bloque de cuenta tiene su propio formulario. -->
+    <AccountSettings />
 
     <template #footer>
       <BaseButton variant="ghost" @click="closeAnimated">Cancelar</BaseButton>

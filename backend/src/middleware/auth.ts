@@ -5,13 +5,23 @@ import { prisma } from '../lib/prisma'
 /** Variables que este middleware deja en el contexto de Hono. */
 export type AuthEnv = { Variables: { userId: string } }
 
-/** Exige `Authorization: Bearer <token>` válido; si no, responde 401. */
+/**
+ * Exige `Authorization: Bearer <token>` válido; si no, responde 401.
+ * También revisa en la base que la cuenta exista y que la sesión siga vigente
+ * (`sessionVersion`): cambiar la contraseña o borrar la cuenta cierra al
+ * instante las sesiones abiertas, sin esperar a que caduque el token.
+ */
 export const requireAuth: MiddlewareHandler<AuthEnv> = async (c, next) => {
   const header = c.req.header('Authorization') ?? ''
   const token = header.startsWith('Bearer ') ? header.slice(7) : ''
   const payload = token ? await verifyToken(token) : null
 
   if (!payload) return c.json({ message: 'No autorizado.' }, 401)
+
+  const user = await prisma.user.findUnique({ where: { id: payload.sub }, select: { sessionVersion: true } })
+  if (!user || user.sessionVersion !== payload.ver) {
+    return c.json({ message: 'Tu sesión se cerró. Inicia sesión de nuevo.' }, 401)
+  }
 
   c.set('userId', payload.sub)
   await next()

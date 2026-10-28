@@ -17,6 +17,11 @@
  * Correo: al registrarse el backend manda un enlace de verificación (Resend).
  * Mientras `user.emailVerified` sea false se puede usar la app; solo se ve el
  * aviso de EmailVerifyBanner. El enlace abre /verify-email (verifyEmail).
+ * Recuperar contraseña: /forgot-password manda un enlace que abre
+ * /reset-password (forgotPassword / resetPassword).
+ * Desde Ajustes → Cuenta: changePassword (cierra las demás sesiones y guarda
+ * el token nuevo que devuelve el backend) y changeEmail, que manda un enlace
+ * al correo nuevo; ese enlace abre /confirm-email-change (confirmEmailChange).
  *
  * Analítica: al entrar se manda a PostHog `user_registered` (cuenta nueva) o
  * `user_logged_in` (cuenta existente). Ver lib/analytics.
@@ -34,6 +39,8 @@ interface AuthUser {
   role: Role
   /** false hasta que abre el enlace que le llegó al correo (las cuentas de Google nacen verificadas). */
   emailVerified: boolean
+  /** Correo nuevo que espera que abra el enlace de confirmación (null si no hay cambio pendiente). */
+  pendingEmail: string | null
   avatarUrl?: string
 }
 
@@ -44,7 +51,14 @@ interface AuthResponse {
   isNew?: boolean
 }
 
-type Result = { ok: true } | { ok: false; message: string }
+/** `field`: campo del formulario al que se refiere el error, si el backend lo indica. */
+type Failure = { ok: false; message: string; field?: string }
+type Result = { ok: true } | Failure
+
+function failure(e: unknown, fallback: string): Failure {
+  if (!(e instanceof ApiError)) return { ok: false, message: fallback }
+  return { ok: false, message: e.message, ...(e.field && { field: e.field }) }
+}
 
 export const useAuthStore = defineStore('auth', () => {
   const user = ref<AuthUser | null>(null)
@@ -138,6 +152,83 @@ export const useAuthStore = defineStore('auth', () => {
     }
   }
 
+  /** Pide el enlace para restablecer la contraseña. La respuesta no dice si la cuenta existe. */
+  async function forgotPassword(email: string): Promise<{ ok: boolean; message: string }> {
+    try {
+      const { message } = await apiFetch<{ message: string }>('/auth/forgot-password', {
+        method: 'POST',
+        body: { email },
+      })
+      return { ok: true, message }
+    } catch (e) {
+      return { ok: false, message: e instanceof ApiError ? e.message : 'No se pudo enviar el correo.' }
+    }
+  }
+
+  /** Elige una contraseña nueva con el token del enlace (no pide sesión). */
+  async function resetPassword(token: string, password: string): Promise<Result> {
+    try {
+      await apiFetch('/auth/reset-password', { method: 'POST', body: { token, password } })
+      return { ok: true }
+    } catch (e) {
+      return { ok: false, message: e instanceof ApiError ? e.message : 'No se pudo cambiar la contraseña.' }
+    }
+  }
+
+  /** Cambia la contraseña. El backend cierra las demás sesiones y devuelve un token nuevo para esta. */
+  async function changePassword(currentPassword: string, newPassword: string): Promise<Result> {
+    try {
+      const res = await apiFetch<{ token: string; user: AuthUser }>('/auth/change-password', {
+        method: 'POST',
+        body: { currentPassword, newPassword },
+      })
+      setToken(res.token)
+      user.value = res.user
+      return { ok: true }
+    } catch (e) {
+      return failure(e, 'No se pudo cambiar la contraseña.')
+    }
+  }
+
+  /** Pide cambiar el correo: el backend manda un enlace de confirmación al correo nuevo. */
+  async function changeEmail(email: string, password: string): Promise<{ ok: true; message: string } | Failure> {
+    try {
+      const res = await apiFetch<{ user: AuthUser; message: string }>('/auth/change-email', {
+        method: 'POST',
+        body: { email, password },
+      })
+      user.value = res.user
+      return { ok: true, message: res.message }
+    } catch (e) {
+      return failure(e, 'No se pudo pedir el cambio de correo.')
+    }
+  }
+
+  /** Aplica el cambio de correo con el token del enlace (no pide sesión). */
+  async function confirmEmailChange(token: string): Promise<Result> {
+    try {
+      const { user: updated } = await apiFetch<{ user: AuthUser }>('/auth/confirm-email-change', {
+        method: 'POST',
+        body: { token },
+      })
+      if (user.value?.id === updated.id) user.value = updated
+      return { ok: true }
+    } catch (e) {
+      return failure(e, 'No se pudo confirmar el correo.')
+    }
+  }
+
+  /** Borra la cuenta (y todo lo suyo) y cierra la sesión. */
+  async function deleteAccount(): Promise<Result> {
+    try {
+      await apiFetch('/auth/account', { method: 'DELETE', body: { confirm: 'ELIMINAR' } })
+      logout()
+      return { ok: true }
+    } catch (e) {
+      return { ok: false, message: e instanceof ApiError ? e.message : 'No se pudo eliminar la cuenta.' }
+    }
+  }
+
   /**
    * Revalida la sesión contra /auth/me. Si el token no sirve, cierra sesión.
    * Si ya hay una revalidación en curso, devuelve esa misma (el guard del
@@ -174,5 +265,11 @@ export const useAuthStore = defineStore('auth', () => {
     restore,
     verifyEmail,
     resendVerification,
+    forgotPassword,
+    resetPassword,
+    changePassword,
+    changeEmail,
+    confirmEmailChange,
+    deleteAccount,
   }
 })

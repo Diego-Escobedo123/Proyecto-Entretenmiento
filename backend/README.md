@@ -54,14 +54,46 @@ Base URL: `http://localhost:3000`
 | GET    | `/auth/me`       | —  (header `Authorization`)   | `200 { user }`                  |
 | POST   | `/auth/verify-email` | `{ token }` (del enlace del correo) | `200 { user }` · `400` si no sirve o caducó |
 | POST   | `/auth/resend-verification` | —  (header `Authorization`) | `200 { message }` · `429` si pasó menos de 1 min |
+| POST   | `/auth/forgot-password` | `{ email }` | `200 { message }` (igual exista o no la cuenta) |
+| POST   | `/auth/reset-password` | `{ token, password }` (del enlace del correo) | `200 { message }` · `400` si no sirve o caducó |
+| POST   | `/auth/change-password` | `{ currentPassword, newPassword }` (header `Authorization`) | `200 { token, user, message }` |
+| POST   | `/auth/change-email` | `{ email, password }` (header `Authorization`) | `200 { user, message }` · `409` si el correo ya existe |
+| POST   | `/auth/confirm-email-change` | `{ token }` (del enlace del correo nuevo) | `200 { user }` · `400`/`409` |
+| DELETE | `/auth/account` | `{ confirm: "ELIMINAR" }` (header `Authorization`) | `204` · `400` si es el único admin |
 
-`user` = `{ id, name, email, role, emailVerified }`. `password` mínimo 6 caracteres.
+`user` = `{ id, name, email, role, emailVerified, pendingEmail }`. Los correos
+se guardan en minúsculas. Una contraseña nueva necesita al menos 8 caracteres
+(las cuentas con contraseñas más cortas de antes siguen entrando).
+
+**Sesiones:** cada token lleva `User.sessionVersion`. Cambiar o restablecer la
+contraseña la sube y `requireAuth` rechaza (401) los tokens viejos, así que se
+cierran todas las sesiones; `change-password` devuelve un token nuevo para
+seguir en la actual. Borrar la cuenta también invalida sus tokens.
+
+**Límite de intentos** (`src/lib/rateLimit.ts`, tabla `RateLimit`): login 20
+cada 15 min por IP y 10 fallos por correo; registro 10 por hora por IP;
+"olvidé mi contraseña" 5 por hora por IP; abrir enlaces de correo 30 cada 15
+min por IP; contraseña actual mal escrita 5 cada 15 min por usuario. Responde
+`429` con `Retry-After`. En AWS hay que poner `TRUST_PROXY=true` para usar la
+IP real del cliente (X-Forwarded-For).
 
 **Verificación de correo:** al registrarse se manda un enlace de un solo uso
 (caduca en 24 h) a `APP_URL/verify-email?token=...` con [Resend](https://resend.com).
 Sin `RESEND_API_KEY` en `.env` no se envía nada: el correo se imprime en la
 consola del servidor. Las cuentas de Google nacen verificadas. Ver
 `src/lib/emailVerification.ts`.
+
+**Recuperar contraseña:** el enlace (`APP_URL/reset-password?token=...`)
+caduca en 1 hora y sirve una vez; usarlo también verifica el correo. Cada
+cambio de contraseña manda un aviso al correo de la cuenta. Ver
+`src/lib/passwordReset.ts` y `src/lib/accountNotices.ts`.
+
+**Cambiar correo:** el correo nuevo queda en `pendingEmail` hasta que se abre
+el enlace que le llega (`APP_URL/confirm-email-change?token=...`, 24 h). Al
+confirmarse se avisa al correo anterior. Ver `src/lib/emailChange.ts`.
+
+**Eliminar cuenta:** borra al usuario y, en cascada, todo lo suyo (obras,
+listas, diario, seguidores, notificaciones…).
 
 ### Obras — `Authorization: Bearer <token>` obligatorio
 

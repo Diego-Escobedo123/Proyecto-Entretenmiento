@@ -1,10 +1,12 @@
 <script setup lang="ts">
 /**
- * VerifyEmail — destino del enlace que llega al correo (/verify-email?token=...).
+ * VerifyEmail — destino de los enlaces de correo que confirman una dirección:
+ * - /verify-email?token=...          verificar el correo de la cuenta
+ * - /confirm-email-change?token=...  confirmar el correo nuevo (cambio desde Ajustes)
  *
- * Manda el token a POST /auth/verify-email (ver stores/auth.ts) y muestra el
- * resultado. Se abre con o sin sesión (`meta.anyAuth`): el enlace puede
- * abrirse en otro navegador. Si falla y hay sesión sin verificar, ofrece
+ * Manda el token al backend (ver stores/auth.ts) y muestra el resultado. Se
+ * abre con o sin sesión (`meta.anyAuth`): el enlace puede abrirse en otro
+ * navegador. Si la verificación falla y hay sesión sin verificar, ofrece
  * pedir otro enlace.
  */
 import { computed, onMounted, ref } from 'vue'
@@ -17,12 +19,17 @@ const route = useRoute()
 const router = useRouter()
 const auth = useAuthStore()
 
+const isEmailChange = route.name === 'confirm-email-change'
+const texts = isEmailChange
+  ? { loading: 'Confirmando tu nuevo correo…', ok: '¡Correo actualizado!', okHint: 'Desde ahora entras con tu nuevo correo.' }
+  : { loading: 'Verificando tu correo…', ok: '¡Correo verificado!', okHint: 'Tu cuenta quedó confirmada.' }
+
 const status = ref<'loading' | 'ok' | 'error'>('loading')
 const message = ref('')
 const resending = ref(false)
 const resendMessage = ref('')
 
-const canResend = computed(() => auth.isAuthenticated && auth.user?.emailVerified === false)
+const canResend = computed(() => !isEmailChange && auth.isAuthenticated && auth.user?.emailVerified === false)
 
 onMounted(async () => {
   const token = typeof route.query.token === 'string' ? route.query.token : ''
@@ -34,10 +41,10 @@ onMounted(async () => {
     return
   }
 
-  // Si hay sesión, primero se conoce al usuario: así verifyEmail puede actualizarlo.
+  // Si hay sesión, primero se conoce al usuario: así el store puede actualizarlo.
   if (auth.isAuthenticated && !auth.user) await auth.restore()
 
-  const result = await auth.verifyEmail(token)
+  const result = isEmailChange ? await auth.confirmEmailChange(token) : await auth.verifyEmail(token)
   if (result.ok) {
     status.value = 'ok'
   } else {
@@ -60,7 +67,7 @@ function onContinue() {
 <template>
   <div class="verify">
     <template v-if="status === 'loading'">
-      <h2 class="verify__title">Verificando tu correo…</h2>
+      <h2 class="verify__title">{{ texts.loading }}</h2>
       <p class="verify__status" role="status">
         <BaseSpinner size="sm" />
         Un momento.
@@ -68,15 +75,15 @@ function onContinue() {
     </template>
 
     <template v-else-if="status === 'ok'">
-      <h2 class="verify__title">¡Correo verificado!</h2>
-      <p class="verify__subtitle">Tu cuenta quedó confirmada.</p>
+      <h2 class="verify__title">{{ texts.ok }}</h2>
+      <p class="verify__subtitle">{{ texts.okHint }}</p>
       <BaseButton class="verify__action" @click="onContinue">
         {{ auth.isAuthenticated ? 'Ir a Inicio' : 'Iniciar sesión' }}
       </BaseButton>
     </template>
 
     <template v-else>
-      <h2 class="verify__title">No se pudo verificar</h2>
+      <h2 class="verify__title">{{ isEmailChange ? 'No se pudo cambiar el correo' : 'No se pudo verificar' }}</h2>
       <p class="verify__error">{{ message }}</p>
 
       <template v-if="canResend">

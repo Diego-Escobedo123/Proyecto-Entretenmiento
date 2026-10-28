@@ -1,8 +1,8 @@
 <script setup lang="ts">
 /**
- * Register — nombre/correo/contraseña + confirmación. Auth simulada (ver
- * stores/auth.ts). Al registrarse con éxito, entra directo (sin verificación
- * de correo todavía — ver TODO en el store).
+ * Register — nombre/correo/contraseña + confirmación (POST /auth/register, ver
+ * stores/auth.ts). Al registrarse entra directo; el backend le manda un enlace
+ * para verificar el correo y, mientras tanto, la app muestra EmailVerifyBanner.
  */
 import { reactive, ref } from 'vue'
 import { useRouter } from 'vue-router'
@@ -10,6 +10,7 @@ import AppField from '../components/AppField.vue'
 import BaseButton from '../components/BaseButton.vue'
 import BaseSpinner from '../components/BaseSpinner.vue'
 import { useAuthStore } from '../stores/auth'
+import { PASSWORD_HINT, emailError, newPasswordError } from '../lib/accountRules'
 
 const router = useRouter()
 const auth = useAuthStore()
@@ -29,8 +30,8 @@ function triggerShake() {
 
 function validate(): boolean {
   errors.name = form.name.trim() ? undefined : 'Ingresa tu nombre.'
-  errors.email = form.email.trim() ? undefined : 'Ingresa tu correo.'
-  errors.password = form.password.length >= 6 ? undefined : 'Mínimo 6 caracteres.'
+  errors.email = emailError(form.email)
+  errors.password = newPasswordError(form.password)
   errors.confirmPassword = form.confirmPassword === form.password ? undefined : 'Las contraseñas no coinciden.'
   return !errors.name && !errors.email && !errors.password && !errors.confirmPassword
 }
@@ -69,7 +70,7 @@ async function onSubmit() {
         <input :id="id" v-model="form.email" type="email" class="app-input" placeholder="tu@correo.com" autocomplete="email" />
       </AppField>
 
-      <AppField v-slot="{ id }" label="Contraseña" :error="errors.password" hint="Mínimo 6 caracteres">
+      <AppField v-slot="{ id }" label="Contraseña" :error="errors.password" :hint="PASSWORD_HINT">
         <input :id="id" v-model="form.password" type="password" class="app-input" placeholder="••••••••" autocomplete="new-password" />
       </AppField>
 
