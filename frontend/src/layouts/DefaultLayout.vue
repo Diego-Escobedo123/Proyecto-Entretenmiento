@@ -14,6 +14,7 @@ import EntryFormModal from '../components/EntryFormModal.vue'
 import SettingsModal from '../components/SettingsModal.vue'
 import AppBottomNav from '../components/AppBottomNav.vue'
 import ToastHost from '../components/ToastHost.vue'
+import EmailVerifyBanner from '../components/EmailVerifyBanner.vue'
 import { useMediaStore } from '../stores/media'
 import { useProfileStore } from '../stores/profile'
 import { useFollowRequestsStore } from '../stores/followRequests'
@@ -54,6 +55,7 @@ onBeforeUnmount(() => notifications.reset())
     <div class="app-shell__main">
       <AppTopBar />
       <main class="app-shell__content">
+        <EmailVerifyBanner />
         <slot />
       </main>
     </div>

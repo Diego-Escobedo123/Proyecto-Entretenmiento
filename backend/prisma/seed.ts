@@ -15,6 +15,7 @@ async function main() {
     data: {
       email: 'demo@mosaic.app',
       name: 'Demo',
+      emailVerifiedAt: new Date(),
       passwordHash: await hashPassword('demo123'),
       profile: { create: { handle: 'demo', memberSince: 2024, tagline: 'Explorando historias' } },
       entries: {
@@ -57,6 +58,7 @@ async function main() {
       email: 'admin@mosaic.app',
       name: 'Admin',
       role: 'ADMIN',
+      emailVerifiedAt: new Date(),
       passwordHash: await hashPassword('admin123'),
       profile: { create: { handle: 'admin', memberSince: new Date().getFullYear() } },
     },

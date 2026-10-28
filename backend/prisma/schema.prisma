@@ -23,6 +23,14 @@ model User {
   /// Permisos del usuario. Todos nacen como USER; un ADMIN puede gestionar
   /// usuarios y roles desde /admin. Ver `bun run make-admin`.
   role         Role         @default(USER)
+  /// Cuándo confirmó su correo con el enlace que se le mandó (null = sin verificar).
+  /// Las cuentas de Google nacen verificadas. Ver lib/emailVerification.
+  emailVerifiedAt           DateTime?
+  /// SHA-256 del token del enlace vigente: el token en claro solo viaja en el correo.
+  emailVerifyTokenHash      String?   @unique
+  emailVerifyTokenExpiresAt DateTime?
+  /// Último envío del correo de verificación (para no reenviarlo en ráfaga).
+  emailVerifySentAt         DateTime?
   profile      Profile?
   entries      MediaEntry[]
   logs         LogEntry[]
