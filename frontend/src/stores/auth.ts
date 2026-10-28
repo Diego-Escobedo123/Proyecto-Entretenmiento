@@ -17,6 +17,8 @@
  * Correo: al registrarse el backend manda un enlace de verificación (Resend).
  * Mientras `user.emailVerified` sea false se puede usar la app; solo se ve el
  * aviso de EmailVerifyBanner. El enlace abre /verify-email (verifyEmail).
+ * Recuperar contraseña: /forgot-password manda un enlace que abre
+ * /reset-password (forgotPassword / resetPassword).
  *
  * Analítica: al entrar se manda a PostHog `user_registered` (cuenta nueva) o
  * `user_logged_in` (cuenta existente). Ver lib/analytics.
@@ -138,6 +140,40 @@ export const useAuthStore = defineStore('auth', () => {
     }
   }
 
+  /** Pide el enlace para restablecer la contraseña. La respuesta no dice si la cuenta existe. */
+  async function forgotPassword(email: string): Promise<{ ok: boolean; message: string }> {
+    try {
+      const { message } = await apiFetch<{ message: string }>('/auth/forgot-password', {
+        method: 'POST',
+        body: { email },
+      })
+      return { ok: true, message }
+    } catch (e) {
+      return { ok: false, message: e instanceof ApiError ? e.message : 'No se pudo enviar el correo.' }
+    }
+  }
+
+  /** Elige una contraseña nueva con el token del enlace (no pide sesión). */
+  async function resetPassword(token: string, password: string): Promise<Result> {
+    try {
+      await apiFetch('/auth/reset-password', { method: 'POST', body: { token, password } })
+      return { ok: true }
+    } catch (e) {
+      return { ok: false, message: e instanceof ApiError ? e.message : 'No se pudo cambiar la contraseña.' }
+    }
+  }
+
+  /** Borra la cuenta (y todo lo suyo) y cierra la sesión. */
+  async function deleteAccount(): Promise<Result> {
+    try {
+      await apiFetch('/auth/account', { method: 'DELETE', body: { confirm: 'ELIMINAR' } })
+      logout()
+      return { ok: true }
+    } catch (e) {
+      return { ok: false, message: e instanceof ApiError ? e.message : 'No se pudo eliminar la cuenta.' }
+    }
+  }
+
   /**
    * Revalida la sesión contra /auth/me. Si el token no sirve, cierra sesión.
    * Si ya hay una revalidación en curso, devuelve esa misma (el guard del
@@ -174,5 +210,8 @@ export const useAuthStore = defineStore('auth', () => {
     restore,
     verifyEmail,
     resendVerification,
+    forgotPassword,
+    resetPassword,
+    deleteAccount,
   }
 })

@@ -48,13 +48,18 @@ const genres = z
 
 // --- Autenticación ----------------------------------------------------------
 
+/** Contraseña nueva (registro y recuperación). bcrypt solo usa los primeros 72 bytes. */
+const newPassword = z
+  .string({ error: 'Ingresa una contraseña.' })
+  .min(6, 'La contraseña debe tener al menos 6 caracteres.')
+  .max(72, 'La contraseña es demasiado larga (máximo 72 caracteres).')
+
+const emailAddress = z.string({ error: 'Ingresa un correo válido.' }).trim().pipe(z.email('Ingresa un correo válido.'))
+
 export const registerSchema = z.object({
   name: z.string({ error: 'Ingresa tu nombre.' }).trim().min(1, 'Ingresa tu nombre.').max(80, 'El nombre es demasiado largo.'),
-  email: z.string({ error: 'Ingresa un correo válido.' }).trim().pipe(z.email('Ingresa un correo válido.')),
-  password: z
-    .string({ error: 'Ingresa una contraseña.' })
-    .min(6, 'La contraseña debe tener al menos 6 caracteres.')
-    .max(72, 'La contraseña es demasiado larga (máximo 72 caracteres).'),
+  email: emailAddress,
+  password: newPassword,
 })
 
 export const loginSchema = z.object({
@@ -68,6 +73,19 @@ export const googleLoginSchema = z.object({
 
 export const verifyEmailSchema = z.object({
   token: z.string({ error: 'Falta el token de verificación.' }).trim().min(1, 'Falta el token de verificación.'),
+})
+
+export const forgotPasswordSchema = z.object({
+  email: emailAddress,
+})
+
+export const resetPasswordSchema = z.object({
+  token: z.string({ error: 'Falta el token del enlace.' }).trim().min(1, 'Falta el token del enlace.'),
+  password: newPassword,
+})
+
+export const deleteAccountSchema = z.object({
+  confirm: z.literal('ELIMINAR', { error: 'Escribe ELIMINAR para confirmar.' }),
 })
 
 // --- Obras (/media) ---------------------------------------------------------

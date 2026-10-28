@@ -15,6 +15,8 @@ import FollowsScreen from '../Screens/follows.vue'
 import NotFoundScreen from '../Screens/not-found.vue'
 import AdminScreen from '../Screens/admin.vue'
 import VerifyEmailScreen from '../Screens/verify-email.vue'
+import ForgotPasswordScreen from '../Screens/forgot-password.vue'
+import ResetPasswordScreen from '../Screens/reset-password.vue'
 
 /**
  * Rutas de la app. Importaciones normales (no lazy) a propósito: mezclar
@@ -28,8 +30,10 @@ export const router = createRouter({
   routes: [
     { path: '/login', name: 'login', component: LoginScreen, meta: { public: true } },
     { path: '/register', name: 'register', component: RegisterScreen, meta: { public: true } },
-    // Destino del enlace del correo: se abre con o sin sesión (puede llegar desde otro dispositivo).
+    { path: '/forgot-password', name: 'forgot-password', component: ForgotPasswordScreen, meta: { public: true } },
+    // Destinos de los enlaces del correo: se abren con o sin sesión (pueden llegar desde otro dispositivo).
     { path: '/verify-email', name: 'verify-email', component: VerifyEmailScreen, meta: { public: true, anyAuth: true } },
+    { path: '/reset-password', name: 'reset-password', component: ResetPasswordScreen, meta: { public: true, anyAuth: true } },
     { path: '/', name: 'home', component: HomeScreen },
     { path: '/explore', name: 'explore', component: ExploreScreen },
     { path: '/collection', name: 'collection', component: CollectionScreen },

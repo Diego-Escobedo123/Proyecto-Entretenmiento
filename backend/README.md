@@ -54,6 +54,9 @@ Base URL: `http://localhost:3000`
 | GET    | `/auth/me`       | —  (header `Authorization`)   | `200 { user }`                  |
 | POST   | `/auth/verify-email` | `{ token }` (del enlace del correo) | `200 { user }` · `400` si no sirve o caducó |
 | POST   | `/auth/resend-verification` | —  (header `Authorization`) | `200 { message }` · `429` si pasó menos de 1 min |
+| POST   | `/auth/forgot-password` | `{ email }` | `200 { message }` (igual exista o no la cuenta) |
+| POST   | `/auth/reset-password` | `{ token, password }` (del enlace del correo) | `200 { message }` · `400` si no sirve o caducó |
+| DELETE | `/auth/account` | `{ confirm: "ELIMINAR" }` (header `Authorization`) | `204` · `400` si es el único admin |
 
 `user` = `{ id, name, email, role, emailVerified }`. `password` mínimo 6 caracteres.
 
@@ -62,6 +65,13 @@ Base URL: `http://localhost:3000`
 Sin `RESEND_API_KEY` en `.env` no se envía nada: el correo se imprime en la
 consola del servidor. Las cuentas de Google nacen verificadas. Ver
 `src/lib/emailVerification.ts`.
+
+**Recuperar contraseña:** el enlace (`APP_URL/reset-password?token=...`)
+caduca en 1 hora y sirve una vez; usarlo también verifica el correo. Las
+sesiones abiertas siguen valiendo hasta que caducan. Ver `src/lib/passwordReset.ts`.
+
+**Eliminar cuenta:** borra al usuario y, en cascada, todo lo suyo (obras,
+listas, diario, seguidores, notificaciones…).
 
 ### Obras — `Authorization: Bearer <token>` obligatorio
 

@@ -14,23 +14,15 @@
 import type { User } from '@prisma/client'
 import { prisma } from './prisma'
 import { APP_URL, escapeHtml, sendEmail } from './email'
+import { cooldownLeftMs, hashToken, newToken } from './tokens'
 
 const TOKEN_TTL_MS = 24 * 60 * 60 * 1000 // 24 h
 /** Tiempo mínimo entre dos correos de verificación al mismo usuario. */
 export const RESEND_COOLDOWN_MS = 60 * 1000
 
-function hashToken(token: string): string {
-  return new Bun.CryptoHasher('sha256').update(token).digest('hex')
-}
-
-function newToken(): string {
-  return Buffer.from(crypto.getRandomValues(new Uint8Array(32))).toString('base64url')
-}
-
 /** Milisegundos que faltan para poder reenviar el correo (0 = ya se puede). */
 export function resendWaitMs(user: Pick<User, 'emailVerifySentAt'>): number {
-  if (!user.emailVerifySentAt) return 0
-  return Math.max(0, user.emailVerifySentAt.getTime() + RESEND_COOLDOWN_MS - Date.now())
+  return cooldownLeftMs(user.emailVerifySentAt, RESEND_COOLDOWN_MS)
 }
 
 /** Genera un enlace nuevo (invalida el anterior) y lo manda por correo. */

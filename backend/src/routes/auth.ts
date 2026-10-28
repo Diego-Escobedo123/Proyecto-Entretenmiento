@@ -4,8 +4,17 @@ import { prisma } from '../lib/prisma'
 import { hashPassword, isGoogleAuthEnabled, signToken, verifyGoogleIdToken, verifyPassword } from '../lib/auth'
 import { requireAuth, type AuthEnv } from '../middleware/auth'
 import { validateBody } from '../lib/validation'
-import { googleLoginSchema, loginSchema, registerSchema, verifyEmailSchema } from '../lib/schemas'
+import {
+  deleteAccountSchema,
+  forgotPasswordSchema,
+  googleLoginSchema,
+  loginSchema,
+  registerSchema,
+  resetPasswordSchema,
+  verifyEmailSchema,
+} from '../lib/schemas'
 import { resendWaitMs, sendVerificationEmail, verifyEmailToken } from '../lib/emailVerification'
+import { requestPasswordReset, resetPassword } from '../lib/passwordReset'
 
 export const authRoutes = new Hono<AuthEnv>()
 
@@ -138,4 +147,48 @@ authRoutes.post('/resend-verification', requireAuth, async (c) => {
     return c.json({ message: 'No se pudo enviar el correo. Intenta de nuevo más tarde.' }, 502)
   }
   return c.json({ message: `Te enviamos un enlace nuevo a ${user.email}.` })
+})
+
+// POST /auth/forgot-password  { email }  -> siempre la misma respuesta, exista o no la cuenta
+authRoutes.post('/forgot-password', async (c) => {
+  const parsed = await validateBody(c, forgotPasswordSchema)
+  if (!parsed.ok) return parsed.response
+
+  // Sin await: si respondiera más tarde cuando la cuenta existe, el tiempo de
+  // respuesta delataría qué correos están registrados.
+  void requestPasswordReset(parsed.data.email).catch((err) =>
+    console.error('No se pudo enviar el correo de recuperación:', err),
+  )
+  return c.json({ message: 'Si hay una cuenta con ese correo, te enviamos un enlace para restablecer la contraseña.' })
+})
+
+// POST /auth/reset-password  { token, password }  (token del enlace del correo; no pide sesión)
+authRoutes.post('/reset-password', async (c) => {
+  const parsed = await validateBody(c, resetPasswordSchema)
+  if (!parsed.ok) return parsed.response
+
+  const user = await resetPassword(parsed.data.token, parsed.data.password)
+  if (!user) return c.json({ message: 'El enlace no es válido o ya caducó. Pide uno nuevo.' }, 400)
+  return c.json({ message: 'Listo, ya puedes iniciar sesión con tu contraseña nueva.' })
+})
+
+// DELETE /auth/account  { confirm: "ELIMINAR" }  (requiere token) -> borra la cuenta y todo lo suyo
+authRoutes.delete('/account', requireAuth, async (c) => {
+  const parsed = await validateBody(c, deleteAccountSchema)
+  if (!parsed.ok) return parsed.response
+
+  const user = await prisma.user.findUnique({ where: { id: c.get('userId') }, select: { id: true, role: true } })
+  if (!user) return c.json({ message: 'No autorizado.' }, 401)
+
+  // Igual que en /admin: siempre tiene que quedar al menos un admin.
+  if (user.role === 'ADMIN') {
+    const admins = await prisma.user.count({ where: { role: 'ADMIN' } })
+    if (admins <= 1) {
+      return c.json({ message: 'Eres el único administrador. Nombra a otro admin antes de eliminar tu cuenta.' }, 400)
+    }
+  }
+
+  // Obras, listas, diario, seguidores, notificaciones, etc. se borran en cascada (ver schema.prisma).
+  await prisma.user.delete({ where: { id: user.id } })
+  return c.body(null, 204)
 })

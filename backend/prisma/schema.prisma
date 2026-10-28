@@ -31,6 +31,11 @@ model User {
   emailVerifyTokenExpiresAt DateTime?
   /// Último envío del correo de verificación (para no reenviarlo en ráfaga).
   emailVerifySentAt         DateTime?
+  /// Enlace de recuperación de contraseña vigente (mismo esquema que el de
+  /// verificación: solo el hash, caduca en 1 h). Ver lib/passwordReset.
+  passwordResetTokenHash      String?   @unique
+  passwordResetTokenExpiresAt DateTime?
+  passwordResetSentAt         DateTime?
   profile      Profile?
   entries      MediaEntry[]
   logs         LogEntry[]

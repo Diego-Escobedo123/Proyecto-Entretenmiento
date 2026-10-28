@@ -141,6 +141,7 @@ onBeforeUnmount(() => {
       <AppField v-slot="{ id }" label="Contraseña" :error="errors.password">
         <input :id="id" v-model="form.password" type="password" class="app-input" placeholder="••••••••" autocomplete="current-password" />
       </AppField>
+      <RouterLink to="/forgot-password" class="login__link login__forgot">¿Olvidaste tu contraseña?</RouterLink>
 
       <p v-if="formError" class="login__form-error">{{ formError }}</p>
 
@@ -294,6 +295,13 @@ onBeforeUnmount(() => {
 
 .login__link:hover {
   color: var(--color-link-hover);
+}
+
+/* Pegado a la contraseña, alineado a la derecha. */
+.login__forgot {
+  align-self: flex-end;
+  margin-top: calc(-1 * var(--space-sm));
+  font-size: 0.8125rem;
 }
 
 .login--shake {
