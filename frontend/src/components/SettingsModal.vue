@@ -10,25 +10,22 @@
  * y se puede quitar o reemplazar. Los errores del backend llegan con su campo
  * y se muestran debajo de ese campo.
  *
- * Al final, "Eliminar cuenta": pide escribir ELIMINAR, borra la cuenta con
- * todo lo suyo (DELETE /auth/account) y manda al login.
+ * Debajo del formulario va la sección "Cuenta" (correo, contraseña y
+ * eliminar cuenta), que se guarda aparte: ver AccountSettings.
  */
 import { computed, reactive, ref, watchEffect } from 'vue'
-import { useRouter } from 'vue-router'
 import BaseModal from './BaseModal.vue'
 import BaseButton from './BaseButton.vue'
 import BaseIcon from './BaseIcon.vue'
 import AppField from './AppField.vue'
+import AccountSettings from './AccountSettings.vue'
 import { ApiError } from '../lib/api'
 import { ACCEPTED_IMAGE_TYPES, toSquareDataUrl } from '../lib/image'
 import { useProfileStore } from '../stores/profile'
 import { useUiStore } from '../stores/ui'
-import { useAuthStore } from '../stores/auth'
 
 const ui = useUiStore()
 const profileStore = useProfileStore()
-const auth = useAuthStore()
-const router = useRouter()
 
 const modalRef = ref<InstanceType<typeof BaseModal> | null>(null)
 function closeAnimated() {
@@ -127,34 +124,6 @@ async function save() {
   } finally {
     submitting.value = false
   }
-}
-
-// --- Eliminar cuenta ---
-const DELETE_WORD = 'ELIMINAR'
-const deleteOpen = ref(false)
-const deleteConfirm = ref('')
-const deleting = ref(false)
-const deleteError = ref<string | null>(null)
-const canDelete = computed(() => deleteConfirm.value.trim() === DELETE_WORD && !deleting.value)
-
-function toggleDelete() {
-  deleteOpen.value = !deleteOpen.value
-  deleteConfirm.value = ''
-  deleteError.value = null
-}
-
-async function deleteAccount() {
-  if (!canDelete.value) return
-  deleting.value = true
-  deleteError.value = null
-  const result = await auth.deleteAccount()
-  deleting.value = false
-  if (!result.ok) {
-    deleteError.value = result.message
-    return
-  }
-  ui.closeModal()
-  router.push('/login')
 }
 </script>
 
@@ -276,38 +245,10 @@ async function deleteAccount() {
       </div>
 
       <p v-if="formError" class="settings__error" role="alert">{{ formError }}</p>
-
-      <!-- Eliminar cuenta -->
-      <div class="settings__danger">
-        <div class="settings__danger-head">
-          <div class="settings__privacy-text">
-            <span class="settings__privacy-title">Eliminar cuenta</span>
-            <span class="settings__privacy-hint">
-              Se borran tu perfil, tu colección, tu diario, tus listas y tus seguidores. No se puede deshacer.
-            </span>
-          </div>
-          <button type="button" class="settings__btn settings__btn--danger-outline" @click="toggleDelete">
-            {{ deleteOpen ? 'Cancelar' : 'Eliminar…' }}
-          </button>
-        </div>
-
-        <div v-if="deleteOpen" class="settings__danger-confirm">
-          <AppField v-slot="{ id }" :label="`Escribe ${DELETE_WORD} para confirmar`" :error="deleteError ?? undefined">
-            <input
-              :id="id"
-              v-model="deleteConfirm"
-              class="app-input"
-              autocomplete="off"
-              spellcheck="false"
-              @keydown.enter.prevent="deleteAccount"
-            />
-          </AppField>
-          <button type="button" class="settings__btn settings__btn--danger" :disabled="!canDelete" @click="deleteAccount">
-            {{ deleting ? 'Eliminando…' : 'Eliminar mi cuenta' }}
-          </button>
-        </div>
-      </div>
     </form>
+
+    <!-- Fuera del <form>: cada bloque de cuenta tiene su propio formulario. -->
+    <AccountSettings />
 
     <template #footer>
       <BaseButton variant="ghost" @click="closeAnimated">Cancelar</BaseButton>
@@ -584,59 +525,7 @@ async function deleteAccount() {
   background: var(--color-accent-contrast);
 }
 
-/* --- Eliminar cuenta --- */
-.settings__danger {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-md);
-  padding: var(--space-md);
-  border: 1px solid var(--color-danger);
-  border-radius: var(--radius-lg);
-}
-
-.settings__danger-head {
-  display: flex;
-  align-items: center;
-  gap: var(--space-md);
-}
-
-.settings__danger-confirm {
-  display: flex;
-  align-items: flex-end;
-  gap: var(--space-sm);
-}
-
-.settings__danger-confirm > :first-child {
-  flex: 1;
-  min-width: 0;
-}
-
-.settings__btn--danger-outline {
-  flex-shrink: 0;
-  border: 1px solid var(--color-danger);
-  background: none;
-  color: var(--color-danger);
-}
-
-.settings__btn--danger-outline:hover {
-  background: var(--color-danger);
-  color: var(--fig-cream);
-}
-
-.settings__btn--danger {
-  flex-shrink: 0;
-  border: 1px solid var(--color-danger);
-  background: var(--color-danger);
-  color: var(--fig-cream);
-}
-
 @media (max-width: 560px) {
-  .settings__danger-head,
-  .settings__danger-confirm {
-    flex-direction: column;
-    align-items: stretch;
-  }
-
   .settings__photo {
     flex-direction: column;
     align-items: flex-start;

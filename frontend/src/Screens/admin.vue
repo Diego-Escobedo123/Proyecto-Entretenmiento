@@ -220,7 +220,11 @@ const joined = (iso: string) => dateFmt.format(new Date(iso))
               </span>
             </p>
             <p class="admin__meta">
-              {{ u.email }}<template v-if="u.handle"> · @{{ u.handle }}</template>
+              {{ u.email }}
+              <span v-if="!u.emailVerified" class="admin__unverified" title="Todavía no abrió el enlace de verificación">
+                sin verificar
+              </span>
+              <template v-if="u.handle"> · @{{ u.handle }}</template>
             </p>
             <p class="admin__meta">
               Desde {{ joined(u.createdAt) }} · {{ u.entries }} {{ u.entries === 1 ? 'obra' : 'obras' }} ·
@@ -464,6 +468,15 @@ const joined = (iso: string) => dateFmt.format(new Date(iso))
   font-size: 0.8125rem;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.admin__unverified {
+  padding: 0 6px;
+  border-radius: 999px;
+  background: var(--color-surface-2);
+  color: var(--color-warning);
+  font-size: 0.6875rem;
+  font-weight: 700;
 }
 
 .admin__actions {

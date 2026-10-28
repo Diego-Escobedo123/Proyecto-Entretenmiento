@@ -17,6 +17,7 @@ enum Role {
 
 model User {
   id           String       @id @default(cuid())
+  /// Siempre en minúsculas (lo normalizan los esquemas de lib/schemas).
   email        String       @unique
   name         String
   passwordHash String
@@ -36,6 +37,15 @@ model User {
   passwordResetTokenHash      String?   @unique
   passwordResetTokenExpiresAt DateTime?
   passwordResetSentAt         DateTime?
+  /// Va dentro de cada JWT. Subirla (al cambiar la contraseña) invalida todas
+  /// las sesiones abiertas: requireAuth rechaza los tokens con otra versión.
+  sessionVersion Int @default(0)
+  /// Cambio de correo pendiente: se aplica cuando abre el enlace que le
+  /// llegó a `pendingEmail`. Ver lib/emailChange.
+  pendingEmail              String?
+  emailChangeTokenHash      String?   @unique
+  emailChangeTokenExpiresAt DateTime?
+  emailChangeSentAt         DateTime?
   profile      Profile?
   entries      MediaEntry[]
   logs         LogEntry[]
@@ -273,4 +283,17 @@ model WorkRequest {
 
   @@index([status, createdAt])
   @@index([userId])
+}
+
+/// Contadores de intentos para limitar login, registro, etc. (ver lib/rateLimit).
+/// Vive en la base, no en memoria, para que el límite sea el mismo aunque el
+/// backend corra en varias instancias.
+model RateLimit {
+  /// "<acción>:<ip|correo|usuario>", p. ej. "login-ip:203.0.113.7".
+  key     String   @id
+  count   Int
+  /// Cuándo se reinicia la ventana.
+  resetAt DateTime
+
+  @@index([resetAt])
 }

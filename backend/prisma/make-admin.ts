@@ -12,7 +12,8 @@ import { PrismaClient } from '@prisma/client'
 const prisma = new PrismaClient()
 
 async function main() {
-  const email = process.argv[2]?.trim()
+  // Los correos se guardan en minúsculas.
+  const email = process.argv[2]?.trim().toLowerCase()
   const role = process.argv.includes('--user') ? 'USER' : 'ADMIN'
 
   if (!email || !email.includes('@')) {

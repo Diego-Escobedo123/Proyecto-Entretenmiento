@@ -12,6 +12,7 @@ import AppField from '../components/AppField.vue'
 import BaseButton from '../components/BaseButton.vue'
 import BaseSpinner from '../components/BaseSpinner.vue'
 import { useAuthStore } from '../stores/auth'
+import { PASSWORD_HINT, newPasswordError } from '../lib/accountRules'
 
 const route = useRoute()
 const router = useRouter()
@@ -28,7 +29,7 @@ const done = ref(false)
 const submitting = ref(false)
 
 function validate(): boolean {
-  errors.password = form.password.length >= 6 ? undefined : 'Mínimo 6 caracteres.'
+  errors.password = newPasswordError(form.password)
   errors.confirmPassword = form.confirmPassword === form.password ? undefined : 'Las contraseñas no coinciden.'
   return !errors.password && !errors.confirmPassword
 }
@@ -41,8 +42,14 @@ async function onSubmit() {
   const result = await auth.resetPassword(token, form.password)
   submitting.value = false
 
-  if (result.ok) done.value = true
-  else formError.value = result.message
+  if (!result.ok) {
+    formError.value = result.message
+    return
+  }
+  // El cambio cerró todas las sesiones de esa cuenta: si la de este navegador
+  // era una de ellas, /auth/me responde 401 y restore() la cierra aquí también.
+  if (auth.isAuthenticated) await auth.restore()
+  done.value = true
 }
 
 function onContinue() {
@@ -54,7 +61,10 @@ function onContinue() {
   <div class="reset">
     <template v-if="done">
       <h2 class="reset__title">Contraseña actualizada</h2>
-      <p class="reset__subtitle" role="status">Ya puedes iniciar sesión con tu contraseña nueva.</p>
+      <p class="reset__subtitle" role="status">
+        Ya puedes iniciar sesión con tu contraseña nueva. Por seguridad, se cerraron las sesiones abiertas en otros
+        dispositivos.
+      </p>
       <BaseButton class="reset__submit" @click="onContinue">
         {{ auth.isAuthenticated ? 'Ir a Inicio' : 'Iniciar sesión' }}
       </BaseButton>
@@ -65,7 +75,7 @@ function onContinue() {
       <p class="reset__subtitle">Úsala la próxima vez que inicies sesión.</p>
 
       <form v-if="token" class="reset__form" @submit.prevent="onSubmit">
-        <AppField v-slot="{ id }" label="Contraseña nueva" :error="errors.password" hint="Mínimo 6 caracteres">
+        <AppField v-slot="{ id }" label="Contraseña nueva" :error="errors.password" :hint="PASSWORD_HINT">
           <input :id="id" v-model="form.password" type="password" class="app-input" placeholder="••••••••" autocomplete="new-password" />
         </AppField>
 

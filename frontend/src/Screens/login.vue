@@ -8,14 +8,18 @@
  *   no carga), se muestra un botón desactivado que indica que no está disponible.
  */
 import { onBeforeUnmount, onMounted, reactive, ref } from 'vue'
-import { useRouter } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import AppField from '../components/AppField.vue'
 import BaseButton from '../components/BaseButton.vue'
 import BaseSpinner from '../components/BaseSpinner.vue'
 import { useAuthStore } from '../stores/auth'
 
+const route = useRoute()
 const router = useRouter()
 const auth = useAuthStore()
+
+/** Llegó aquí porque su sesión se cerró en otro lado (ver main.ts). */
+const sessionExpired = route.query.expired === '1'
 
 const form = reactive({ email: '', password: '' })
 const errors = reactive<{ email?: string; password?: string }>({})
@@ -132,6 +136,9 @@ onBeforeUnmount(() => {
   <div class="login" :class="{ 'login--shake': shake }" @animationend="shake = false">
     <h2 class="login__title">Inicia sesión</h2>
     <p class="login__subtitle">Continúa construyendo tu Perfil Cultural.</p>
+    <p v-if="sessionExpired" class="login__notice" role="status">
+      Tu sesión se cerró (por ejemplo, porque cambiaste la contraseña). Vuelve a iniciar sesión.
+    </p>
 
     <form class="login__form" @submit.prevent="onSubmit">
       <AppField v-slot="{ id }" label="Correo" :error="errors.email">
@@ -197,6 +204,16 @@ onBeforeUnmount(() => {
   color: var(--color-text-muted);
   font-size: 0.875rem;
   margin: 0 0 var(--space-lg) 0;
+}
+
+.login__notice {
+  background: var(--color-accent-bg);
+  border: 1px solid var(--color-warning);
+  border-radius: var(--radius-md);
+  color: var(--color-text);
+  font-size: 0.8125rem;
+  padding: var(--space-sm) var(--space-md);
+  margin: calc(-1 * var(--space-sm)) 0 var(--space-lg) 0;
 }
 
 .login__form {

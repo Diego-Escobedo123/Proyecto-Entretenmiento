@@ -5,10 +5,19 @@
  * - Adjunta `Authorization: Bearer <token>` si hay sesión.
  * - Convierte respuestas no-2xx en `ApiError` con el `message` del backend.
  * - Guarda el token en localStorage para que la sesión sobreviva recargas.
+ * - Si el backend rechaza el token (401), avisa a `onUnauthorized` (main.ts):
+ *   la sesión se cerró en otro lado, p. ej. al cambiar la contraseña.
  */
 
 const BASE_URL = (import.meta.env.VITE_API_URL ?? 'http://localhost:3000').replace(/\/$/, '')
 const TOKEN_KEY = 'mosaic:token'
+
+let onUnauthorized: (() => void) | null = null
+
+/** Qué hacer cuando el backend rechaza el token de la sesión. */
+export function setUnauthorizedHandler(handler: () => void): void {
+  onUnauthorized = handler
+}
 
 export class ApiError extends Error {
   readonly status: number
@@ -74,6 +83,8 @@ export async function apiFetch<T>(path: string, options: RequestOptions = {}): P
         ? data.message
         : null) ?? `Error ${response.status}`
     const field = data && typeof data === 'object' && 'field' in data && typeof data.field === 'string' ? data.field : null
+    // Solo si se mandó token: un 401 sin sesión es, p. ej., una contraseña mal escrita en el login.
+    if (response.status === 401 && token) onUnauthorized?.()
     throw new ApiError(message, response.status, field)
   }
 

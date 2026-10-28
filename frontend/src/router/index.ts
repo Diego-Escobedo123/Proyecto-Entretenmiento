@@ -34,6 +34,7 @@ export const router = createRouter({
     // Destinos de los enlaces del correo: se abren con o sin sesión (pueden llegar desde otro dispositivo).
     { path: '/verify-email', name: 'verify-email', component: VerifyEmailScreen, meta: { public: true, anyAuth: true } },
     { path: '/reset-password', name: 'reset-password', component: ResetPasswordScreen, meta: { public: true, anyAuth: true } },
+    { path: '/confirm-email-change', name: 'confirm-email-change', component: VerifyEmailScreen, meta: { public: true, anyAuth: true } },
     { path: '/', name: 'home', component: HomeScreen },
     { path: '/explore', name: 'explore', component: ExploreScreen },
     { path: '/collection', name: 'collection', component: CollectionScreen },
