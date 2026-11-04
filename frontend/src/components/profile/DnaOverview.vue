@@ -1,8 +1,8 @@
 <script setup lang="ts">
 /**
  * DnaOverview — "ADN cultural" completo del perfil público: dona de géneros,
- * década favorita sobre una línea de tiempo, formato dominante con el resto
- * de los tipos, y los insights (ver ProfileInsights). `self` pasa los textos
+ * década favorita y formato dominante como historias con stickers (DnaStory),
+ * y los insights como cartas (ver ProfileInsights). `self` pasa los textos
  * a segunda persona.
  * Se adapta al ancho de su tarjeta (container queries), no al de la ventana.
  *
@@ -10,11 +10,11 @@
  *   <DnaOverview :dna="profile.dna" :ratings="profile.ratings" :activity="profile.activity"
  *                :last-abandoned="profile.lastAbandoned" :insights="profile.insights" self />
  */
-import { computed, ref } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import BaseIcon from '../BaseIcon.vue'
 import { useInView } from '../../composables/useInView'
+import DnaStory from './DnaStory.vue'
 import ProfileInsights from './ProfileInsights.vue'
-import { typeMeta } from '../../lib/catalog'
 import { GENRE_COLORS, OTHER_GENRES_COLOR, OTHER_GENRES_LABEL } from '../../lib/genreColors'
 import type { ActivityEvent, ProfileInsightsData, PublicProfile } from '../../types/review'
 
@@ -27,9 +27,6 @@ const props = defineProps<{
   self?: boolean
 }>()
 
-/** Verbo en 2.ª persona (self) o 3.ª: v('completas', 'completa'). */
-const v = (tu: string, el: string) => (props.self ? tu : el)
-
 // --- Dona de géneros ---
 
 /** La dona se dibuja cuando llega a verse, no al cargar la página. */
@@ -40,42 +37,72 @@ const otherPercent = computed(() => {
   return Math.max(0, 100 - props.dna.topGenres.reduce((sum, g) => sum + g.percent, 0))
 })
 
-const legend = computed(() => [
-  ...props.dna.topGenres.map((g, i) => ({ name: g.name, percent: g.percent, color: GENRE_COLORS[i] })),
-  ...(otherPercent.value > 0 ? [{ name: OTHER_GENRES_LABEL, percent: otherPercent.value, color: OTHER_GENRES_COLOR }] : []),
-])
+/** Porciones de la dona, en orden (desde arriba, en el sentido del reloj). */
+const slices = computed(() => {
+  let acc = 0
+  return [
+    ...props.dna.topGenres.map((g, i) => ({ name: g.name, percent: g.percent, color: GENRE_COLORS[i] })),
+    ...(otherPercent.value > 0 ? [{ name: OTHER_GENRES_LABEL, percent: otherPercent.value, color: OTHER_GENRES_COLOR }] : []),
+  ].map((s) => {
+    const start = acc
+    acc += s.percent
+    return { ...s, start, end: acc }
+  })
+})
 
 const donutGradient = computed(() => {
-  if (!legend.value.length) return `conic-gradient(${OTHER_GENRES_COLOR} 0% 100%)`
-  let acc = 0
+  if (!slices.value.length) return `conic-gradient(${OTHER_GENRES_COLOR} 0% 100%)`
   // 1% de separación entre porciones, del color de la tarjeta.
-  const stops = legend.value.flatMap((g) => {
-    const start = acc
-    acc += g.percent
-    return [`${g.color} ${start}% ${Math.max(start, acc - 1)}%`, `var(--color-surface) ${Math.max(start, acc - 1)}% ${acc}%`]
+  const stops = slices.value.flatMap((s) => {
+    const cut = Math.max(s.start, s.end - 1)
+    return [`${s.color} ${s.start}% ${cut}%`, `var(--color-surface) ${cut}% ${s.end}%`]
   })
   return `conic-gradient(${stops.join(', ')})`
 })
 
-// --- Década favorita ---
-const decadeLabel = (d: number) => `${String(d % 100).padStart(2, '0')}s`
+/*
+ * Globito flotante: al pasar el mouse por un color (o tocarlo en el teléfono)
+ * muestra ese género junto al cursor. El centro siempre queda con el dominante.
+ */
+type Slice = (typeof slices.value)[number]
+const tip = ref<{ slice: Slice; x: number; y: number } | null>(null)
+/** El globito lo abrió un toque: se cierra al tocar fuera, no al levantar el dedo. */
+let tipFromTouch = false
 
-/** Seis décadas alrededor de la favorita, terminando como mucho en la actual. */
-const decades = computed(() => {
-  const fav = props.dna.favoriteDecade?.decade
-  const current = Math.floor(new Date().getFullYear() / 10) * 10
-  if (fav == null) return []
-  const all: number[] = []
-  for (let d = Math.min(fav, current - 50); d <= current; d += 10) all.push(d)
-  const i = all.indexOf(fav)
-  const from = Math.max(0, Math.min(i - 3, all.length - 6))
-  return all.slice(from, from + 6)
-})
+/** Radio del agujero respecto del de la dona (`.donut__hole` tiene inset 13%). */
+const HOLE_RATIO = 0.74
 
-// --- Formato dominante ---
-const dominant = computed(() => props.dna.typeShares[0] ?? null)
-const secondaryTypes = computed(() => props.dna.typeShares.slice(1, 3))
+function sliceAt(e: PointerEvent): Slice | null {
+  const el = donutEl.value
+  if (!el) return null
+  const rect = el.getBoundingClientRect()
+  const radius = rect.width / 2
+  const dx = e.clientX - (rect.left + radius)
+  const dy = e.clientY - (rect.top + radius)
+  const dist = Math.hypot(dx, dy)
+  if (dist > radius || dist < radius * HOLE_RATIO) return null
+  // Ángulo desde arriba en el sentido del reloj, como el conic-gradient.
+  const percent = (((Math.atan2(dx, -dy) * 180) / Math.PI + 360) % 360) / 3.6
+  return slices.value.find((s) => percent >= s.start && percent < s.end) ?? null
+}
 
+function showTip(e: PointerEvent) {
+  const slice = sliceAt(e)
+  const rect = donutEl.value?.getBoundingClientRect()
+  tipFromTouch = e.pointerType !== 'mouse'
+  tip.value = slice && rect ? { slice, x: e.clientX - rect.left, y: e.clientY - rect.top } : null
+}
+
+function hideTip(e: PointerEvent) {
+  if (e.pointerType === 'mouse') tip.value = null
+}
+
+function onDocumentPointerDown(e: PointerEvent) {
+  if (tipFromTouch && tip.value && !donutEl.value?.contains(e.target as Node)) tip.value = null
+}
+
+onMounted(() => document.addEventListener('pointerdown', onDocumentPointerDown))
+onBeforeUnmount(() => document.removeEventListener('pointerdown', onDocumentPointerDown))
 </script>
 
 <template>
@@ -89,7 +116,17 @@ const secondaryTypes = computed(() => props.dna.typeShares.slice(1, 3))
       <div class="ov__top">
         <!-- Géneros -->
         <div class="ov__genres">
-          <div ref="donutEl" class="donut" :class="{ 'is-revealed': donutInView }" :style="{ '--donut': donutGradient }" role="img" :aria-label="legend.map((g) => `${g.name} ${g.percent}%`).join(', ') || 'Sin géneros'">
+          <div
+            ref="donutEl"
+            class="donut"
+            :class="{ 'is-revealed': donutInView }"
+            :style="{ '--donut': donutGradient }"
+            role="img"
+            :aria-label="slices.map((s) => `${s.name} ${s.percent}%`).join(', ') || 'Sin géneros'"
+            @pointermove="showTip"
+            @pointerdown="showTip"
+            @pointerleave="hideTip"
+          >
             <div class="donut__hole">
               <template v-if="dna.topGenres.length">
                 <strong>{{ dna.topGenres[0].percent }}%</strong>
@@ -97,53 +134,22 @@ const secondaryTypes = computed(() => props.dna.typeShares.slice(1, 3))
               </template>
               <span v-else>Sin géneros</span>
             </div>
+            <span
+              v-if="tip"
+              class="donut__tip"
+              :style="{ left: `${tip.x}px`, top: `${tip.y}px` }"
+              aria-hidden="true"
+            >
+              <span class="donut__dot" :style="{ background: tip.slice.color }" />
+              {{ tip.slice.name }} · <strong>{{ tip.slice.percent }}%</strong>
+            </span>
           </div>
-          <ul v-if="legend.length" class="donut__legend">
-            <li v-for="g in legend" :key="g.name">
-              <span class="donut__dot" :style="{ background: g.color }" />
-              {{ g.name }} ({{ g.percent }}%)
-            </li>
-          </ul>
         </div>
 
-        <!-- Década y formato: juntas, del alto de su contenido (no del de la dona) -->
+        <!-- Década y formato: dos historias lado a lado -->
         <div class="ov__facts">
-        <!-- Década favorita -->
-        <div class="ov__fact">
-          <h3 class="ov__kicker">Década favorita</h3>
-          <template v-if="dna.favoriteDecade">
-            <p class="ov__big ov__big--accent">’{{ decadeLabel(dna.favoriteDecade.decade) }}</p>
-            <p class="ov__caption">el {{ dna.favoriteDecade.percent }}% de todo lo que {{ v('registras', 'registra') }}</p>
-            <ol class="timeline" aria-hidden="true">
-              <li
-                v-for="d in decades"
-                :key="d"
-                class="timeline__stop"
-                :class="{ 'is-current': d === dna.favoriteDecade.decade }"
-              >
-                <span class="timeline__dot" />
-                <span class="timeline__label">{{ decadeLabel(d) }}</span>
-              </li>
-            </ol>
-          </template>
-          <p v-else class="ov__caption">Sin datos aún</p>
-        </div>
-
-        <!-- Formato dominante -->
-        <div class="ov__fact">
-          <h3 class="ov__kicker">Formato dominante</h3>
-          <template v-if="dominant">
-            <BaseIcon :name="typeMeta(dominant.type).icon" class="ov__type-icon" />
-            <p class="ov__big">{{ typeMeta(dominant.type).plural }}</p>
-            <p class="ov__caption">{{ dominant.percent }}% de {{ v('tus', 'sus') }} obras</p>
-            <ul v-if="secondaryTypes.length" class="ov__types">
-              <li v-for="t in secondaryTypes" :key="t.type">
-                <BaseIcon :name="typeMeta(t.type).icon" /> {{ typeMeta(t.type).plural }} {{ t.percent }}%
-              </li>
-            </ul>
-          </template>
-          <p v-else class="ov__caption">Sin datos suficientes</p>
-        </div>
+          <DnaStory kind="decade" :decade="dna.favoriteDecade?.decade" :percent="dna.favoriteDecade?.percent" :self="self" />
+          <DnaStory kind="format" :shares="dna.typeShares" :self="self" />
         </div>
       </div>
 
@@ -231,13 +237,9 @@ const secondaryTypes = computed(() => props.dna.typeShares.slice(1, 3))
     gap: clamp(8px, 2cqi, 16px);
   }
 
-  .ov__genres .donut__legend {
-    grid-template-columns: auto;
-    font-size: clamp(0.6875rem, 1.9cqi, 0.8125rem);
-  }
-
-  .ov__genres .donut__legend li {
-    white-space: normal;
+  /* Sin la lista debajo, la dona queda centrada a la altura de las historias. */
+  .ov__genres {
+    align-self: center;
   }
 }
 
@@ -290,22 +292,29 @@ const secondaryTypes = computed(() => props.dna.typeShares.slice(1, 3))
   line-height: 1.1;
 }
 
-.donut__legend {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-  display: grid;
-  grid-template-columns: repeat(2, auto);
-  gap: var(--space-xs) var(--space-md);
-  font-size: 0.8125rem;
-  color: var(--color-text-muted);
-}
-
-.donut__legend li {
-  display: flex;
+/* Globito con el género bajo el cursor: arriba del puntero, sin tapar el color. */
+.donut__tip {
+  position: absolute;
+  z-index: 2;
+  display: inline-flex;
   align-items: center;
   gap: 6px;
+  padding: 5px 10px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background: var(--color-surface-2);
+  box-shadow: 0 4px 14px rgb(0 0 0 / 0.3);
+  color: var(--color-text);
+  font-size: 0.8125rem;
   white-space: nowrap;
+  pointer-events: none;
+  /* `translate` (no `transform`) para que la animación de entrada no lo mueva. */
+  translate: -50% calc(-100% - 12px);
+  animation: mosaic-fade-up var(--dur-fast) var(--ease-out) both;
+}
+
+.donut__tip strong {
+  font-weight: 800;
 }
 
 .donut__dot {
@@ -313,171 +322,5 @@ const secondaryTypes = computed(() => props.dna.typeShares.slice(1, 3))
   height: 8px;
   border-radius: 50%;
   flex-shrink: 0;
-}
-
-/* --- Década y formato --- */
-.ov__fact {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-xs);
-  min-width: 0;
-  padding: 12px;
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-md);
-  background: color-mix(in srgb, var(--color-surface-2) 60%, var(--color-surface));
-}
-
-.ov__kicker {
-  margin: 0 0 var(--space-sm);
-  font-size: 0.6875rem;
-  font-weight: 700;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
-  color: var(--color-text-subtle);
-}
-
-.ov__big {
-  margin: 0;
-  font-family: var(--font-serif);
-  font-size: 1.375rem;
-  font-weight: 900;
-  line-height: 1.1;
-  color: var(--color-text);
-  overflow-wrap: anywhere;
-}
-
-.ov__big--accent {
-  font-size: 2.25rem;
-  color: var(--color-accent);
-}
-
-.ov__caption {
-  margin: 0;
-  font-family: var(--font-serif);
-  font-style: italic;
-  font-size: 0.8125rem;
-  color: var(--color-text-muted);
-}
-
-.ov__type-icon {
-  font-size: 1.75rem;
-  color: var(--color-accent);
-  line-height: 1;
-  margin-bottom: var(--space-xs);
-}
-
-.ov__types {
-  list-style: none;
-  margin: auto 0 0;
-  padding: var(--space-xs) 0 0;
-  display: flex;
-  flex-wrap: wrap;
-  gap: 2px var(--space-md);
-  font-size: 0.75rem;
-  color: var(--color-text-muted);
-}
-
-.ov__types li {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-}
-
-/* Línea de tiempo de décadas: la favorita resaltada. */
-.timeline {
-  list-style: none;
-  margin: auto 0 0;
-  padding: var(--space-sm) 0 0;
-  display: grid;
-  grid-auto-flow: column;
-  grid-auto-columns: 1fr;
-  position: relative;
-}
-
-.timeline::before {
-  content: '';
-  position: absolute;
-  top: calc(var(--space-sm) + 7px);
-  left: 8%;
-  right: 8%;
-  height: 2px;
-  background: var(--color-border);
-}
-
-.timeline__stop {
-  position: relative;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 6px;
-  font-size: 0.6875rem;
-  color: var(--color-text-subtle);
-}
-
-.timeline__dot {
-  width: 8px;
-  height: 8px;
-  margin: 3px 0;
-  border-radius: 50%;
-  background: var(--color-text-subtle);
-}
-
-.timeline__stop.is-current .timeline__dot {
-  width: 14px;
-  height: 14px;
-  margin: 0;
-  background: var(--color-accent);
-  box-shadow: 0 0 0 4px var(--color-accent-bg);
-}
-
-.timeline__stop.is-current .timeline__label {
-  color: var(--color-accent);
-  font-weight: 700;
-}
-
-/* Escritorio: al final para ganarle a las reglas base (misma especificidad). */
-@container (min-width: 400px) {
-
-  .ov__fact {
-    padding: clamp(8px, 1.9cqi, 12px);
-  }
-
-  .ov__big {
-    font-size: clamp(1rem, 3.2cqi, 1.375rem);
-  }
-
-  .ov__big--accent {
-    font-size: clamp(1.5rem, 5cqi, 2.25rem);
-  }
-
-  .ov__caption {
-    font-size: clamp(0.625rem, 1.7cqi, 0.75rem);
-  }
-
-  .ov__type-icon {
-    font-size: clamp(1.25rem, 3.8cqi, 1.75rem);
-  }
-
-  .ov__kicker {
-    font-size: clamp(0.5625rem, 1.6cqi, 0.6875rem);
-    letter-spacing: 0.08em;
-  }
-
-  .timeline__stop {
-    font-size: clamp(0.5625rem, 1.6cqi, 0.6875rem);
-  }
-
-  .ov__types {
-    flex-direction: column;
-    font-size: clamp(0.625rem, 1.7cqi, 0.75rem);
-  }
-}
-
-/* Tarjeta de década angosta: 4 décadas en vez de 6 (sin tocar la favorita). */
-@container (min-width: 400px) and (max-width: 560px) {
-  .timeline__stop:first-child:not(.is-current),
-  .timeline__stop:last-child:not(.is-current) {
-    display: none;
-  }
 }
 </style>
