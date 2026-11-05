@@ -65,6 +65,9 @@
    * Merriweather -> descripciones, bios, contenido editorial largo (lectura) */
   --font-sans: 'Valley Sans', system-ui, -apple-system, 'Segoe UI', sans-serif;
   --font-serif: 'Merriweather', Georgia, 'Times New Roman', serif;
+  /* Sólo para las cartas de insights del perfil (ver InsightCard.vue). */
+  --font-card: 'Alegreya Sans SC', 'Trebuchet MS', sans-serif;
+  --font-card-number: 'Fraunces', Georgia, serif;
 
   /* Movimiento (microanimaciones): mismo ritmo en toda la app.
    * fast -> hover, press · base -> cambios de estado · slow -> entradas, gráficos */
