@@ -9,6 +9,7 @@
     "start": "bun src/index.ts",
     "test": "bun test tests/unit",
     "test:coverage": "bun test tests/unit --coverage && bun scripts/check-coverage.ts",
+    "test:integration": "bun scripts/test-db.ts && bun test tests/integration",
     "typecheck": "tsc --noEmit",
     "lint": "eslint .",
     "db:generate": "prisma generate",
