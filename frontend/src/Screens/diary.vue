@@ -71,10 +71,12 @@ const dayOf = (log: LogEntry) => log.finishedAt ?? log.startedAt ?? log.createdA
 const years = computed(() => {
   const set = new Set(logs.value.map((l) => Number(dayOf(l).slice(0, 4))))
   set.add(new Date().getFullYear())
+  set.add(year.value)
   return [...set].sort((a, b) => b - a)
 })
 
-const year = ref(new Date().getFullYear())
+// ?anio=2026 abre ese año (el perfil lo usa en enero para el resumen del año que terminó).
+const year = ref(Number(route.query.anio) || new Date().getFullYear())
 const typeFilter = ref<MediaType | 'all'>('all')
 
 const visible = computed(() =>

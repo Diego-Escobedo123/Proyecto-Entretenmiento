@@ -1,24 +1,18 @@
 /**
  * Deriva el contenido "cultural" del perfil propio: identidad, ADN, obras
- * esenciales y logros salen de las obras de la colección; la evolución sale
- * del diario, igual que el resumen del año, para que todas las pantallas
- * cuenten lo mismo. Sin datos inventados. (La constancia la arma
- * ConstancyCard con los días del diario.)
+ * esenciales y logros salen de las obras de la colección. Sin datos
+ * inventados. (La constancia la arma ConstancyCard con los días del diario.)
  */
-import { computed, type Ref } from 'vue'
+import { computed } from 'vue'
 import { storeToRefs } from 'pinia'
 import { MEDIA_TYPES, isFinished, typeMeta } from '../lib/catalog'
-import { isoDay } from '../lib/dates'
 import { useMediaStore } from '../stores/media'
-import type { LogEntry } from '../types/log'
-
-const MONTH_LABELS = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic']
 
 function pct(part: number, total: number): number {
   return total === 0 ? 0 : Math.round((part / total) * 100)
 }
 
-export function useCulturalProfile(logs: Ref<LogEntry[]>) {
+export function useCulturalProfile() {
   const store = useMediaStore()
   const { entries, countByType } = storeToRefs(store)
 
@@ -111,30 +105,6 @@ export function useCulturalProfile(logs: Ref<LogEntry[]>) {
   const unlockedAchievements = computed(() => achievements.value.filter((a) => a.done))
   const nextAchievement = computed(() => achievements.value.find((a) => !a.done) ?? null)
 
-  /** Obras terminadas por mes en los últimos 12 meses (del diario). */
-  const evolution = computed(() => {
-    const now = new Date()
-    const buckets: { key: string; label: string; value: number }[] = []
-    for (let i = 11; i >= 0; i--) {
-      const d = new Date(now.getFullYear(), now.getMonth() - i, 1)
-      buckets.push({ key: isoDay(d).slice(0, 7), label: MONTH_LABELS[d.getMonth()], value: 0 })
-    }
-    const indexByKey = new Map(buckets.map((b, i) => [b.key, i]))
-    for (const log of logs.value) {
-      if (!log.finishedAt || log.abandoned) continue
-      const idx = indexByKey.get(log.finishedAt.slice(0, 7))
-      if (idx != null) buckets[idx].value++
-    }
-    const firstHalf = buckets.slice(0, 6).reduce((a, b) => a + b.value, 0)
-    const secondHalf = buckets.slice(6).reduce((a, b) => a + b.value, 0)
-    return {
-      months: buckets.map((b) => b.label),
-      values: buckets.map((b) => b.value),
-      total: buckets.reduce((a, b) => a + b.value, 0),
-      trendPercent: firstHalf === 0 ? null : pct(secondHalf - firstHalf, firstHalf),
-    }
-  })
-
   return {
     worksLogged,
     topGenres,
@@ -145,6 +115,5 @@ export function useCulturalProfile(logs: Ref<LogEntry[]>) {
     essentialWorks,
     unlockedAchievements,
     nextAchievement,
-    evolution,
   }
 }
