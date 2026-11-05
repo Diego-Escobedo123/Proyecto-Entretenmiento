@@ -2,7 +2,7 @@
 /**
  * CulturalPortrait — "Tu retrato cultural", la parte del perfil que sólo ve
  * su dueño: ADN (géneros, década, formato), resumen del año como historia
- * estilo Wrapped, constancia, logros y evolución. Se calcula con toda la
+ * estilo Wrapped, constancia y logros. Se calcula con toda la
  * colección y el diario del usuario actual (ver `useCulturalProfile`), por
  * eso no se muestra en perfiles ajenos.
  *
@@ -36,14 +36,30 @@ withDefaults(defineProps<{ hideShared?: boolean }>(), { hideShared: false })
 const { entries } = storeToRefs(useMediaStore())
 const { profile } = storeToRefs(useProfileStore())
 
-const currentYear = new Date().getFullYear()
+/*
+ * Resumen del año: se abre el 1 de diciembre y se puede ver hasta el 31 de
+ * enero (en enero, el del año que terminó). El resto del año la tarjeta queda
+ * cerrada con una cuenta regresiva. Las metas no se bloquean: siguen en
+ * Diario → Resumen del año.
+ */
+const today = new Date()
+const month = today.getMonth()
+const currentYear = today.getFullYear()
+/** En enero se repasa el año que acaba de terminar. */
+const yearEnded = month === 0
+const summaryYear = yearEnded ? currentYear - 1 : currentYear
+const summaryOpen = month === 11 || yearEnded
+/** Días que faltan para el 1 de diciembre (contando desde hoy a medianoche). */
+const daysLeft = Math.ceil(
+  (new Date(currentYear, 11, 1).getTime() - new Date(currentYear, month, today.getDate()).getTime()) / 86_400_000,
+)
 
-// Diario y metas: alimentan la constancia, la evolución y el resumen del año.
+// Diario y metas: alimentan la constancia y el resumen del año.
 const logs = ref<LogEntry[]>([])
 const goals = ref<Goal[]>([])
 
 onMounted(async () => {
-  const [l, g] = await Promise.allSettled([logService.list(), goalService.list(currentYear)])
+  const [l, g] = await Promise.allSettled([logService.list(), goalService.list(summaryYear)])
   if (l.status === 'fulfilled') logs.value = l.value
   if (g.status === 'fulfilled') goals.value = g.value
 })
@@ -56,16 +72,15 @@ const {
   identitySentence,
   unlockedAchievements,
   nextAchievement,
-  evolution,
-} = useCulturalProfile(logs)
+} = useCulturalProfile()
 
 /** Días en que empezó o terminó algo, para Constancia. */
 const activityDays = computed(() =>
   logs.value.flatMap((l) => [l.startedAt, l.finishedAt].filter((d): d is string => Boolean(d))),
 )
 
-/** El año en curso, calculado igual que en Diario → Resumen del año. */
-const year = computed(() => yearStats(logs.value, currentYear, entries.value))
+/** El año del resumen, calculado igual que en Diario → Resumen del año. */
+const year = computed(() => yearStats(logs.value, summaryYear, entries.value))
 const MONTH_NAMES = [
   'enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio',
   'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre',
@@ -73,7 +88,7 @@ const MONTH_NAMES = [
 
 const storyOpen = ref(false)
 
-// --- Historia cultural estilo "Wrapped": el año en curso, desde el diario ---
+// --- Historia cultural estilo "Wrapped": el año del resumen, desde el diario ---
 const storySlides = computed<StorySlide[]>(() => {
   const s = year.value
   const slides: StorySlide[] = []
@@ -85,16 +100,16 @@ const storySlides = computed<StorySlide[]>(() => {
   const g6 = 'linear-gradient(135deg, var(--deep-raspberry), var(--fig-purple))'
 
   slides.push({
-    eyebrow: `Tu ${currentYear}`,
+    eyebrow: `Tu ${summaryYear}`,
     title: `Hola, ${profile.value.name.split(' ')[0] || profile.value.name}`,
-    caption: 'Así va tu año cultural en Mosaic.',
+    caption: yearEnded ? 'Así fue tu año cultural en Mosaic.' : 'Así va tu año cultural en Mosaic.',
     background: g1,
   })
 
   if (!s.total) {
     slides.push({
       eyebrow: 'Por ahora',
-      title: `Aún no terminas nada en ${currentYear}`,
+      title: yearEnded ? `No terminaste nada en ${summaryYear}` : `Aún no terminas nada en ${summaryYear}`,
       caption: 'Cuando termines algo quedará en tu diario, y tu historia se armará sola.',
       background: g2,
     })
@@ -104,7 +119,7 @@ const storySlides = computed<StorySlide[]>(() => {
   slides.push({
     eyebrow: 'En total',
     value: String(s.total),
-    title: s.total === 1 ? 'obra terminada este año' : 'obras terminadas este año',
+    title: `${s.total === 1 ? 'obra terminada' : 'obras terminadas'} ${yearEnded ? `en ${summaryYear}` : 'este año'}`,
     caption: 'Cada una suma a tu mosaico cultural.',
     background: g2,
   })
@@ -167,12 +182,20 @@ const storySlides = computed<StorySlide[]>(() => {
 
   const goal = goals.value.find((g) => g.type === 'all') ?? goals.value[0]
   if (goal) {
-    const done = goalProgress(logs.value, currentYear, goal.type)
+    const done = goalProgress(logs.value, summaryYear, goal.type)
     slides.push({
-      eyebrow: `Reto ${currentYear}`,
+      eyebrow: `Reto ${summaryYear}`,
       value: `${done}/${goal.target}`,
-      title: done >= goal.target ? '¡Meta cumplida!' : `Vas por el ${Math.round((done / goal.target) * 100)}%`,
-      caption: done >= goal.target ? 'Te pusiste una meta y la cumpliste.' : 'Todavía queda año para lograrlo.',
+      title:
+        done >= goal.target
+          ? '¡Meta cumplida!'
+          : `${yearEnded ? 'Llegaste al' : 'Vas por el'} ${Math.round((done / goal.target) * 100)}%`,
+      caption:
+        done >= goal.target
+          ? 'Te pusiste una meta y la cumpliste.'
+          : yearEnded
+            ? 'Este año va por más.'
+            : 'Todavía queda año para lograrlo.',
       background: g4,
     })
   }
@@ -188,7 +211,7 @@ const storySlides = computed<StorySlide[]>(() => {
   }
 
   slides.push({
-    eyebrow: `Mosaic · ${currentYear}`,
+    eyebrow: `Mosaic · ${summaryYear}`,
     title: identitySentence.value || 'Gracias por construir tu mosaico cultural.',
     caption: 'Vuelve pronto a ver cómo evoluciona.',
     background: g6,
@@ -196,57 +219,6 @@ const storySlides = computed<StorySlide[]>(() => {
 
   return slides
 })
-
-// --- Mini area chart (serie única, sin librería) ---
-const chartWidth = 700
-const chartHeight = 200
-const padY = 12
-
-const points = computed(() => {
-  const values = evolution.value.values
-  const max = Math.max(1, ...values)
-  return values.map((v, i) => ({
-    x: (i / Math.max(1, values.length - 1)) * chartWidth,
-    y: chartHeight - padY - (v / max) * (chartHeight - padY * 2),
-    month: evolution.value.months[i],
-    value: v,
-  }))
-})
-
-function smoothLinePath(pts: { x: number; y: number }[]): string {
-  if (pts.length === 0) return ''
-  let d = `M ${pts[0].x} ${pts[0].y}`
-  for (let i = 0; i < pts.length - 1; i++) {
-    const p0 = pts[i - 1] ?? pts[i]
-    const p1 = pts[i]
-    const p2 = pts[i + 1]
-    const p3 = pts[i + 2] ?? p2
-    const c1x = p1.x + (p2.x - p0.x) / 6
-    const c1y = p1.y + (p2.y - p0.y) / 6
-    const c2x = p2.x - (p3.x - p1.x) / 6
-    const c2y = p2.y - (p3.y - p1.y) / 6
-    d += ` C ${c1x} ${c1y}, ${c2x} ${c2y}, ${p2.x} ${p2.y}`
-  }
-  return d
-}
-
-const linePath = computed(() => smoothLinePath(points.value))
-const areaPath = computed(() => `${linePath.value} L ${chartWidth} ${chartHeight} L 0 ${chartHeight} Z`)
-
-const hoverIndex = ref<number | null>(null)
-const chartEl = ref<HTMLElement | null>(null)
-
-function onChartMove(event: MouseEvent) {
-  if (!chartEl.value) return
-  const rect = chartEl.value.getBoundingClientRect()
-  const ratio = (event.clientX - rect.left) / rect.width
-  const count = evolution.value.values.length
-  hoverIndex.value = Math.min(count - 1, Math.max(0, Math.round(ratio * (count - 1))))
-}
-
-const hoverPoint = computed(() =>
-  hoverIndex.value !== null ? points.value[hoverIndex.value] ?? null : null,
-)
 
 </script>
 
@@ -268,21 +240,35 @@ const hoverPoint = computed(() =>
         :completion-rate="completionRate"
         self
       />
-      <div class="card wrapup portrait__wrap">
-        <span class="wrapup__eyebrow">Tu {{ currentYear }}</span>
+      <div class="card wrapup portrait__wrap" :class="{ 'wrapup--locked': !summaryOpen }">
+        <span class="wrapup__eyebrow">Tu {{ summaryYear }}</span>
         <h2 class="wrapup__title">Resumen del año</h2>
-        <p v-if="year.total" class="wrapup__stat">
-          <strong>{{ year.total }}</strong> {{ year.total === 1 ? 'obra terminada' : 'obras terminadas' }}
-          <template v-if="year.topGenres[0]"> · sobre todo {{ year.topGenres[0].name }}</template>
-        </p>
-        <p v-else class="wrapup__hint">Aún no terminas nada este año.</p>
-        <button class="wrapup__cta" type="button" @click="storyOpen = true">
-          <BaseIcon name="play-circle-fill" />
-          Ver tu historia
-        </button>
-        <RouterLink to="/diary?tab=review" class="wrapup__link">
-          Ver en números <BaseIcon name="arrow-right" />
-        </RouterLink>
+
+        <!-- Abierto: diciembre y enero -->
+        <template v-if="summaryOpen">
+          <p v-if="year.total" class="wrapup__stat">
+            <strong>{{ year.total }}</strong> {{ year.total === 1 ? 'obra terminada' : 'obras terminadas' }}
+            <template v-if="year.topGenres[0]"> · sobre todo {{ year.topGenres[0].name }}</template>
+          </p>
+          <p v-else class="wrapup__hint">
+            {{ yearEnded ? `No terminaste nada en ${summaryYear}.` : 'Aún no terminas nada este año.' }}
+          </p>
+          <button class="wrapup__cta" type="button" @click="storyOpen = true">
+            <BaseIcon name="play-circle-fill" />
+            Ver tu historia
+          </button>
+          <RouterLink :to="`/diary?tab=review&anio=${summaryYear}`" class="wrapup__link">
+            Ver en números <BaseIcon name="arrow-right" />
+          </RouterLink>
+        </template>
+
+        <!-- Cerrado: cuenta regresiva hasta el 1 de diciembre -->
+        <template v-else>
+          <p class="wrapup__countdown">
+            <strong>{{ daysLeft }}</strong> {{ daysLeft === 1 ? 'día' : 'días' }}
+          </p>
+          <p class="wrapup__lock"><BaseIcon name="lock-fill" /> Tu historia se abre el 1 de diciembre</p>
+        </template>
       </div>
       <ConstancyCard v-if="!hideShared" class="portrait__constancy" :days="activityDays" self />
       <div class="card portrait__logros">
@@ -297,53 +283,6 @@ const hoverPoint = computed(() =>
             Próximo: {{ nextAchievement.label }}
           </li>
         </ul>
-      </div>
-      <div class="card portrait__evo">
-        <div class="card__header">
-          <h2 class="card__title">Evolución</h2>
-          <span class="card__header-label">Últimos 12 meses</span>
-        </div>
-        <p class="evolution__summary">
-          <template v-if="evolution.trendPercent != null && evolution.trendPercent > 0">
-            Terminaste un {{ evolution.trendPercent }}% más que el semestre anterior.
-          </template>
-          <template v-else-if="evolution.trendPercent != null && evolution.trendPercent < 0">
-            Bajaste el ritmo un {{ Math.abs(evolution.trendPercent) }}% frente al semestre anterior.
-          </template>
-          <template v-else>
-            {{ evolution.total }} {{ evolution.total === 1 ? 'obra terminada' : 'obras terminadas' }} en el último año.
-          </template>
-        </p>
-
-        <div ref="chartEl" class="evolution__chart" @mousemove="onChartMove" @mouseleave="hoverIndex = null">
-          <svg :viewBox="`0 0 ${chartWidth} ${chartHeight}`" preserveAspectRatio="none" class="evolution__svg">
-            <defs>
-              <linearGradient id="evolution-fill" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="0%" stop-color="var(--color-accent)" stop-opacity="0.25" />
-                <stop offset="100%" stop-color="var(--color-accent)" stop-opacity="0" />
-              </linearGradient>
-            </defs>
-            <line x1="0" :y1="chartHeight - 1" :x2="chartWidth" :y2="chartHeight - 1" class="evolution__baseline" />
-            <path :d="areaPath" fill="url(#evolution-fill)" stroke="none" />
-            <path :d="linePath" fill="none" class="evolution__line" />
-            <g v-if="hoverPoint">
-              <line :x1="hoverPoint.x" y1="0" :x2="hoverPoint.x" :y2="chartHeight" class="evolution__crosshair" />
-              <circle :cx="hoverPoint.x" :cy="hoverPoint.y" r="5" class="evolution__dot" />
-            </g>
-          </svg>
-          <div
-            v-if="hoverPoint"
-            class="evolution__tooltip"
-            :style="{ left: (hoverPoint.x / chartWidth) * 100 + '%', top: hoverPoint.y + 'px' }"
-          >
-            <strong>{{ hoverPoint.value }}</strong>
-            <span>{{ hoverPoint.month }}</span>
-          </div>
-        </div>
-
-        <div class="evolution__months">
-          <span v-for="(m, i) in evolution.months" :key="i" v-show="i % 3 === 0">{{ m }}</span>
-        </div>
       </div>
     </div>
 
@@ -388,9 +327,9 @@ const hoverPoint = computed(() =>
 
 /*
  * Filas de dos tarjetas iguales (misma altura) y Constancia a todo lo ancho:
- *   ADN | Resumen del año  /  Constancia  /  Logros | Evolución
+ *   ADN | Resumen del año  /  Constancia  /  Logros
  * Sin ADN ni Constancia (ya se ven arriba, perfil público):
- *   Resumen del año | Logros  /  Evolución
+ *   Resumen del año | Logros
  */
 .portrait__grid {
   display: grid;
@@ -398,15 +337,13 @@ const hoverPoint = computed(() =>
   grid-template-areas:
     'dna wrap'
     'constancy constancy'
-    'logros evo';
+    'logros logros';
   gap: var(--space-md);
   align-items: stretch;
 }
 
 .portrait__grid--even {
-  grid-template-areas:
-    'wrap logros'
-    'evo evo';
+  grid-template-areas: 'wrap logros';
 }
 
 .portrait__grid > * {
@@ -429,9 +366,6 @@ const hoverPoint = computed(() =>
   grid-area: logros;
 }
 
-.portrait__evo {
-  grid-area: evo;
-}
 
 .portrait__identity {
   margin: 0;
@@ -569,84 +503,41 @@ const hoverPoint = computed(() =>
   color: var(--fig-cream);
 }
 
+/* Cerrada (febrero–noviembre): cuenta regresiva grande y el candado debajo. */
+.wrapup--locked {
+  background: linear-gradient(135deg, var(--color-surface-2), var(--fig-purple));
+}
+
+.wrapup__countdown {
+  margin: var(--space-xs) 0 0;
+  color: var(--fig-cream);
+  font-size: 1rem;
+  font-weight: 700;
+}
+
+.wrapup__countdown strong {
+  font-size: 2.5rem;
+  font-weight: 800;
+  line-height: 1;
+  color: var(--color-accent);
+}
+
+.wrapup__lock {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0;
+  color: var(--rose);
+  font-size: 0.875rem;
+  font-weight: 600;
+}
+
 
 .wrapup__hint {
   color: var(--rose);
   font-size: 0.875rem;
   line-height: 1.5;
   margin: 0;
-}
-
-.evolution__summary {
-  color: var(--color-text);
-  font-weight: 600;
-  margin: 0;
-}
-
-.evolution__chart {
-  position: relative;
-  margin-top: var(--space-lg);
-  height: 200px;
-}
-
-.evolution__svg {
-  width: 100%;
-  height: 200px;
-  display: block;
-  overflow: visible;
-}
-
-.evolution__baseline {
-  stroke: var(--color-border);
-  stroke-width: 1;
-}
-
-.evolution__line {
-  stroke: var(--color-accent);
-  stroke-width: 2;
-  stroke-linecap: round;
-  stroke-linejoin: round;
-}
-
-.evolution__crosshair {
-  stroke: var(--color-border);
-  stroke-width: 1;
-}
-
-.evolution__dot {
-  fill: var(--color-accent);
-  stroke: var(--color-surface);
-  stroke-width: 2;
-}
-
-.evolution__tooltip {
-  position: absolute;
-  transform: translate(-50%, -130%);
-  background: var(--color-surface-2);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-sm);
-  padding: var(--space-xs) var(--space-sm);
-  font-size: 0.75rem;
-  color: var(--color-text-muted);
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 2px;
-  pointer-events: none;
-  white-space: nowrap;
-}
-
-.evolution__tooltip strong {
-  color: var(--color-text);
-  font-size: 0.875rem;
-}
-
-.evolution__months {
-  display: flex;
-  justify-content: space-between;
-  margin-top: var(--space-sm);
-  color: var(--color-text-subtle);
-  font-size: 0.75rem;
 }
 
 .achievements {
@@ -686,11 +577,11 @@ const hoverPoint = computed(() =>
   }
 
   .portrait__grid {
-    grid-template-areas: 'dna' 'wrap' 'constancy' 'logros' 'evo';
+    grid-template-areas: 'dna' 'wrap' 'constancy' 'logros';
   }
 
   .portrait__grid--even {
-    grid-template-areas: 'wrap' 'logros' 'evo';
+    grid-template-areas: 'wrap' 'logros';
   }
 }
 </style>
