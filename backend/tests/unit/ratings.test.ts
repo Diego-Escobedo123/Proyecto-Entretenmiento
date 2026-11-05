@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test'
-import { ratingSummary } from '../src/lib/ratings'
+import { ratingSummary } from '../../src/lib/ratings'
 
 // Prueba de ejemplo (EXP-072): confirma que `bun test` corre con TypeScript.
 describe('ratingSummary', () => {
