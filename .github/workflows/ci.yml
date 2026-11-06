@@ -1,6 +1,9 @@
-# CI: lint + build de backend y frontend en cada push y en cada PR.
-# Para que bloquee el merge, marcar los jobs "Backend" y "Frontend" como
-# required en Settings → Branches (protección de dev y main).
+# CI: lint, build y pruebas en cada push y en cada PR.
+#
+# Quality gate (EXP-077): en GitHub, Settings → Rules → Rulesets, la regla de
+# `main` y `dev` exige que pasen los 4 jobs: "Backend", "Frontend",
+# "Backend tests" y "E2E tests". Si alguna prueba falla, el PR no se puede
+# mergear. Ver docs/estrategia-de-pruebas.md.
 name: CI
 
 on:
