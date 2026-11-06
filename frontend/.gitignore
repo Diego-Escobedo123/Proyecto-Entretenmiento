@@ -31,3 +31,6 @@ pnpm-lock.yaml
 # Variables de entorno (no subir a git)
 .env
 .env.local
+# Resultados de Playwright (pruebas e2e)
+test-results
+playwright-report

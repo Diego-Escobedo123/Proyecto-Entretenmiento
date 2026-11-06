@@ -1,6 +1,9 @@
-# CI: lint + build de backend y frontend en cada push y en cada PR.
-# Para que bloquee el merge, marcar los jobs "Backend" y "Frontend" como
-# required en Settings → Branches (protección de dev y main).
+# CI: lint, build y pruebas en cada push y en cada PR.
+#
+# Quality gate (EXP-077): en GitHub, Settings → Rules → Rulesets, la regla de
+# `main` y `dev` exige que pasen los 4 jobs: "Backend", "Frontend",
+# "Backend tests" y "E2E tests". Si alguna prueba falla, el PR no se puede
+# mergear. Ver docs/estrategia-de-pruebas.md.
 name: CI
 
 on:
@@ -31,6 +34,42 @@ jobs:
       - run: bun run lint
       - run: bun run typecheck
 
+  # Pruebas del backend (EXP-073 / EXP-074): unitarias con cobertura y de
+  # integración contra una PostgreSQL de pruebas que GitHub levanta para el job.
+  backend-tests:
+    name: Backend tests
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: mosaic_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d mosaic_test"
+          --health-interval 2s
+          --health-timeout 5s
+          --health-retries 20
+    env:
+      TEST_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/mosaic_test
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.4.0
+      - run: bun install --frozen-lockfile
+      - run: bunx prisma generate
+      - name: Pruebas unitarias + cobertura
+        run: bun run test:coverage
+      - name: Pruebas de integración
+        run: bun run test:integration
+
   frontend:
     name: Frontend
     runs-on: ubuntu-latest
@@ -49,3 +88,55 @@ jobs:
       - run: bun install --frozen-lockfile
       - run: bun run lint
       - run: bun run build
+
+  # Pruebas e2e (EXP-075 / EXP-076): Playwright abre la app en un Chromium sin
+  # ventana y la usa como una persona, contra la API y una PostgreSQL de pruebas.
+  e2e:
+    name: E2E tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: mosaic_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d mosaic_test"
+          --health-interval 2s
+          --health-timeout 5s
+          --health-retries 20
+    env:
+      TEST_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/mosaic_test
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.4.0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Dependencias del backend
+        working-directory: backend
+        run: |
+          bun install --frozen-lockfile
+          bunx prisma generate
+      - name: Dependencias del frontend
+        working-directory: frontend
+        run: bun install --frozen-lockfile
+      - name: Navegador de Playwright
+        working-directory: frontend
+        run: bunx playwright install --with-deps chromium
+      - name: Pruebas e2e
+        working-directory: frontend
+        run: bun run test:e2e
+      - name: Reporte de Playwright
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: frontend/playwright-report
+          retention-days: 7

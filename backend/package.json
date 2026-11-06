@@ -7,6 +7,10 @@
   "scripts": {
     "dev": "bun --watch src/index.ts",
     "start": "bun src/index.ts",
+    "test": "bun test tests/unit",
+    "test:coverage": "bun test tests/unit --coverage && bun scripts/check-coverage.ts",
+    "test:integration": "bun scripts/test-db.ts && bun test tests/integration",
+    "e2e:server": "bun scripts/test-db.ts && bun scripts/e2e-server.ts",
     "typecheck": "tsc --noEmit",
     "lint": "eslint .",
     "db:generate": "prisma generate",

@@ -184,7 +184,7 @@ watch(
     hasOpenLog.value = false
     if (e) void loadOpenStart(e.id)
     restarting.value = false
-    suppressNextSearch = true
+    const titleBefore = form.title
     picked.value = false
     manualMode.value = false
     if (e) {
@@ -226,6 +226,10 @@ watch(
         picked.value = Boolean(prefill.title)
       }
     }
+    // Rellenar el título aquí no debe disparar una búsqueda. Pero si no cambió
+    // (alta nueva con el campo ya vacío), el watcher no corre: sin esta
+    // condición se "comía" la siguiente búsqueda del usuario (al pegar un título).
+    suppressNextSearch = form.title !== titleBefore
     errors.title = undefined
     errors.year = undefined
     suggestions.value = []
