@@ -344,6 +344,35 @@
   .refs { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 10px; }
   .refs .card p { font-size: .76rem; }
   .nope { margin-top: 10px; display: flex; gap: 12px; align-items: flex-start; border-color: rgba(242,162,155,.3); }
+  .model { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+
+  /* ---------- Monetización ---------- */
+  .streams { display: grid; grid-template-columns: 1fr 1fr; gap: clamp(12px, 1.6vw, 22px); margin-top: clamp(14px, 2.6vh, 24px); align-items: stretch; }
+  .stream { display: flex; flex-direction: column; gap: 10px; }
+  .stream .head { display: flex; align-items: center; gap: 12px; }
+  .stream .tagline-s { font-family: var(--display); font-size: .78rem; color: var(--muted); }
+  .stream .prices { display: flex; gap: 10px; }
+  .stream .price-box { flex: 1; padding: 10px 12px; border-radius: 12px; border: 1px solid var(--line); background: rgba(26,13,25,.35); }
+  .stream .price-box.pro { border-color: rgba(211,191,70,.55); background: linear-gradient(150deg, rgba(211,191,70,.14), rgba(134,44,77,.18)); }
+  .stream .price-box b { font-family: var(--display); font-size: clamp(1.3rem, 2vw, 1.7rem); display: block; line-height: 1.1; }
+  .stream .price-box span { font-size: .74rem; color: var(--rose); }
+  .stream ul { margin: 0; padding: 0; list-style: none; display: grid; gap: 5px; font-size: clamp(.76rem, .92vw, .85rem); color: var(--rose); }
+  .stream ul li { display: flex; gap: 8px; align-items: flex-start; }
+  .stream ul li i { color: var(--stem-light); }
+  .stream .in-app { margin-top: auto; font-family: var(--display); font-size: .76rem; color: var(--gold); display: flex; gap: 6px; align-items: center; }
+  .steps3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+  .steps3 div { padding: 10px; border-radius: 12px; background: rgba(26,13,25,.35); border: 1px solid var(--line); font-size: clamp(.74rem, .9vw, .82rem); color: var(--rose); }
+  .steps3 b { display: flex; align-items: center; gap: 6px; font-family: var(--display); color: var(--cream); font-size: .86rem; margin-bottom: 3px; }
+  .steps3 b i { color: var(--gold); }
+  .example { display: flex; align-items: center; gap: 10px; padding: 10px 12px; border-radius: 12px; border: 1px dashed rgba(211,191,70,.5); font-family: var(--display); font-size: clamp(.8rem, 1vw, .92rem); }
+  .example .eq { color: var(--gold); font-weight: 700; }
+  .proposed { font-family: var(--display); font-size: .7rem; color: var(--fig-deep); background: var(--rose); padding: 2px 8px; border-radius: 999px; font-weight: 600; }
+  .revenue { margin-top: clamp(12px, 2.2vh, 20px); display: grid; grid-template-columns: auto 1fr 1fr auto; gap: 10px 18px; align-items: center; padding: 12px 18px; }
+  .revenue .lbl { font-family: var(--display); font-size: .74rem; color: var(--gold); text-transform: uppercase; letter-spacing: .1em; }
+  .revenue .item { font-size: clamp(.76rem, .92vw, .86rem); color: var(--rose); }
+  .revenue .item b { color: var(--cream); font-family: var(--display); }
+  .revenue .total { font-family: var(--display); font-size: clamp(1.1rem, 1.7vw, 1.45rem); font-weight: 700; color: var(--gold); text-align: right; }
+  .revenue .total small { display: block; font-size: .68rem; color: var(--muted); font-weight: 500; }
 
   /* ---------- 11. Proceso ---------- */
   .gitflow { margin-top: clamp(16px, 3vh, 28px); padding: clamp(14px, 2vw, 24px); }
@@ -431,6 +460,9 @@
     .merge .arrow { transform: rotate(90deg); justify-self: center; }
     .slide { padding-bottom: 96px; }
     .wall { opacity: .18; }
+    .streams { grid-template-columns: 1fr; }
+    .revenue { grid-template-columns: 1fr; }
+    .revenue .total { text-align: left; }
   }
   @media (max-width: 560px) {
     .flow, .ux, .plans, .refs { grid-template-columns: 1fr 1fr; }
@@ -441,6 +473,7 @@
     .mock-row { grid-template-columns: repeat(2, 1fr); }
     .cov .r { grid-template-columns: 110px 1fr 44px; }
     .member { grid-template-columns: 1fr; }
+    .steps3 { grid-template-columns: 1fr; }
   }
   @media (prefers-reduced-motion: reduce) {
     .aurora, .wall .col, .fig-hero img.fig, .end img.fig { animation: none; }
@@ -463,7 +496,7 @@
 
 <div class="controls" aria-label="Controles de la presentación">
   <button type="button" id="prev" aria-label="Diapositiva anterior"><i class="bi bi-arrow-left"></i></button>
-  <span class="count" id="count">01 / 14</span>
+  <span class="count" id="count">01 / 15</span>
   <button type="button" id="next" aria-label="Diapositiva siguiente"><i class="bi bi-arrow-right"></i></button>
   <button type="button" id="fs" aria-label="Pantalla completa"><i class="bi bi-arrows-fullscreen"></i></button>
 </div>
@@ -776,7 +809,7 @@ mediaRoutes.<span class="f">post</span>(<span class="s">'/'</span>, <span class=
 <section class="slide" id="cotizacion" data-title="Cotización y cobro" data-crit="Ingeniería de software">
   <div class="inner">
     <p class="kicker rv">Ingeniería de software</p>
-    <h2 class="rv">Cuánto cuesta <em>y cómo gana dinero.</em></h2>
+    <h2 class="rv">Cuánto cuesta <em>y qué modelo elegimos.</em></h2>
     <div class="money">
       <div class="card rv">
         <h3><i class="bi bi-calculator gold"></i> Cotización del proyecto</h3>
@@ -797,12 +830,11 @@ mediaRoutes.<span class="f">post</span>(<span class="s">'/'</span>, <span class=
       </div>
       <div>
         <div class="card rv">
-          <h3><i class="bi bi-cash-coin gold"></i> Modelo de cobro: freemium + suscripción</h3>
-          <p>Es un servicio que sigue vivo, no un producto que se vende una vez. Por eso cobramos de forma recurrente (retainer) y también por valor, con un porcentaje sobre las ventas.</p>
-          <!-- COMPLETAR: precio y beneficios de cada plan -->
-          <div class="plans">
-            <div class="plan"><h4>Gratis <i class="bi bi-heart"></i></h4><div class="price">Q 0</div><ul><li><span class="fill">qué incluye</span></li></ul></div>
-            <div class="plan pro"><h4>Premium <i class="bi bi-gem gold"></i></h4><div class="price"><span class="fill">Q __/mes</span></div><ul><li><span class="fill">qué incluye</span></li></ul></div>
+          <h3><i class="bi bi-cash-coin gold"></i> Modelo de cobro: freemium</h3>
+          <p>Es un servicio que sigue vivo, no un producto que se vende una vez. Por eso usar Mosaic es gratis y ganamos de dos formas: de forma recurrente (retainer) con una suscripción, y por valor, con un porcentaje sobre las ventas.</p>
+          <div class="model">
+            <a class="chip" href="#monetizacion" style="text-decoration:none"><i class="bi bi-gem"></i> Suscripción Premium</a>
+            <a class="chip" href="#monetizacion" style="text-decoration:none"><i class="bi bi-percent"></i> Comisiones por venta</a>
           </div>
         </div>
         <div class="refs">
@@ -815,7 +847,46 @@ mediaRoutes.<span class="f">post</span>(<span class="s">'/'</span>, <span class=
   </div>
 </section>
 
-<!-- 11 · PROCESO ============================================================ -->
+<!-- 11 · MONETIZACIÓN ============================================================ -->
+<section class="slide" id="monetizacion" data-title="Cómo gana dinero" data-crit="Ingeniería de software">
+  <div class="inner">
+    <p class="kicker rv">Ingeniería de software · Monetización</p>
+    <h2 class="rv">Cómo gana dinero Mosaic: <em>dos fuentes de ingreso.</em></h2>
+    <div class="streams">
+      <div class="card stream rv">
+        <div class="head"><span class="ico"><i class="bi bi-gem"></i></span><div><h3>Suscripción Premium</h3><p class="tagline-s">Recurrente · quien quiere ir más a fondo</p></div></div>
+        <div class="prices">
+          <div class="price-box"><b>US$2</b><span>al mes · ≈ Q15</span></div>
+          <div class="price-box pro"><b>US$18</b><span>al año · ≈ Q139 · 3 meses gratis</span></div>
+        </div>
+        <ul>
+          <li><i class="bi bi-check2"></i> Todo lo de Mosaic sigue siendo gratis</li>
+          <li><i class="bi bi-check2"></i> ADN cultural avanzado y resumen de tu año cultural</li>
+          <li><i class="bi bi-check2"></i> Insignia Premium y temas de color extra</li>
+        </ul>
+        <p class="in-app"><i class="bi bi-phone"></i> Ya en la app: pantalla de planes en /premium. Los pagos llegan en la siguiente fase.</p>
+      </div>
+      <div class="card stream rv">
+        <div class="head"><span class="ico rasp"><i class="bi bi-book"></i></span><div><h3>Comisiones con Sophos <span class="proposed">aliado propuesto</span></h3><p class="tagline-s">Por valor · un porcentaje de cada venta</p></div></div>
+        <div class="steps3">
+          <div><b><i class="bi bi-1-circle"></i> Descubre</b>Ve un libro en Mosaic o la reseña de un amigo.</div>
+          <div><b><i class="bi bi-2-circle"></i> Compra</b>Toca «Sophos» y llega a la tienda con <code class="mono">ref=mosaic</code>.</div>
+          <div><b><i class="bi bi-3-circle"></i> Comisión</b>Sophos le paga a Mosaic un porcentaje de la venta.</div>
+        </div>
+        <div class="example"><i class="bi bi-calculator gold"></i> Ejemplo: libro de Q150 × 5 % de comisión <span class="eq">= Q7.50 para Mosaic</span></div>
+        <p class="in-app"><i class="bi bi-phone"></i> Ya en la app: botón «Sophos» en cada libro, solo en Guatemala.</p>
+      </div>
+    </div>
+    <div class="card revenue rv">
+      <span class="lbl">Ejemplo al mes</span>
+      <span class="item"><b>1,000</b> usuarios × <b>3 %</b> Premium × US$2 = <b>US$60</b> (≈ Q462)</span>
+      <span class="item"><b>50</b> libros × Q150 × <b>5 %</b> = <b>Q375</b></span>
+      <span class="total">≈ Q837<small>al mes · cifras ilustrativas</small></span>
+    </div>
+  </div>
+</section>
+
+<!-- 12 · PROCESO ============================================================ -->
 <section class="slide" id="proceso" data-title="Cómo lo construimos" data-crit="Ingeniería de software">
   <div class="inner">
     <p class="kicker rv">Ingeniería de software · Proceso</p>
@@ -852,7 +923,7 @@ mediaRoutes.<span class="f">post</span>(<span class="s">'/'</span>, <span class=
   </div>
 </section>
 
-<!-- 12 · DEPLOY ============================================================ -->
+<!-- 13 · DEPLOY ============================================================ -->
 <section class="slide" id="deploy" data-title="Deploy" data-crit="Deploy">
   <div class="inner">
     <p class="kicker rv">Deploy</p>
@@ -926,7 +997,7 @@ mediaRoutes.<span class="f">post</span>(<span class="s">'/'</span>, <span class=
   </div>
 </section>
 
-<!-- 13 · QA ============================================================ -->
+<!-- 14 · QA ============================================================ -->
 <section class="slide" id="qa" data-title="+ QA" data-crit="+ QA">
   <div class="inner">
     <p class="kicker rv">+ QA</p>
@@ -959,7 +1030,7 @@ mediaRoutes.<span class="f">post</span>(<span class="s">'/'</span>, <span class=
   </div>
 </section>
 
-<!-- 14 · CIERRE ============================================================ -->
+<!-- 15 · CIERRE ============================================================ -->
 <section class="slide" id="gracias" data-title="Gracias">
   <div class="wall" id="wall2" aria-hidden="true"></div>
   <div class="veil center"></div>
