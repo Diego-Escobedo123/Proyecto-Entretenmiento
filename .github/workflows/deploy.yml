@@ -37,7 +37,7 @@ jobs:
   deploy-backend:
     name: Deploy backend (ECR + ECS)
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 45
     steps:
       - uses: actions/checkout@v4
 
@@ -75,8 +75,20 @@ jobs:
             --query "service.deployments[0].rolloutState" \
             --output text
 
+      # `aws ecs wait services-stable` se rinde a los 10 min, y el rollout de
+      # mosaic-api puede tardar más (en el primer release tardó entre 10 y 18 min). Se repite hasta
+      # 3 veces (30 min en total) antes de dar el deploy por fallido.
       - name: Esperar a que el servicio quede estable
-        run: aws ecs wait services-stable --cluster "$ECS_CLUSTER" --services "$ECS_SERVICE"
+        run: |
+          for i in 1 2 3; do
+            if aws ecs wait services-stable --cluster "$ECS_CLUSTER" --services "$ECS_SERVICE"; then
+              echo "Servicio estable (intento $i)"
+              exit 0
+            fi
+            echo "Intento $i: el servicio todavía no está estable, sigo esperando..."
+          done
+          echo "::error title=Servicio no estable::$ECS_SERVICE no quedó estable en 30 minutos"
+          exit 1
 
   health-check:
     name: Health check post-deploy
