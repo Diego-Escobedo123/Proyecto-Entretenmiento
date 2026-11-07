@@ -1,0 +1,55 @@
+# Mosaic completo en local: PostgreSQL + API + frontend.
+#   docker compose up --build
+# App en http://localhost:8080, API en http://localhost:3000.
+# Ver "Docker" en el README para las variables opcionales.
+
+services:
+  db:
+    image: postgres:17
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: mosaic
+    # 5433 afuera para no chocar con una Postgres local en 5432.
+    ports:
+      - "5433:5432"
+    volumes:
+      - db-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d mosaic"]
+      interval: 2s
+      timeout: 5s
+      retries: 15
+
+  backend:
+    build: ./backend
+    # API keys (TMDB, RAWG, Google...) desde backend/.env si existe.
+    env_file:
+      - path: ./backend/.env
+        required: false
+    # Pisan lo que venga de backend/.env: ahí DATABASE_URL apunta a localhost.
+    environment:
+      DATABASE_URL: postgresql://postgres:postgres@db:5432/mosaic?schema=public
+      JWT_SECRET: ${JWT_SECRET:-dev-secret-change-me}
+      CORS_ORIGIN: http://localhost:8080
+    ports:
+      - "3000:3000"
+    depends_on:
+      db:
+        condition: service_healthy
+
+  frontend:
+    build:
+      context: ./frontend
+      # El JS corre en el navegador, que llega a la API por localhost (no por "backend").
+      args:
+        VITE_API_URL: http://localhost:3000
+        VITE_GOOGLE_CLIENT_ID: ${VITE_GOOGLE_CLIENT_ID:-}
+        VITE_POSTHOG_KEY: ${VITE_POSTHOG_KEY:-}
+    ports:
+      - "8080:80"
+    depends_on:
+      - backend
+
+volumes:
+  db-data:

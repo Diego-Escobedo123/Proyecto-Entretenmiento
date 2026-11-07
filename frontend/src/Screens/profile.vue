@@ -1,0 +1,663 @@
+<script setup lang="ts">
+/**
+ * Perfil — una sola página para el perfil propio (/profile) y el de los
+ * demás (/users/:id), como en Letterboxd: todos ven lo mismo y su dueño,
+ * además, los botones para editar.
+ *
+ * Arriba la identidad (frase y cita sólo si las escribió) con sus números;
+ * luego sus 5 favoritas (las elige él), actividad reciente y cómo califica.
+ * Si el perfil es público sigue su ADN cultural y su constancia; si es
+ * privado (y por eso sólo lo ve su dueño), sus reseñas recientes. Después las
+ * listas públicas y, sólo para su dueño, "Tu retrato cultural".
+ *
+ * Con perfil privado, los demás sólo ven nombre, contadores y listas públicas.
+ */
+import { coverOk, vCover } from '../lib/cover'
+import { computed, ref, watch } from 'vue'
+import { useRoute } from 'vue-router'
+import BaseIcon from '../components/BaseIcon.vue'
+import BaseSpinner from '../components/BaseSpinner.vue'
+import EmptyState from '../components/EmptyState.vue'
+import RatingStars from '../components/RatingStars.vue'
+import RatingHistogram from '../components/RatingHistogram.vue'
+import CulturalPortrait from '../components/CulturalPortrait.vue'
+import ListCard from '../components/lists/ListCard.vue'
+import FavoritesPicker from '../components/profile/FavoritesPicker.vue'
+import DnaOverview from '../components/profile/DnaOverview.vue'
+import YearInWorks from '../components/profile/YearInWorks.vue'
+import ProfileHeader from '../components/profile/ProfileHeader.vue'
+import { statusLabel, typeMeta } from '../lib/catalog'
+import { formatDay } from '../lib/dates'
+import { ApiError } from '../lib/api'
+import { socialService } from '../services/socialService'
+import { useMediaStore } from '../stores/media'
+import { useProfileStore } from '../stores/profile'
+import { useUiStore } from '../stores/ui'
+import type { LogEntry } from '../types/log'
+import type { PublicEntry, PublicProfile } from '../types/review'
+import type { FollowStatus } from '../types/social'
+
+const route = useRoute()
+const ui = useUiStore()
+const media = useMediaStore()
+const ownProfile = useProfileStore()
+
+/** /profile es el propio; /users/:id, el de cualquiera (también puede ser el propio). */
+const userId = computed(() => (route.name === 'profile' ? 'me' : String(route.params.id ?? '')))
+
+const profile = ref<PublicProfile | null>(null)
+const loading = ref(false)
+const error = ref<string | null>(null)
+let requestId = 0
+
+async function load() {
+  const current = ++requestId
+  loading.value = true
+  error.value = null
+  try {
+    const res = await socialService.publicProfile(userId.value)
+    if (current === requestId) profile.value = res
+  } catch (e) {
+    if (current !== requestId) return
+    profile.value = null
+    error.value = e instanceof ApiError && e.status === 404 ? 'Este usuario no existe.' : 'No se pudo cargar el perfil.'
+  } finally {
+    if (current === requestId) loading.value = false
+  }
+}
+
+watch(userId, load, { immediate: true })
+
+const isSelf = computed(() => profile.value?.isSelf ?? false)
+/** Cuenta privada: la colección sólo la ven su dueño y quienes la siguen (solicitud aceptada). */
+const canSeeCollection = computed(() => profile.value?.canView ?? false)
+
+// El propio perfil se recarga cuando se edita desde Ajustes (nombre, frase, visibilidad…).
+watch(
+  () => ownProfile.profile,
+  () => {
+    if (isSelf.value) void load()
+  },
+  { deep: true },
+)
+
+watch(isSelf, (self) => {
+  // "Tu retrato cultural" se calcula con la colección completa.
+  if (self) void media.ensureLoaded()
+})
+
+function onFollowChange(status: FollowStatus, followers: number | null) {
+  if (!profile.value) return
+  // Dejar de seguir una cuenta privada vuelve a ocultarla: se recarga para reflejarlo.
+  if (!profile.value.isPublic && profile.value.isFollowing && status === 'none') {
+    void load()
+    return
+  }
+  profile.value.isFollowing = status === 'following'
+  profile.value.requested = status === 'requested'
+  profile.value.followers = followers
+}
+
+// --- Favoritas ---
+const pickingFavorites = ref(false)
+
+function openWork(e: Pick<PublicEntry, 'type' | 'title' | 'creator' | 'year' | 'genres' | 'cover' | 'externalId'>) {
+  ui.openWorkDetail({
+    type: e.type,
+    title: e.title,
+    creator: e.creator,
+    year: e.year,
+    genres: e.genres,
+    cover: e.cover,
+    externalId: e.externalId,
+  })
+}
+
+// --- Actividad reciente ---
+function describeLog(log: LogEntry): string {
+  const type = log.entry!.type
+  if (!log.finishedAt) return `${statusLabel(type, 'in-progress')}${log.startedAt ? ` desde el ${formatDay(log.startedAt)}` : ''}`
+  const status = statusLabel(type, log.abandoned ? 'abandoned' : 'completed')
+  return `${status} el ${formatDay(log.finishedAt)}`
+}
+
+/** Promedio de "Cómo califica" con un decimal ("4,4"). */
+const averageText = computed(() =>
+  (profile.value?.ratings.average ?? 0).toLocaleString('es', { minimumFractionDigits: 1, maximumFractionDigits: 1 }),
+)
+</script>
+
+<template>
+  <div class="profile">
+    <div v-if="loading && !profile" class="profile__hint"><BaseSpinner size="sm" /> Cargando perfil…</div>
+    <EmptyState v-else-if="error" icon="person-x" :title="error" />
+
+    <template v-else-if="profile">
+      <!-- Identidad y números (mosaico + avatar, nombre, frase, contadores) -->
+      <ProfileHeader :profile="profile" :can-see-collection="canSeeCollection" @follow-change="onFollowChange" />
+
+      <p v-if="isSelf && profile.pendingRequests" class="profile__banner profile__banner--requests">
+        <BaseIcon name="person-plus" />
+        <span>
+          <strong>{{ profile.pendingRequests }}</strong>
+          {{ profile.pendingRequests === 1 ? 'persona quiere seguirte' : 'personas quieren seguirte' }}.
+        </span>
+        <RouterLink to="/people" class="profile__banner-link">Ver solicitudes <BaseIcon name="arrow-right" /></RouterLink>
+      </p>
+
+      <EmptyState
+        v-if="!canSeeCollection"
+        icon="lock"
+        title="Esta cuenta es privada"
+        :text="
+          profile.requested
+            ? 'Solicitud enviada. Cuando la acepte, verás sus obras, su actividad y su ADN cultural.'
+            : 'Envíale una solicitud para ver sus obras, su actividad y su ADN cultural. Sus reseñas siguen visibles en cada obra.'
+        "
+      />
+
+      <template v-else>
+        <!-- Favoritas: las elige su dueño -->
+        <section v-if="profile.favorites.length || isSelf" class="profile-section">
+          <header class="profile-section__head">
+            <h2 class="profile-section__title"><BaseIcon name="heart" /> {{ isSelf ? 'Tus 5 favoritas' : 'Sus 5 favoritas' }}</h2>
+            <button v-if="isSelf" type="button" class="profile-section__link" @click="pickingFavorites = true">
+              <BaseIcon name="pencil" /> {{ profile.favorites.length ? 'Cambiar' : 'Elegir' }}
+            </button>
+          </header>
+          <ol class="favorites">
+            <li v-for="f in profile.favorites" :key="f.id">
+              <button type="button" class="favorites__item" :aria-label="`Ver ficha de ${f.title}`" @click="openWork(f)">
+                <img v-if="coverOk(f.cover)" v-cover="f.cover" :src="f.cover" alt="" class="favorites__cover" loading="lazy" />
+                <span v-else class="favorites__cover favorites__cover--empty" aria-hidden="true">
+                  <BaseIcon :name="typeMeta(f.type).icon" />
+                </span>
+                <span class="favorites__title">{{ f.title }}</span>
+                <span class="favorites__meta">{{ typeMeta(f.type).label }}<template v-if="f.year"> · {{ f.year }}</template></span>
+              </button>
+            </li>
+            <template v-if="isSelf">
+              <li v-for="n in 5 - profile.favorites.length" :key="`empty-${n}`">
+                <button type="button" class="favorites__item" @click="pickingFavorites = true">
+                  <span class="favorites__cover favorites__cover--slot"><BaseIcon name="plus-lg" /></span>
+                  <span class="favorites__meta">Elegir</span>
+                </button>
+              </li>
+            </template>
+          </ol>
+        </section>
+
+        <!--
+          Quien puede ver el perfil (su dueño, cualquiera si es público, o sus
+          seguidores si es privado) lo ve igual:
+            Actividad | ADN  /  Cómo califica | Año en obras
+        -->
+        <div class="profile-columns profile-columns--full">
+          <section class="card profile-section profile-columns__recent">
+            <header class="profile-section__head">
+              <h2 class="profile-section__title"><BaseIcon name="journal-bookmark" /> Actividad reciente</h2>
+              <RouterLink v-if="isSelf" to="/diary" class="profile-section__link">Ver diario <BaseIcon name="arrow-right" /></RouterLink>
+            </header>
+            <p v-if="!profile.recent.length" class="profile__hint">
+              {{ isSelf ? 'Cuando empieces o termines algo, aparecerá aquí.' : 'Todavía no hay actividad.' }}
+            </p>
+            <ul v-else class="recent">
+              <li v-for="log in profile.recent" :key="log.id">
+                <button type="button" class="recent__row" @click="openWork(log.entry!)">
+                  <img v-if="coverOk(log.entry!.cover)" v-cover="log.entry!.cover" :src="log.entry!.cover" alt="" class="recent__cover" loading="lazy" />
+                  <span v-else class="recent__cover recent__cover--empty" aria-hidden="true">
+                    <BaseIcon :name="typeMeta(log.entry!.type).icon" />
+                  </span>
+                  <span class="recent__info">
+                    <span class="recent__title">{{ log.entry!.title }}</span>
+                    <span class="recent__meta">
+                      {{ describeLog(log) }}
+                      <span v-if="log.repeat" class="recent__repeat"><BaseIcon name="arrow-repeat" /> Otra vez</span>
+                    </span>
+                  </span>
+                  <RatingStars v-if="log.rating != null" :value="log.rating" class="recent__stars" />
+                </button>
+              </li>
+            </ul>
+          </section>
+
+          <section class="card profile-section profile-section--rating profile-columns__rating">
+            <header class="rating-head">
+              <h2 class="profile-section__title"><BaseIcon name="bar-chart" /> {{ isSelf ? 'Cómo calificas' : 'Cómo califica' }}</h2>
+              <p v-if="profile.ratings.count" class="rating-head__average">
+                <strong><BaseIcon name="star-fill" class="rating-head__star" /> {{ averageText }}</strong>
+                <span>{{ profile.ratings.count }} {{ profile.ratings.count === 1 ? 'calificación' : 'calificaciones' }}</span>
+              </p>
+            </header>
+            <RatingHistogram
+              v-if="profile.ratings.count"
+              :histogram="profile.ratings.histogram"
+              :average="profile.ratings.average"
+              :count="profile.ratings.count"
+              :bars-height="120"
+              hide-average
+            />
+            <p v-else class="profile__hint">Todavía no hay calificaciones.</p>
+          </section>
+
+          <DnaOverview
+            class="profile-columns__dna"
+            :dna="profile.dna"
+            :ratings="profile.ratings"
+            :activity="profile.activity"
+            :last-abandoned="profile.lastAbandoned"
+            :insights="profile.insights"
+            :self="isSelf"
+          />
+          <YearInWorks
+            class="profile-columns__year"
+            :activity="profile.activity"
+            :top-genres="profile.dna.topGenres.map((g) => g.name)"
+            :self="isSelf"
+          />
+        </div>
+
+      </template>
+
+      <!-- Listas públicas (se ven aunque el perfil sea privado: cada lista decide) -->
+      <section v-if="profile.lists.length" class="profile-section">
+        <header class="profile-section__head">
+          <h2 class="profile-section__title"><BaseIcon name="card-list" /> {{ isSelf ? 'Tus listas públicas' : 'Listas' }}</h2>
+          <RouterLink v-if="isSelf" to="/lists" class="profile-section__link">Todas tus listas <BaseIcon name="arrow-right" /></RouterLink>
+        </header>
+        <div class="profile-lists">
+          <ListCard v-for="l in profile.lists" :key="l.id" :list="l" />
+        </div>
+      </section>
+
+      <!-- Sólo para su dueño -->
+      <CulturalPortrait v-if="isSelf && media.entries.length" :hide-shared="canSeeCollection" />
+
+      <FavoritesPicker
+        v-if="pickingFavorites"
+        :initial="profile.favorites.map((f) => f.id)"
+        @close="pickingFavorites = false"
+        @saved="load"
+      />
+    </template>
+  </div>
+</template>
+
+<style scoped>
+.profile {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xl);
+}
+
+.profile__hint {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  margin: 0;
+  color: var(--color-text-muted);
+  font-size: 0.9375rem;
+}
+
+.card {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  padding: var(--space-lg);
+}
+
+.profile__banner {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--space-sm);
+  margin: 0;
+  padding: var(--space-sm) var(--space-md);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
+  color: var(--color-text-muted);
+  font-size: 0.875rem;
+}
+
+.profile__banner > span {
+  flex: 1;
+  min-width: 220px;
+}
+
+.profile__banner strong {
+  color: var(--color-text);
+}
+
+.profile__banner--requests {
+  border-color: var(--color-accent);
+  background: var(--color-accent-bg);
+}
+
+.profile__banner--requests > .bi {
+  color: var(--color-accent);
+}
+
+.profile__banner-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-left: auto;
+  color: var(--color-accent);
+  font-weight: 700;
+}
+
+/* --- Secciones --- */
+.profile-section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-md);
+  min-width: 0;
+}
+
+.profile-section__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-sm);
+}
+
+.profile-section__title {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  margin: 0;
+  font-size: 1.25rem;
+  font-weight: 700;
+  color: var(--color-text);
+}
+
+.profile-section__link {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0;
+  border: none;
+  background: none;
+  font: inherit;
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: var(--color-accent);
+  cursor: pointer;
+}
+
+/* "Cómo calificas": el promedio arriba a la derecha y la gráfica abajo, llenando la tarjeta. */
+.profile-section--rating > :last-child {
+  margin-top: auto;
+}
+
+.rating-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-xs) var(--space-md);
+}
+
+.rating-head .profile-section__title {
+  white-space: nowrap;
+}
+
+/* Si no cabe al lado del título, el promedio baja y queda a la derecha. */
+.rating-head__average {
+  font-family: var(--font-sans);
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  margin: 0 0 0 auto;
+  line-height: 1.1;
+}
+
+.rating-head__average strong {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 2.25rem;
+  font-weight: 800;
+  color: var(--color-text);
+}
+
+.rating-head__star {
+  font-size: 1.25rem;
+  color: var(--color-accent);
+}
+
+.rating-head__average span {
+  font-size: 0.8125rem;
+  color: var(--color-text-muted);
+}
+
+/* Dos columnas iguales y tarjetas de la misma altura. */
+.profile-columns {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--space-md);
+  align-items: stretch;
+}
+
+.profile-columns > * {
+  min-width: 0;
+}
+
+/*
+ * Perfil completo: tarjeta angosta + ancha en cada fila, con 12 columnas
+ * para que cada fila tenga su proporción: Actividad 5 | ADN 7, Cómo califica 3 | Año 9.
+ * En tablet y teléfono se apila en una columna (ver media queries al final).
+ */
+.profile-columns--full {
+  grid-template-columns: repeat(12, minmax(0, 1fr));
+  grid-template-areas:
+    'recent recent recent recent recent dna dna dna dna dna dna dna'
+    'rating rating rating year year year year year year year year year';
+}
+
+.profile-columns__recent {
+  grid-area: recent;
+}
+
+.profile-columns__rating {
+  grid-area: rating;
+}
+
+.profile-columns__dna {
+  grid-area: dna;
+}
+
+.profile-columns__year {
+  grid-area: year;
+}
+
+/* --- Favoritas --- */
+.favorites {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  /* minmax(0, 1fr): un título largo no ensancha su columna (todas las portadas iguales). */
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: var(--space-md);
+  max-width: 920px;
+}
+
+.favorites__item {
+  width: 100%;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 0;
+  border: none;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.favorites__cover {
+  display: block;
+  width: 100%;
+  aspect-ratio: 2 / 3;
+  border-radius: var(--radius-md);
+  object-fit: cover;
+  background: var(--color-surface-2);
+  transition: transform 0.15s ease;
+}
+
+.favorites__item:hover .favorites__cover {
+  transform: translateY(-3px);
+}
+
+.favorites__cover--empty,
+.favorites__cover--slot {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.75rem;
+  color: var(--color-text-subtle);
+}
+
+.favorites__cover--slot {
+  border: 2px dashed var(--color-border);
+  background: none;
+}
+
+.favorites__title {
+  font-weight: 700;
+  color: var(--color-text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.favorites__meta {
+  font-size: 0.8125rem;
+  color: var(--color-text-muted);
+}
+
+/* --- Actividad reciente --- */
+.recent {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.recent__row {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  padding: 6px;
+  border: none;
+  border-radius: var(--radius-md);
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.recent__row:hover,
+.recent__row:focus-visible {
+  background: var(--color-surface-2);
+}
+
+.recent__cover {
+  width: 36px;
+  height: 54px;
+  flex-shrink: 0;
+  border-radius: var(--radius-sm);
+  object-fit: cover;
+  background: var(--color-surface-2);
+}
+
+.recent__cover--empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--color-text-subtle);
+}
+
+.recent__info {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.recent__title {
+  font-weight: 700;
+  color: var(--color-text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.recent__meta {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  font-size: 0.8125rem;
+  color: var(--color-text-muted);
+}
+
+.recent__repeat {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-weight: 600;
+  color: var(--color-accent);
+}
+
+.recent__stars {
+  flex-shrink: 0;
+}
+
+/* --- Reseñas --- */
+.profile-lists {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: var(--space-md);
+}
+
+@media (max-width: 900px) {
+  .profile-columns {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* Tablet y teléfono: una sola columna, en el mismo orden de lectura. */
+@media (max-width: 1179px) {
+  .profile-columns--full {
+    grid-template-columns: 1fr;
+    grid-template-areas: 'recent' 'dna' 'rating' 'year';
+  }
+}
+
+@media (max-width: 620px) {
+  .favorites {
+    gap: 6px;
+  }
+
+  .favorites__title {
+    font-size: 0.75rem;
+  }
+
+  .favorites__meta {
+    font-size: 0.6875rem;
+  }
+
+  .recent__stars {
+    display: none;
+  }
+}
+</style>

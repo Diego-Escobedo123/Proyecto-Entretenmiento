@@ -1,0 +1,245 @@
+import { Hono } from 'hono'
+import type { List, ListItem } from '@prisma/client'
+import { prisma } from '../lib/prisma'
+import { requireAuth, type AuthEnv } from '../middleware/auth'
+import { upgradeBookCover } from '../lib/externalSearch'
+import { toPublicUserDTO } from '../lib/serialize'
+import { validateBody } from '../lib/validation'
+import {
+  addListItemSchema,
+  createListSchema,
+  reorderListSchema,
+  updateListItemSchema,
+  updateListSchema,
+} from '../lib/schemas'
+
+export const listRoutes = new Hono<AuthEnv>()
+
+listRoutes.use('*', requireAuth)
+
+const COLLAGE = 4
+
+type ListWithPreview = List & { items: Pick<ListItem, 'cover'>[]; _count: { items: number } }
+
+/** Resumen para tarjetas: sin las obras, sólo cuántas son y las primeras portadas. */
+export function toListSummaryDTO(row: ListWithPreview) {
+  return {
+    id: row.id,
+    title: row.title,
+    description: row.description,
+    isPublic: row.isPublic,
+    ranked: row.ranked,
+    coverImage: row.coverImage,
+    itemCount: row._count.items,
+    covers: row.items.map((i) => upgradeBookCover(i.cover)).filter((c): c is string => Boolean(c)),
+    updatedAt: row.updatedAt.toISOString(),
+  }
+}
+
+/** Include de Prisma para `toListSummaryDTO`. */
+export const LIST_SUMMARY_INCLUDE = {
+  items: { select: { cover: true }, where: { cover: { not: null } }, orderBy: { position: 'asc' }, take: COLLAGE },
+  _count: { select: { items: true } },
+} as const
+
+function toItemDTO(item: ListItem) {
+  return {
+    id: item.id,
+    position: item.position,
+    type: item.type,
+    title: item.title,
+    creator: item.creator,
+    year: item.year,
+    cover: upgradeBookCover(item.cover),
+    genres: item.genres,
+    externalId: item.externalId,
+    note: item.note,
+    addedAt: item.addedAt.toISOString(),
+  }
+}
+
+async function findOwnedList(id: string, userId: string) {
+  return prisma.list.findFirst({ where: { id, userId } })
+}
+
+/** Misma obra: por id de catálogo si lo hay; si no, por tipo + título. */
+function sameWorkWhere(listId: string, work: { type: string; title: string; externalId: string | null }) {
+  return work.externalId
+    ? { listId, type: work.type, externalId: work.externalId }
+    : { listId, type: work.type, externalId: null, title: { equals: work.title, mode: 'insensitive' as const } }
+}
+
+// GET /lists?type=&externalId=&title= -> resúmenes de mis listas.
+// Si viene una obra, cada lista trae `workItemId`: el id de esa obra dentro de
+// la lista, o null si no está (para el menú "Agregar a lista").
+listRoutes.get('/', async (c) => {
+  const rows = await prisma.list.findMany({
+    where: { userId: c.get('userId') },
+    include: LIST_SUMMARY_INCLUDE,
+    orderBy: { updatedAt: 'desc' },
+  })
+
+  const type = c.req.query('type')
+  const title = c.req.query('title') ?? ''
+  const externalId = c.req.query('externalId') || null
+  const itemByList = new Map<string, string>()
+  if (type && (externalId || title)) {
+    const matches = await prisma.listItem.findMany({
+      where: {
+        listId: { in: rows.map((r) => r.id) },
+        type,
+        ...(externalId ? { externalId } : { externalId: null, title: { equals: title, mode: 'insensitive' } }),
+      },
+      select: { id: true, listId: true },
+    })
+    for (const m of matches) itemByList.set(m.listId, m.id)
+  }
+
+  return c.json(
+    rows.map((r) => ({ ...toListSummaryDTO(r), ...(type && { workItemId: itemByList.get(r.id) ?? null }) })),
+  )
+})
+
+// POST /lists { title, description?, isPublic?, ranked?, coverImage? } -> resumen
+listRoutes.post('/', async (c) => {
+  const parsed = await validateBody(c, createListSchema)
+  if (!parsed.ok) return parsed.response
+  const row = await prisma.list.create({
+    data: { ...parsed.data, userId: c.get('userId') },
+    include: LIST_SUMMARY_INCLUDE,
+  })
+  return c.json(toListSummaryDTO(row), 201)
+})
+
+// GET /lists/:id -> lista con sus obras. La ve su dueño, o cualquiera si es pública.
+listRoutes.get('/:id', async (c) => {
+  const row = await prisma.list.findUnique({
+    where: { id: c.req.param('id') },
+    include: {
+      items: { orderBy: { position: 'asc' } },
+      user: { select: { id: true, name: true, profile: { select: { handle: true, avatar: true } } } },
+    },
+  })
+  const isOwner = row?.userId === c.get('userId')
+  if (!row || (!row.isPublic && !isOwner)) return c.json({ message: 'No existe la lista.' }, 404)
+
+  return c.json({
+    id: row.id,
+    title: row.title,
+    description: row.description,
+    isPublic: row.isPublic,
+    ranked: row.ranked,
+    coverImage: row.coverImage,
+    isOwner,
+    owner: toPublicUserDTO(row.user),
+    items: row.items.map(toItemDTO),
+    createdAt: row.createdAt.toISOString(),
+    updatedAt: row.updatedAt.toISOString(),
+  })
+})
+
+// PATCH /lists/:id { title?, description?, isPublic?, ranked?, coverImage? } -> resumen (coverImage null = automática)
+listRoutes.patch('/:id', async (c) => {
+  const owned = await findOwnedList(c.req.param('id'), c.get('userId'))
+  if (!owned) return c.json({ message: 'No existe la lista.' }, 404)
+  const parsed = await validateBody(c, updateListSchema)
+  if (!parsed.ok) return parsed.response
+  const row = await prisma.list.update({ where: { id: owned.id }, data: parsed.data, include: LIST_SUMMARY_INCLUDE })
+  return c.json(toListSummaryDTO(row))
+})
+
+// DELETE /lists/:id -> 204
+listRoutes.delete('/:id', async (c) => {
+  const owned = await findOwnedList(c.req.param('id'), c.get('userId'))
+  if (!owned) return c.json({ message: 'No existe la lista.' }, 404)
+  await prisma.list.delete({ where: { id: owned.id } })
+  return c.body(null, 204)
+})
+
+// POST /lists/:id/items { type, title, creator?, year?, cover?, genres?, externalId?, note? } -> obra
+// Se agrega al final. 409 si la obra ya está en la lista.
+listRoutes.post('/:id/items', async (c) => {
+  const owned = await findOwnedList(c.req.param('id'), c.get('userId'))
+  if (!owned) return c.json({ message: 'No existe la lista.' }, 404)
+
+  const parsed = await validateBody(c, addListItemSchema)
+  if (!parsed.ok) return parsed.response
+  const { type, title, creator, year, cover, genres, externalId, note } = parsed.data
+
+  const existing = await prisma.listItem.findFirst({ where: sameWorkWhere(owned.id, { type, title, externalId }) })
+  if (existing) return c.json({ message: 'Esa obra ya está en la lista.' }, 409)
+
+  const last = await prisma.listItem.findFirst({ where: { listId: owned.id }, orderBy: { position: 'desc' } })
+  const [item] = await prisma.$transaction([
+    prisma.listItem.create({
+      data: {
+        listId: owned.id,
+        position: (last?.position ?? -1) + 1,
+        type,
+        title,
+        creator,
+        year,
+        cover,
+        genres,
+        externalId,
+        note: note ?? '',
+      },
+    }),
+    // Toca la lista para que suba en "más recientes".
+    prisma.list.update({ where: { id: owned.id }, data: { updatedAt: new Date() } }),
+  ])
+  return c.json(toItemDTO(item), 201)
+})
+
+// PATCH /lists/:id/items/:itemId { note } -> obra
+listRoutes.patch('/:id/items/:itemId', async (c) => {
+  const owned = await findOwnedList(c.req.param('id'), c.get('userId'))
+  if (!owned) return c.json({ message: 'No existe la lista.' }, 404)
+  const item = await prisma.listItem.findFirst({ where: { id: c.req.param('itemId'), listId: owned.id } })
+  if (!item) return c.json({ message: 'Esa obra no está en la lista.' }, 404)
+
+  const parsed = await validateBody(c, updateListItemSchema)
+  if (!parsed.ok) return parsed.response
+  const updated = await prisma.listItem.update({
+    where: { id: item.id },
+    data: { note: parsed.data.note },
+  })
+  return c.json(toItemDTO(updated))
+})
+
+// DELETE /lists/:id/items/:itemId -> 204 (las demás se reacomodan sin huecos)
+listRoutes.delete('/:id/items/:itemId', async (c) => {
+  const owned = await findOwnedList(c.req.param('id'), c.get('userId'))
+  if (!owned) return c.json({ message: 'No existe la lista.' }, 404)
+  const item = await prisma.listItem.findFirst({ where: { id: c.req.param('itemId'), listId: owned.id } })
+  if (!item) return c.json({ message: 'Esa obra no está en la lista.' }, 404)
+
+  await prisma.$transaction([
+    prisma.listItem.delete({ where: { id: item.id } }),
+    prisma.listItem.updateMany({
+      where: { listId: owned.id, position: { gt: item.position } },
+      data: { position: { decrement: 1 } },
+    }),
+    prisma.list.update({ where: { id: owned.id }, data: { updatedAt: new Date() } }),
+  ])
+  return c.body(null, 204)
+})
+
+// POST /lists/:id/order { itemIds: string[] } -> 204   (nuevo orden completo)
+listRoutes.post('/:id/order', async (c) => {
+  const owned = await findOwnedList(c.req.param('id'), c.get('userId'))
+  if (!owned) return c.json({ message: 'No existe la lista.' }, 404)
+
+  const parsed = await validateBody(c, reorderListSchema)
+  if (!parsed.ok) return parsed.response
+  const ids = parsed.data.itemIds
+  const current = await prisma.listItem.findMany({ where: { listId: owned.id }, select: { id: true } })
+  const currentIds = new Set(current.map((i) => i.id))
+  const sameSet = ids.length === currentIds.size && ids.every((id) => currentIds.has(id))
+  if (!sameSet) return c.json({ message: 'El nuevo orden debe incluir todas las obras de la lista.' }, 400)
+
+  await prisma.$transaction(
+    ids.map((id, position) => prisma.listItem.update({ where: { id }, data: { position } })),
+  )
+  return c.body(null, 204)
+})

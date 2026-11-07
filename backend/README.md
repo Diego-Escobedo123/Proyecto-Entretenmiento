@@ -1,0 +1,133 @@
+# Mosaic — Backend
+
+API REST para Mosaic. Provee autenticación (JWT) y el CRUD de obras y perfil que
+hoy el frontend resuelve contra `localStorage`.
+
+**Stack:** [Bun](https://bun.sh) + [Hono](https://hono.dev) + [Prisma](https://www.prisma.io/)
++ PostgreSQL.
+
+## Puesta en marcha
+
+Necesitás una PostgreSQL corriendo. Local con Docker:
+
+```bash
+docker run --name mosaic-pg -e POSTGRES_PASSWORD=postgres \
+  -e POSTGRES_DB=mosaic -p 5432:5432 -d postgres:17
+```
+
+o una gratis en la nube (Neon, Supabase, Railway).
+
+```bash
+cd backend
+cp .env.example .env      # Windows PowerShell: copy .env.example .env
+# editar DATABASE_URL en .env si tu Postgres no es la de arriba
+bun install
+bun run db:migrate        # aplica las migraciones al esquema
+bun run db:seed           # opcional: usuario demo + obras de ejemplo
+bun run dev               # http://localhost:3000  (recarga en caliente)
+```
+
+`.env` no se versiona.
+
+## Scripts
+
+| Script            | Qué hace                                             |
+| ----------------- | --------------------------------------------------- |
+| `bun run dev`     | Servidor con recarga en caliente                    |
+| `bun run start`   | Servidor sin watcher                                |
+| `bun run db:migrate` | Aplica/crea migraciones según `schema.prisma`    |
+| `bun run db:generate` | Regenera el cliente de Prisma                    |
+| `bun run db:reset`   | Borra y recrea la base (¡pierde datos!)          |
+| `bun run db:studio`  | Explorador visual de la base (Prisma Studio)     |
+| `bun run db:seed`    | Carga datos de ejemplo                           |
+
+## Endpoints
+
+Base URL: `http://localhost:3000`
+
+### Auth
+
+| Método | Ruta             | Body                          | Respuesta                       |
+| ------ | ---------------- | ----------------------------- | ------------------------------- |
+| POST   | `/auth/register` | `{ name, email, password }`   | `201 { token, user }`           |
+| POST   | `/auth/login`    | `{ email, password }`         | `200 { token, user }`           |
+| GET    | `/auth/me`       | —  (header `Authorization`)   | `200 { user }`                  |
+| POST   | `/auth/verify-email` | `{ token }` (del enlace del correo) | `200 { user }` · `400` si no sirve o caducó |
+| POST   | `/auth/resend-verification` | —  (header `Authorization`) | `200 { message }` · `429` si pasó menos de 1 min |
+| POST   | `/auth/forgot-password` | `{ email }` | `200 { message }` (igual exista o no la cuenta) |
+| POST   | `/auth/reset-password` | `{ token, password }` (del enlace del correo) | `200 { message }` · `400` si no sirve o caducó |
+| POST   | `/auth/change-password` | `{ currentPassword, newPassword }` (header `Authorization`) | `200 { token, user, message }` |
+| POST   | `/auth/change-email` | `{ email, password }` (header `Authorization`) | `200 { user, message }` · `409` si el correo ya existe |
+| POST   | `/auth/confirm-email-change` | `{ token }` (del enlace del correo nuevo) | `200 { user }` · `400`/`409` |
+| DELETE | `/auth/account` | `{ confirm: "ELIMINAR" }` (header `Authorization`) | `204` · `400` si es el único admin |
+
+`user` = `{ id, name, email, role, emailVerified, pendingEmail }`. Los correos
+se guardan en minúsculas. Una contraseña nueva necesita al menos 8 caracteres
+(las cuentas con contraseñas más cortas de antes siguen entrando).
+
+**Sesiones:** cada token lleva `User.sessionVersion`. Cambiar o restablecer la
+contraseña la sube y `requireAuth` rechaza (401) los tokens viejos, así que se
+cierran todas las sesiones; `change-password` devuelve un token nuevo para
+seguir en la actual. Borrar la cuenta también invalida sus tokens.
+
+**Límite de intentos** (`src/lib/rateLimit.ts`, tabla `RateLimit`): login 20
+cada 15 min por IP y 10 fallos por correo; registro 10 por hora por IP;
+"olvidé mi contraseña" 5 por hora por IP; abrir enlaces de correo 30 cada 15
+min por IP; contraseña actual mal escrita 5 cada 15 min por usuario. Responde
+`429` con `Retry-After`. En AWS hay que poner `TRUST_PROXY=true` para usar la
+IP real del cliente (X-Forwarded-For).
+
+**Verificación de correo:** al registrarse se manda un enlace de un solo uso
+(caduca en 24 h) a `APP_URL/verify-email?token=...` con [Resend](https://resend.com).
+Sin `RESEND_API_KEY` en `.env` no se envía nada: el correo se imprime en la
+consola del servidor. Las cuentas de Google nacen verificadas. Ver
+`src/lib/emailVerification.ts`.
+
+**Recuperar contraseña:** el enlace (`APP_URL/reset-password?token=...`)
+caduca en 1 hora y sirve una vez; usarlo también verifica el correo. Cada
+cambio de contraseña manda un aviso al correo de la cuenta. Ver
+`src/lib/passwordReset.ts` y `src/lib/accountNotices.ts`.
+
+**Cambiar correo:** el correo nuevo queda en `pendingEmail` hasta que se abre
+el enlace que le llega (`APP_URL/confirm-email-change?token=...`, 24 h). Al
+confirmarse se avisa al correo anterior. Ver `src/lib/emailChange.ts`.
+
+**Eliminar cuenta:** borra al usuario y, en cascada, todo lo suyo (obras,
+listas, diario, seguidores, notificaciones…).
+
+### Obras — `Authorization: Bearer <token>` obligatorio
+
+| Método | Ruta          | Body                        | Respuesta              |
+| ------ | ------------- | --------------------------- | ---------------------- |
+| GET    | `/media`      | —                           | `200 MediaEntry[]`     |
+| GET    | `/media/:id`  | —                           | `200 MediaEntry`       |
+| POST   | `/media`      | `MediaEntryInput`           | `201 MediaEntry`       |
+| PATCH  | `/media/:id`  | `Partial<MediaEntryInput>`  | `200 MediaEntry`       |
+| DELETE | `/media/:id`  | —                           | `204`                  |
+
+### Perfil — token obligatorio
+
+| Método | Ruta       | Body                     | Respuesta            |
+| ------ | ---------- | ------------------------ | -------------------- |
+| GET    | `/profile` | —                        | `200 UserProfile`    |
+| PATCH  | `/profile` | `Partial<UserProfile>`   | `200 UserProfile`    |
+
+Los shapes `MediaEntry`, `MediaEntryInput` y `UserProfile` son los de
+`frontend/src/types/media.ts`. Cada obra pertenece a un usuario; sólo ve y
+modifica las propias.
+
+## Conectar el frontend
+
+En el frontend, crear `HttpMediaService` / `HttpProfileService` con la misma
+interfaz que los `Local*Service` actuales, guardar el token del login en el store
+de auth y mandarlo en el header `Authorization`. Definir la base URL con
+`VITE_API_URL` (ej. `http://localhost:3000`).
+
+## Notas
+
+- Contraseñas: hash con `Bun.password` (bcrypt). JWT con `hono/jwt`, expira a los 7 días.
+- `genres` es un array nativo de Postgres (`text[]`). `src/lib/serialize.ts` sólo
+  normaliza fechas a ISO y filtra los campos escribibles.
+- CORS permite `http://localhost:5173` (Vite). Ajustar con `CORS_ORIGIN`.
+- Postgres serverless con pooler (Neon/Supabase): agregá `DIRECT_URL` al `.env` y
+  `directUrl = env("DIRECT_URL")` al `datasource` para que corran las migraciones.

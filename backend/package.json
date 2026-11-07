@@ -1,0 +1,37 @@
+{
+  "name": "backend",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "packageManager": "bun@1.4.0",
+  "scripts": {
+    "dev": "bun --watch src/index.ts",
+    "start": "bun src/index.ts",
+    "test": "bun test tests/unit",
+    "test:coverage": "bun test tests/unit --coverage && bun scripts/check-coverage.ts",
+    "test:integration": "bun scripts/test-db.ts && bun test tests/integration",
+    "e2e:server": "bun scripts/test-db.ts && bun scripts/e2e-server.ts",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint .",
+    "db:generate": "prisma generate",
+    "db:migrate": "prisma migrate dev",
+    "db:reset": "prisma migrate reset",
+    "db:studio": "prisma studio",
+    "db:seed": "bun prisma/seed.ts",
+    "db:retitle": "bun prisma/retitle-tmdb.ts",
+    "make-admin": "bun prisma/make-admin.ts"
+  },
+  "dependencies": {
+    "@prisma/client": "^6.19.3",
+    "hono": "^4.13.7",
+    "zod": "^4.6.5"
+  },
+  "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "@types/bun": "^1.4.2",
+    "eslint": "^10.13.0",
+    "prisma": "^6.19.3",
+    "typescript": "^5.9.3",
+    "typescript-eslint": "^8.72.0"
+  }
+}

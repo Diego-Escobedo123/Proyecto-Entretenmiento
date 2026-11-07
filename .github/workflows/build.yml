@@ -1,0 +1,85 @@
+# Build de producción (EXP-066a): en cada push a main construye las imágenes
+# Docker del backend y del frontend y las guarda como artefactos del workflow,
+# listas para el paso de despliegue (EXP-066b).
+# También corre en los PR hacia main, para saber antes del merge si el build pasa.
+name: Build
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: build-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  backend:
+    name: Imagen backend
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+
+      - name: Construir imagen
+        uses: docker/build-push-action@v6
+        with:
+          context: backend
+          tags: mosaic-api:${{ github.sha }}
+          outputs: type=docker,dest=${{ runner.temp }}/mosaic-api.tar
+          cache-from: type=gha,scope=backend
+          cache-to: type=gha,mode=max,scope=backend
+
+      - name: Guardar imagen como artefacto
+        uses: actions/upload-artifact@v4
+        with:
+          name: mosaic-api-image
+          path: ${{ runner.temp }}/mosaic-api.tar
+          retention-days: 7
+
+  frontend:
+    name: Imagen frontend
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+
+      # Las VITE_* quedan dentro del JS al compilar. Son públicas (no secretos):
+      # se configuran en GitHub → Settings → Secrets and variables → Actions → Variables.
+      - name: Construir imagen
+        uses: docker/build-push-action@v6
+        with:
+          context: frontend
+          tags: mosaic-web:${{ github.sha }}
+          outputs: type=docker,dest=${{ runner.temp }}/mosaic-web.tar
+          cache-from: type=gha,scope=frontend
+          cache-to: type=gha,mode=max,scope=frontend
+          build-args: |
+            VITE_API_URL=${{ vars.VITE_API_URL || 'http://localhost:3000' }}
+            VITE_GOOGLE_CLIENT_ID=${{ vars.VITE_GOOGLE_CLIENT_ID }}
+            VITE_POSTHOG_KEY=${{ vars.VITE_POSTHOG_KEY }}
+
+      - name: Guardar imagen como artefacto
+        uses: actions/upload-artifact@v4
+        with:
+          name: mosaic-web-image
+          path: ${{ runner.temp }}/mosaic-web.tar
+          retention-days: 7
+
+  summary:
+    name: Resumen
+    runs-on: ubuntu-latest
+    needs: [backend, frontend]
+    steps:
+      - name: Resumen del build
+        run: |
+          {
+            echo "## ✅ Build listo"
+            echo ""
+            echo "| Imagen | Tag | Artefacto |"
+            echo "| --- | --- | --- |"
+            echo "| Backend | \`mosaic-api:${{ github.sha }}\` | \`mosaic-api-image\` |"
+            echo "| Frontend | \`mosaic-web:${{ github.sha }}\` | \`mosaic-web-image\` |"
+          } >> "$GITHUB_STEP_SUMMARY"

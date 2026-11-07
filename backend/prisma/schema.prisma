@@ -1,0 +1,299 @@
+// Esquema de la base de datos. Docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+/// Roles de la plataforma.
+enum Role {
+  USER
+  ADMIN
+}
+
+model User {
+  id           String       @id @default(cuid())
+  /// Siempre en minúsculas (lo normalizan los esquemas de lib/schemas).
+  email        String       @unique
+  name         String
+  passwordHash String
+  /// Permisos del usuario. Todos nacen como USER; un ADMIN puede gestionar
+  /// usuarios y roles desde /admin. Ver `bun run make-admin`.
+  role         Role         @default(USER)
+  /// Cuándo confirmó su correo con el enlace que se le mandó (null = sin verificar).
+  /// Las cuentas de Google nacen verificadas. Ver lib/emailVerification.
+  emailVerifiedAt           DateTime?
+  /// SHA-256 del token del enlace vigente: el token en claro solo viaja en el correo.
+  emailVerifyTokenHash      String?   @unique
+  emailVerifyTokenExpiresAt DateTime?
+  /// Último envío del correo de verificación (para no reenviarlo en ráfaga).
+  emailVerifySentAt         DateTime?
+  /// Enlace de recuperación de contraseña vigente (mismo esquema que el de
+  /// verificación: solo el hash, caduca en 1 h). Ver lib/passwordReset.
+  passwordResetTokenHash      String?   @unique
+  passwordResetTokenExpiresAt DateTime?
+  passwordResetSentAt         DateTime?
+  /// Va dentro de cada JWT. Subirla (al cambiar la contraseña) invalida todas
+  /// las sesiones abiertas: requireAuth rechaza los tokens con otra versión.
+  sessionVersion Int @default(0)
+  /// Cambio de correo pendiente: se aplica cuando abre el enlace que le
+  /// llegó a `pendingEmail`. Ver lib/emailChange.
+  pendingEmail              String?
+  emailChangeTokenHash      String?   @unique
+  emailChangeTokenExpiresAt DateTime?
+  emailChangeSentAt         DateTime?
+  profile      Profile?
+  entries      MediaEntry[]
+  logs         LogEntry[]
+  goals        Goal[]
+  lists        List[]
+  /// A quién sigue y quién lo sigue (ver Follow).
+  following    Follow[]     @relation("Following")
+  followers    Follow[]     @relation("Followers")
+  /// Solicitudes para seguir cuentas privadas (ver FollowRequest).
+  sentFollowRequests     FollowRequest[] @relation("SentFollowRequests")
+  receivedFollowRequests FollowRequest[] @relation("ReceivedFollowRequests")
+  /// Notificaciones que recibe y las que provocó (ver Notification).
+  notifications     Notification[] @relation("NotificationsReceived")
+  notificationsSent Notification[] @relation("NotificationsSent")
+  /// Obras que pidió agregar a mano y esperan revisión de un admin (ver WorkRequest).
+  workRequests WorkRequest[]
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
+}
+
+/// Datos editables del perfil. 1:1 con User (el frontend lo trata como entidad aparte).
+model Profile {
+  id          String   @id @default(cuid())
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId      String   @unique
+  handle      String   @default("")
+  avatar      String?
+  /// Frase y cita del perfil. Vacías hasta que el usuario las escriba (antes
+  /// traían un texto por defecto que parecía escrito por él).
+  tagline     String   @default("")
+  quote       String   @default("")
+  /// "Tus 5 favoritas": ids de MediaEntry del propio usuario, en orden.
+  topPicks    String[] @default([])
+  memberSince Int?
+  /// Visibilidad del perfil público (GET /users/:id). Si es `false`, los demás
+  /// sólo ven nombre y avatar; las reseñas siguen visibles en cada obra.
+  isPublic    Boolean  @default(false)
+  updatedAt   DateTime @updatedAt
+}
+
+/// Una "obra" registrada por el usuario (película, serie, libro, juego, álbum).
+model MediaEntry {
+  id          String   @id @default(cuid())
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId      String
+  type        String // 'movie' | 'series' | 'book' | 'game' | 'music'
+  title       String
+  creator     String   @default("")
+  status      String   @default("want") // 'want' | 'in-progress' | 'completed' | 'mastered' | 'abandoned'
+  year        Int?
+  /// 0.5–5 en pasos de medio punto.
+  rating      Float?
+  /// 0–100, derivado del seguimiento específico cuando lo hay.
+  progress    Int?
+  /// Seguimiento específico por tipo; `null` si no aplica.
+  pagesRead   Int? // libros
+  pagesTotal  Int?
+  season      Int? // series
+  episode     Int?
+  hoursPlayed Float? // juegos
+  platform    String?
+  favorite    Boolean  @default(false)
+  genres      String[] @default([]) // array nativo de Postgres
+  /// Comentario que acompaña a la calificación. Siempre público: lo ven los
+  /// demás usuarios al buscar la obra.
+  review      String   @default("")
+  /// Notas personales. Privadas por defecto; si `notesPublic`, se muestran
+  /// sólo en el perfil público del usuario (nunca en las reseñas de la obra).
+  notes       String   @default("")
+  notesPublic Boolean  @default(false)
+  cover       String?
+  /// Id en el catálogo externo (p. ej. "tmdb:438631"). Identifica la misma
+  /// obra entre usuarios; `null` en obras ingresadas manualmente.
+  externalId  String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([userId])
+  logs        LogEntry[]
+
+  @@index([type, externalId])
+}
+
+/// Una vez que el usuario vio/leyó/jugó/escuchó una obra: el diario. Una obra
+/// tiene varias si se vuelve a ver o leer. `finishedAt` nulo = en curso.
+model LogEntry {
+  id         String     @id @default(cuid())
+  user       User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId     String
+  entry      MediaEntry @relation(fields: [entryId], references: [id], onDelete: Cascade)
+  entryId    String
+  /// Días sin hora: lo que el usuario elige en el calendario.
+  startedAt  DateTime?  @db.Date
+  finishedAt DateTime?  @db.Date
+  /// Calificación de esa vez (como en Letterboxd, cada visionado tiene la suya).
+  rating     Float?
+  /// Volver a verla/leerla (rewatch/reread).
+  repeat     Boolean    @default(false)
+  /// Se dejó a medias: `finishedAt` es cuándo se abandonó.
+  abandoned  Boolean    @default(false)
+  createdAt  DateTime   @default(now())
+  /// Último cambio (empezó → terminó, fechas corregidas): ordena el feed.
+  updatedAt  DateTime   @default(now()) @updatedAt
+
+  @@index([userId, finishedAt])
+  @@index([entryId])
+}
+
+/// Reto anual (como el Reading Challenge de Goodreads): terminar `target`
+/// obras de un tipo en un año. El avance se cuenta desde el diario.
+model Goal {
+  id     String @id @default(cuid())
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId String
+  year   Int
+  /// 'movie' | 'series' | 'book' | 'game' | 'music', o 'all' para cualquier tipo.
+  type   String
+  target Int
+
+  @@unique([userId, year, type])
+}
+
+/// Lista de obras armada por el usuario (como las de Letterboxd). Puede
+/// incluir obras que no están en su colección.
+model List {
+  id          String     @id @default(cuid())
+  user        User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId      String
+  title       String
+  description String     @default("")
+  /// Pública: la ve cualquiera con el enlace y aparece en el perfil público.
+  isPublic    Boolean    @default(false)
+  /// Con ranking: el orden importa y se muestra numerado.
+  ranked      Boolean    @default(false)
+  /// Portada subida por el usuario (data URL, cuadrada y achicada en el
+  /// navegador). null = la automática: collage de las primeras obras.
+  coverImage  String?
+  items       ListItem[]
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+
+  @@index([userId])
+}
+
+/// Obra dentro de una lista. Guarda los datos del catálogo (no depende de la
+/// colección del usuario).
+model ListItem {
+  id         String   @id @default(cuid())
+  list       List     @relation(fields: [listId], references: [id], onDelete: Cascade)
+  listId     String
+  /// Orden dentro de la lista (0 = primero).
+  position   Int
+  type       String
+  title      String
+  creator    String   @default("")
+  year       Int?
+  cover      String?
+  genres     String[] @default([])
+  externalId String?
+  /// Comentario del autor de la lista sobre esta obra.
+  note       String   @default("")
+  addedAt    DateTime @default(now())
+
+  @@index([listId, position])
+}
+
+/// `follower` sigue a `following`. Una cuenta pública se sigue directo; una
+/// privada, sólo después de aceptar la solicitud (FollowRequest). Quien sigue
+/// una cuenta privada ve todo su perfil y su actividad en el feed.
+model Follow {
+  follower    User     @relation("Following", fields: [followerId], references: [id], onDelete: Cascade)
+  followerId  String
+  following   User     @relation("Followers", fields: [followingId], references: [id], onDelete: Cascade)
+  followingId String
+  createdAt   DateTime @default(now())
+
+  @@id([followerId, followingId])
+  @@index([followingId])
+}
+
+/// Solicitud pendiente para seguir una cuenta privada (como en Instagram).
+/// Al aceptarla se crea el Follow y se borra; al rechazarla o cancelarla, sólo se borra.
+model FollowRequest {
+  requester   User     @relation("SentFollowRequests", fields: [requesterId], references: [id], onDelete: Cascade)
+  requesterId String
+  target      User     @relation("ReceivedFollowRequests", fields: [targetId], references: [id], onDelete: Cascade)
+  targetId    String
+  createdAt   DateTime @default(now())
+
+  @@id([requesterId, targetId])
+  @@index([targetId])
+}
+
+/// Aviso para un usuario: alguien lo siguió, le pidió seguirlo, aceptó su
+/// solicitud, o cumplió una meta anual. `readAt` nulo = sin leer.
+model Notification {
+  id        String    @id @default(cuid())
+  user      User      @relation("NotificationsReceived", fields: [userId], references: [id], onDelete: Cascade)
+  userId    String
+  /// 'follow' | 'follow_request' | 'follow_accepted' | 'goal_completed'
+  type      String
+  /// Quién la provocó (null en las de metas).
+  actor     User?     @relation("NotificationsSent", fields: [actorId], references: [id], onDelete: Cascade)
+  actorId   String?
+  /// Metas: "<id de la meta>:<objetivo>", para no avisar dos veces de la misma meta.
+  ref       String?
+  /// Datos extra para mostrarla (metas: { year, type, target }).
+  data      Json?
+  readAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  @@index([userId, createdAt])
+}
+
+/// Solicitud para agregar una obra que no está en el catálogo. Un USER no
+/// puede agregarla directo a su colección: la manda como solicitud y un ADMIN
+/// la aprueba (se crea la obra en su colección) o la rechaza.
+model WorkRequest {
+  id         String    @id @default(cuid())
+  user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId     String
+  /// Datos de la obra, para que el admin la revise.
+  type       String
+  title      String
+  creator    String    @default("")
+  year       Int?
+  genres     String[]
+  /// Todo lo que llenó en el formulario (estado, calificación, notas, fechas
+  /// del diario). Al aprobarla se usa para crear la obra igual que POST /media.
+  payload    Json
+  /// 'pending' | 'approved' | 'rejected'
+  status     String    @default("pending")
+  reviewedAt DateTime?
+  createdAt  DateTime  @default(now())
+
+  @@index([status, createdAt])
+  @@index([userId])
+}
+
+/// Contadores de intentos para limitar login, registro, etc. (ver lib/rateLimit).
+/// Vive en la base, no en memoria, para que el límite sea el mismo aunque el
+/// backend corra en varias instancias.
+model RateLimit {
+  /// "<acción>:<ip|correo|usuario>", p. ej. "login-ip:203.0.113.7".
+  key     String   @id
+  count   Int
+  /// Cuándo se reinicia la ventana.
+  resetAt DateTime
+
+  @@index([resetAt])
+}

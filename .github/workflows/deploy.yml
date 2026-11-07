@@ -1,0 +1,128 @@
+# Deploy automático a AWS (EXP-066b) y revisión post-deploy (EXP-066c).
+#
+# Cada push a main:
+#   1. Construye la imagen del backend y la sube a ECR (mosaic-api:latest y :<sha>).
+#   2. Reinicia el servicio de ECS para que use la imagen nueva y espera a que quede estable.
+#   3. Revisa que GET /health responda 200 y deja un resumen en la pestaña Actions.
+#      Si algo falla, el workflow queda en rojo y GitHub avisa por correo a quien hizo el push.
+#
+# El frontend no se despliega aquí: Amplify lo compila y publica solo en cada push.
+#
+# Necesita los secrets AWS_ACCESS_KEY_ID y AWS_SECRET_ACCESS_KEY (usuario IAM
+# github-actions-mosaic, que solo puede subir a ECR y reiniciar el servicio mosaic-api).
+
+name: Deploy
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+# Nunca dos deploys a la vez; si llega otro push, espera a que termine el anterior.
+concurrency:
+  group: deploy-production
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+env:
+  AWS_REGION: us-east-2
+  ECR_REPOSITORY: mosaic-api
+  ECS_CLUSTER: default
+  ECS_SERVICE: mosaic-api
+  API_URL: https://mo-0a0562a63e7843548cffacb9f59434b6.ecs.us-east-2.on.aws
+
+jobs:
+  deploy-backend:
+    name: Deploy backend (ECR + ECS)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Credenciales de AWS
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Login a ECR
+        id: ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - uses: docker/setup-buildx-action@v3
+
+      - name: Build y push de la imagen
+        uses: docker/build-push-action@v6
+        with:
+          context: backend
+          platforms: linux/amd64
+          push: true
+          tags: |
+            ${{ steps.ecr.outputs.registry }}/${{ env.ECR_REPOSITORY }}:latest
+            ${{ steps.ecr.outputs.registry }}/${{ env.ECR_REPOSITORY }}:${{ github.sha }}
+          cache-from: type=gha,scope=deploy-api
+          cache-to: type=gha,mode=max,scope=deploy-api
+
+      - name: Reiniciar el servicio con la imagen nueva
+        run: |
+          aws ecs update-service \
+            --cluster "$ECS_CLUSTER" \
+            --service "$ECS_SERVICE" \
+            --force-new-deployment \
+            --query "service.deployments[0].rolloutState" \
+            --output text
+
+      - name: Esperar a que el servicio quede estable
+        run: aws ecs wait services-stable --cluster "$ECS_CLUSTER" --services "$ECS_SERVICE"
+
+  health-check:
+    name: Health check post-deploy
+    needs: deploy-backend
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: GET /health
+        run: |
+          for i in $(seq 1 10); do
+            code=$(curl -s -o body.txt -w '%{http_code}' "$API_URL/health" || true)
+            echo "Intento $i: HTTP $code $(cat body.txt 2>/dev/null)"
+            if [ "$code" = "200" ]; then
+              echo "::notice title=Deploy OK::$API_URL/health respondió 200"
+              exit 0
+            fi
+            sleep 15
+          done
+          echo "::error title=Health check falló::$API_URL/health no respondió 200 después de 10 intentos"
+          exit 1
+
+  summary:
+    name: Resumen
+    needs: [deploy-backend, health-check]
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Escribir resumen
+        env:
+          DEPLOY: ${{ needs.deploy-backend.result }}
+          HEALTH: ${{ needs.health-check.result }}
+        run: |
+          icon() { [ "$1" = "success" ] && echo "✅" || echo "❌"; }
+          {
+            echo "## Deploy de Mosaic"
+            echo ""
+            echo "| Paso | Resultado |"
+            echo "|---|---|"
+            echo "| Backend (ECR + ECS) | $(icon "$DEPLOY") $DEPLOY |"
+            echo "| Health check \`/health\` | $(icon "$HEALTH") $HEALTH |"
+            echo ""
+            echo "- Commit: \`${GITHUB_SHA::7}\` por @${GITHUB_ACTOR}"
+            echo "- Backend: $API_URL"
+            echo "- Frontend: se publica solo con Amplify"
+          } >> "$GITHUB_STEP_SUMMARY"
+          if [ "$DEPLOY" != "success" ] || [ "$HEALTH" != "success" ]; then
+            echo "::error::El deploy no terminó bien, revisa los pasos de arriba."
+            exit 1
+          fi

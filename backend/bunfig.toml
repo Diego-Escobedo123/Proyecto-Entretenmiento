@@ -1,0 +1,9 @@
+# Configuración de `bun test` (EXP-072 / EXP-078).
+[test]
+# Variables de entorno fijas para las pruebas.
+preload = ["./tests/setup.ts"]
+# El reporte de cobertura no cuenta los archivos de prueba.
+coverageSkipTestFiles = true
+coveragePathIgnorePatterns = ["tests/**"]
+# "text" se ve en la terminal; "lcov" lo lee scripts/check-coverage.ts.
+coverageReporter = ["text", "lcov"]

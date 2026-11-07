@@ -1,0 +1,23 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1140" height="100" viewBox="0 0 1140 100" preserveAspectRatio="xMidYMid slice">
+<!-- Mosaic · aurora de higo. Fondo para la barra de búsqueda (ocupa todo el ancho). -->
+<style>
+.a{animation:da 18s ease-in-out infinite alternate}
+.b{animation:db 22s ease-in-out infinite alternate}
+.c{animation:dc 20s ease-in-out infinite alternate}
+@keyframes da{to{transform:translate(220px,20px) scale(1.15)}}
+@keyframes db{to{transform:translate(-300px,10px)}}
+@keyframes dc{to{transform:translate(260px,-10px) scale(1.1)}}
+.a,.b,.c{transform-box:fill-box;transform-origin:center}
+@media (prefers-reduced-motion: reduce){.a,.b,.c{animation:none}}
+</style>
+<defs>
+<filter id="blur" x="-100%" y="-200%" width="300%" height="500%">
+<feGaussianBlur stdDeviation="45"/>
+</filter>
+</defs>
+<g filter="url(#blur)">
+<ellipse class="c" cx="270" cy="40" rx="150" ry="100" fill="#556A07" opacity="0.4"/>
+<ellipse class="a" cx="660" cy="40" rx="160" ry="120" fill="#862C4D" opacity="0.75"/>
+<ellipse class="b" cx="930" cy="60" rx="130" ry="100" fill="#D3BF46" opacity="0.35"/>
+</g>
+</svg>
