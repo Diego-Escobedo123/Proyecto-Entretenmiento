@@ -14,6 +14,7 @@ import PeopleScreen from '../Screens/people.vue'
 import FollowsScreen from '../Screens/follows.vue'
 import NotFoundScreen from '../Screens/not-found.vue'
 import AdminScreen from '../Screens/admin.vue'
+import PremiumScreen from '../Screens/premium.vue'
 import VerifyEmailScreen from '../Screens/verify-email.vue'
 import ForgotPasswordScreen from '../Screens/forgot-password.vue'
 import ResetPasswordScreen from '../Screens/reset-password.vue'
@@ -48,6 +49,7 @@ export const router = createRouter({
     { path: '/users/:id', name: 'user-profile', component: ProfileScreen },
     { path: '/users/:id/:tab(followers|following)', name: 'follows', component: FollowsScreen },
     { path: '/people', name: 'people', component: PeopleScreen },
+    { path: '/premium', name: 'premium', component: PremiumScreen },
     { path: '/admin', name: 'admin', component: AdminScreen, meta: { admin: true } },
     { path: '/:pathMatch(.*)*', name: 'not-found', component: NotFoundScreen },
   ],

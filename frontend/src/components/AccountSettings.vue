@@ -1,8 +1,9 @@
 <script setup lang="ts">
 /**
  * AccountSettings — sección "Cuenta" de Ajustes (va dentro de SettingsModal,
- * fuera de su formulario de perfil). Tres bloques, cada uno se despliega al
- * tocar su botón:
+ * fuera de su formulario de perfil). Arriba, el plan (siempre Gratis por
+ * ahora) con un enlace a /premium. Después, tres bloques que se despliegan
+ * al tocar su botón:
  *
  * - Correo: el actual, si está verificado y, si hay, el cambio pendiente.
  *   Cambiarlo pide la contraseña y manda un enlace al correo nuevo.
@@ -28,6 +29,12 @@ const router = useRouter()
 
 type Panel = 'email' | 'password' | 'delete' | null
 const open = ref<Panel>(null)
+
+/** Cierra Ajustes y abre la pantalla de planes. */
+function goToPlans() {
+  ui.closeModal()
+  router.push('/premium')
+}
 
 function toggle(panel: Exclude<Panel, null>) {
   open.value = open.value === panel ? null : panel
@@ -136,6 +143,19 @@ function resetForms() {
 <template>
   <section class="account" aria-labelledby="account-title">
     <h3 id="account-title" class="account__title">Cuenta</h3>
+
+    <!-- Plan -->
+    <div class="account__block">
+      <div class="account__head">
+        <div class="account__text">
+          <span class="account__label">Plan</span>
+          <span class="account__value">
+            Mosaic <span class="account__tag">Gratis</span>
+          </span>
+        </div>
+        <button type="button" class="account__btn" @click="goToPlans">Ver planes</button>
+      </div>
+    </div>
 
     <!-- Correo -->
     <div class="account__block">
