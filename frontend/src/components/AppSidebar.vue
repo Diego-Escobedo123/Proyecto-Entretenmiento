@@ -139,6 +139,16 @@ watch(
         </span>
       </RouterLink>
 
+      <RouterLink
+        to="/premium"
+        class="app-sidebar__link app-sidebar__link--premium"
+        :class="{ 'app-sidebar__link--active': isActive('/premium') }"
+        @click="onNavClick('/premium')"
+      >
+        <span class="app-sidebar__icon"><BaseIcon name="gem" /></span>
+        Premium
+      </RouterLink>
+
       <!-- Solo para administradores (el backend también lo protege). -->
       <RouterLink
         v-if="auth.isAdmin"
@@ -339,6 +349,11 @@ watch(
 
 .app-sidebar__icon {
   font-size: 1.125rem;
+}
+
+/* Premium: el ícono siempre en dorado, para que se distinga de las secciones. */
+.app-sidebar__link--premium .app-sidebar__icon {
+  color: var(--color-accent);
 }
 
 .app-sidebar__footer {

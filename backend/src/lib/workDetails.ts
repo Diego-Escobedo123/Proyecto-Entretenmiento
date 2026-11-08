@@ -25,6 +25,12 @@ export interface WorkLink {
   name: string
   logo: string | null
   url: string
+  /**
+   * Código ISO del único país donde aplica (p. ej. "GT" para Sophos). El
+   * frontend lo muestra sólo si el usuario está ahí; así la respuesta (y la
+   * caché) es la misma para todos.
+   */
+  onlyIn?: string
 }
 
 export interface Track {
@@ -210,6 +216,24 @@ const AMAZON_DOMAIN: Record<string, string> = {
   IT: 'amazon.it',
 }
 
+/**
+ * Librería Sophos (Guatemala), aliado propuesto para el modelo de comisiones:
+ * abre su buscador con el título y el autor. Los campos `tipoBus` y
+ * `aproximada` los manda su propio formulario; sin ellos no encuentra nada.
+ * `ref=mosaic` marca que la visita vino de Mosaic (hoy no hay acuerdo, así que
+ * Sophos lo ignora). Por título + autor y no por ISBN: por ISBN sólo encuentra
+ * esa edición exacta.
+ */
+export function sophosLink(title: string, author?: string): WorkLink {
+  const terms = [title, author].filter(Boolean).join(' ')
+  return {
+    name: 'Sophos',
+    logo: favicon('sophosenlinea.com'),
+    url: `https://tienda.sophosenlinea.com/busqueda/listaLibros.php?tipoBus=full&aproximada=N&palabrasBusqueda=${q(terms)}&ref=mosaic`,
+    onlyIn: 'GT',
+  }
+}
+
 /** Google Books manda la descripción en HTML simple. */
 function htmlToText(html: string): string {
   return html
@@ -277,13 +301,13 @@ async function bookDetails(id: string, region: string): Promise<WorkDetails> {
         {
           label: 'Comprar o leer',
           items: [
+            ...(info.title ? [sophosLink(info.title, info.authors?.[0])] : []),
             {
               name: 'Google Play Libros',
               logo: favicon('play.google.com'),
               url: data.saleInfo?.buyLink ?? info.infoLink ?? `https://play.google.com/store/search?q=${q(searchTerm)}&c=books`,
             },
             { name: 'Amazon', logo: favicon(amazon), url: `https://www.${amazon}/s?k=${q(searchTerm)}&i=stripbooks` },
-            { name: 'Goodreads', logo: favicon('goodreads.com'), url: `https://www.goodreads.com/search?q=${q(searchTerm)}` },
           ],
         },
       ],
@@ -330,9 +354,10 @@ async function openLibraryDetails(id: string, region: string): Promise<WorkDetai
         {
           label: 'Comprar o leer',
           items: [
+            // La obra de Open Library no trae el autor sin otra consulta: basta el título.
+            ...(work.title ? [sophosLink(work.title)] : []),
             { name: 'Open Library', logo: favicon('openlibrary.org'), url: `https://openlibrary.org/works/${q(id)}` },
             { name: 'Amazon', logo: favicon(amazon), url: `https://www.${amazon}/s?k=${q(searchTerm)}&i=stripbooks` },
-            { name: 'Goodreads', logo: favicon('goodreads.com'), url: `https://www.goodreads.com/search?q=${q(searchTerm)}` },
           ],
         },
       ],

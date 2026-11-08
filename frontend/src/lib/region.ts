@@ -16,6 +16,26 @@ export function detectRegion(): string {
   return DEFAULT_REGION
 }
 
+/**
+ * Zonas horarias que equivalen a un solo país. El idioma del navegador casi
+ * nunca dice "GT" (en Guatemala suele ser "es-419", "es" o "en-US"), pero la
+ * zona horaria del dispositivo sí. Sólo lo usan los enlaces que existen en un
+ * único país (Sophos); `detectRegion` no cambia.
+ */
+const TIME_ZONE_COUNTRY: Record<string, string> = {
+  'America/Guatemala': 'GT',
+}
+
+/** ¿El dispositivo está en ese país, según su zona horaria? */
+export function isInCountry(code: string): boolean {
+  try {
+    const zone = Intl.DateTimeFormat().resolvedOptions().timeZone
+    return TIME_ZONE_COUNTRY[zone] === code
+  } catch {
+    return false
+  }
+}
+
 /** Nombre del país en español ("MX" -> "México"). */
 export function regionName(code: string): string {
   try {
