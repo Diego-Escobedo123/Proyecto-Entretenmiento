@@ -13,8 +13,8 @@
 <!--
   Presentación del proyecto final (rúbrica de Desarrollo de Productos de Software).
   Navegación: ← → / espacio / AvPág, Inicio/Fin, F = pantalla completa.
-  Los espacios marcados con class="fill" ("por completar") esperan las cifras
-  de la cotización: busca "COMPLETAR" en este archivo.
+  La cotización y el modelo de cobro también están en cotizacion/costos.md:
+  si cambia una cifra, hay que cambiarla en los dos lugares.
 -->
 <style>
   :root {
@@ -335,6 +335,9 @@
   .quote td:first-child { color: var(--cream); font-family: var(--display); }
   .quote td i { color: var(--gold); margin-right: 6px; }
   .quote tr.total td { border-bottom: 0; padding-top: 12px; font-family: var(--display); font-weight: 700; color: var(--cream); font-size: 1.05em; }
+  .quote td.num { text-align: right; font-family: var(--mono); color: var(--cream); white-space: nowrap; }
+  .quote tr.total td.num { font-family: var(--display); font-size: 1.25em; color: var(--gold); }
+  .quote tr.total { border-top: 1px solid rgba(211,191,70,.4); }
   .plans { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 10px; }
   .plan { padding: 14px; border-radius: 14px; border: 1px solid var(--line); background: var(--glass); }
   .plan.pro { border-color: rgba(211,191,70,.55); background: linear-gradient(150deg, rgba(211,191,70,.14), rgba(134,44,77,.18)); }
@@ -812,19 +815,17 @@ mediaRoutes.<span class="f">post</span>(<span class="s">'/'</span>, <span class=
     <h2 class="rv">Cuánto cuesta <em>y qué modelo elegimos.</em></h2>
     <div class="money">
       <div class="card rv">
-        <h3><i class="bi bi-calculator gold"></i> Cotización del proyecto</h3>
-        <!-- COMPLETAR: horas, tarifa por hora y subtotales de cada rol -->
+        <h3><i class="bi bi-calculator gold"></i> Cotización estimada</h3>
+        <p>Estimamos el backlog en story points y cotizamos por hora, con un colchón para el riesgo.</p>
         <table class="quote">
-          <thead><tr><th>Concepto</th><th>Horas</th><th>Tarifa / h</th><th>Subtotal</th></tr></thead>
           <tbody>
-            <tr><td><i class="bi bi-palette"></i>Diseño UX/UI</td><td><span class="fill">__</span></td><td><span class="fill">Q __</span></td><td><span class="fill">Q ____</span></td></tr>
-            <tr><td><i class="bi bi-window"></i>Frontend</td><td><span class="fill">__</span></td><td><span class="fill">Q __</span></td><td><span class="fill">Q ____</span></td></tr>
-            <tr><td><i class="bi bi-hdd-network"></i>Backend y API</td><td><span class="fill">__</span></td><td><span class="fill">Q __</span></td><td><span class="fill">Q ____</span></td></tr>
-            <tr><td><i class="bi bi-database"></i>Base de datos</td><td><span class="fill">__</span></td><td><span class="fill">Q __</span></td><td><span class="fill">Q ____</span></td></tr>
-            <tr><td><i class="bi bi-patch-check"></i>QA y pruebas</td><td><span class="fill">__</span></td><td><span class="fill">Q __</span></td><td><span class="fill">Q ____</span></td></tr>
-            <tr><td><i class="bi bi-cloud-arrow-up"></i>DevOps y deploy</td><td><span class="fill">__</span></td><td><span class="fill">Q __</span></td><td><span class="fill">Q ____</span></td></tr>
-            <tr><td><i class="bi bi-cloud"></i>Infraestructura AWS (mensual)</td><td colspan="2" class="muted">Amplify + ECS + RDS</td><td><span class="fill">Q ____/mes</span></td></tr>
-            <tr class="total"><td>Precio del proyecto</td><td colspan="2"></td><td><span class="fill">Q ______</span></td></tr>
+            <tr><td><i class="bi bi-kanban"></i>Story points totales</td><td class="num">343</td></tr>
+            <tr><td><i class="bi bi-arrow-left-right"></i>Equivalencia</td><td class="num">1 story point = 1 hora</td></tr>
+            <tr><td><i class="bi bi-clock"></i>Horas totales</td><td class="num">343 horas</td></tr>
+            <tr><td><i class="bi bi-cash"></i>Precio por hora</td><td class="num">Q120.00</td></tr>
+            <tr><td><i class="bi bi-calculator"></i>Subtotal (343 h × Q120)</td><td class="num">Q41,160.00</td></tr>
+            <tr><td><i class="bi bi-shield-check"></i>Colchón de riesgo (20 %)</td><td class="num">Q8,232.00</td></tr>
+            <tr class="total"><td>Total a cotizar (redondeado)</td><td class="num gold">Q50,000.00</td></tr>
           </tbody>
         </table>
       </div>
@@ -838,8 +839,8 @@ mediaRoutes.<span class="f">post</span>(<span class="s">'/'</span>, <span class=
           </div>
         </div>
         <div class="refs">
-          <div class="card rv"><h3 style="font-size:.9rem"><i class="bi bi-translate gold"></i> Referente: Duolingo</h3><p>Freemium con anuncios y premium individual o familiar.</p></div>
-          <div class="card rv"><h3 style="font-size:.9rem"><i class="bi bi-film gold"></i> Referente: Rotten Tomatoes</h3><p>Gratis para el usuario. Gana dinero con acuerdos comerciales.</p></div>
+          <div class="card rv"><h3 style="font-size:.9rem"><i class="bi bi-film gold"></i> Referente: Letterboxd</h3><p>Gratis con anuncios. Sus planes Pro y Patron (desde ~US$19 al año) suman estadísticas personales, como nuestro Premium.</p></div>
+          <div class="card rv"><h3 style="font-size:.9rem"><i class="bi bi-book gold"></i> Referente: Goodreads</h3><p>Gratis para el usuario. Cada libro tiene un botón para comprarlo en Amazon, como nuestro botón de Sophos.</p></div>
         </div>
         <div class="card nope rv"><span class="ico copper"><i class="bi bi-x-lg"></i></span><div><h3 style="font-size:.92rem">Descartado: precio fijo</h3><p>No es un producto que se le vende a un solo cliente. Es un servicio con usuarios que siguen llegando.</p></div></div>
       </div>
