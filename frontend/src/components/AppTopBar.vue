@@ -244,4 +244,16 @@ button.app-topbar__menu-item:hover {
     display: block;
   }
 }
+
+/* Celulares: menos aire entre los elementos para que el buscador conserve espacio. */
+@media (max-width: 480px) {
+  .app-topbar {
+    gap: var(--space-sm);
+    padding: var(--space-sm) var(--space-md);
+  }
+
+  .app-topbar__actions {
+    gap: var(--space-sm);
+  }
+}
 </style>

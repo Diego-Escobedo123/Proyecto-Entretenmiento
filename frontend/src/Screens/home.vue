@@ -495,7 +495,8 @@ function openLog(log: LogEntry) {
 @media (max-width: 480px) {
   .home__continue,
   .home__columns {
-    grid-template-columns: 1fr;
+    /* minmax(0, …): la tarjeta "Continuar" no ensancha la pantalla en celulares de 320 px. */
+    grid-template-columns: minmax(0, 1fr);
   }
 
   .home__recent-stars {
