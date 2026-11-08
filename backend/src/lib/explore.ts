@@ -24,6 +24,8 @@ import { prisma } from './prisma'
 import { fetchJson } from './http'
 import {
   appleArtwork,
+  findBookEdition,
+  fromGoogleBook,
   fromRawg,
   fromTmdb,
   searchExternal,
@@ -117,6 +119,7 @@ export async function cached(
 /** Sólo para pruebas: vacía la caché. */
 export function clearExploreCache(): void {
   cache.clear()
+  editions.clear()
 }
 
 // ---- TMDB -------------------------------------------------------------------
@@ -278,6 +281,47 @@ async function openLibraryTrending(): Promise<ExploreItem[]> {
     }))
 }
 
+// ---- Tendencias de libros en español ------------------------------------------
+
+/** Cuántos libros se buscan a la vez, y hasta cuándo: la fila no debe quedar esperando. */
+const EDITION_BATCH = 6
+const EDITION_BUDGET_MS = 5000
+const EDITION_TIMEOUT_MS = 2500
+const EDITION_TTL = 24 * 60 * 60 * 1000
+
+/** Por libro, incluso cuando no hay edición en español: así no se gasta cuota de Google Books. */
+const editions = new Map<string, { at: number; item: ExploreItem | null }>()
+
+async function spanishEdition(book: ExploreItem): Promise<ExploreItem> {
+  const hit = editions.get(book.externalId)
+  if (hit && Date.now() - hit.at < EDITION_TTL) return hit.item ?? book
+  try {
+    const author = book.creator.split(',')[0]
+    const edition = await findBookEdition(book.title, author, { language: 'es', timeoutMs: EDITION_TIMEOUT_MS })
+    const item = edition ? { ...fromGoogleBook(edition), type: 'book' as const } : null
+    editions.set(book.externalId, { at: Date.now(), item })
+    return item ?? book
+  } catch {
+    return book // Google Books falló: sin guardar, para reintentar.
+  }
+}
+
+/**
+ * Open Library sólo tiene la lista global, casi toda en inglés: cada libro se
+ * cambia por su edición en español si existe; si no, queda como está.
+ */
+async function trendingBooks(): Promise<ExploreItem[]> {
+  const books = await openLibraryTrending()
+  const start = Date.now()
+  const out: ExploreItem[] = []
+  for (let i = 0; i < books.length; i += EDITION_BATCH) {
+    const batch = books.slice(i, i + EDITION_BATCH)
+    out.push(...(Date.now() - start < EDITION_BUDGET_MS ? await Promise.all(batch.map(spanishEdition)) : batch))
+  }
+  const seen = new Set<string>()
+  return out.filter((b) => !seen.has(b.externalId) && seen.add(b.externalId))
+}
+
 // ---- Secciones de catálogo (iguales para todos) -----------------------------
 
 type Provider = (region: string) => Promise<ExploreItem[]>
@@ -286,7 +330,7 @@ const CATALOG: Record<'trending' | 'upcoming' | 'gems', Partial<Record<MediaKind
   trending: {
     movie: () => tmdbList('movie', '/trending/movie/week'),
     series: () => tmdbList('tv', '/trending/tv/week'),
-    book: () => openLibraryTrending(),
+    book: () => trendingBooks(),
     game: () =>
       withRawgFallback<ExploreItem[]>(
         () =>

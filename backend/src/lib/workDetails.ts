@@ -13,6 +13,7 @@
  * - steam           Steam         (juegos, cuando RAWG no responde; en español)
  * - itunes          iTunes        (álbumes)
  */
+import { detectLanguage, findBookEdition } from './externalSearch'
 import { fetchJson } from './http'
 import { steamApp } from './steam'
 
@@ -252,6 +253,24 @@ function htmlToText(html: string): string {
     .trim()
 }
 
+/**
+ * La sinopsis es la de la edición que eligió el usuario, que puede estar en
+ * cualquier idioma: si no está en español se busca la de una edición en español
+ * del mismo libro; si tampoco está en inglés, la de una en inglés. Si no hay o
+ * Google Books falla, queda la que había.
+ */
+async function readableOverview(current: string, title: string | undefined, author: string): Promise<string> {
+  const language = detectLanguage(current)
+  if (!title || language === 'es') return current
+  try {
+    const spanish = await findBookEdition(title, author, { language: 'es', strict: true })
+    const edition = spanish ?? (language === 'en' ? null : await findBookEdition(title, author, { language: 'en', strict: true }))
+    return edition?.volumeInfo?.description ? htmlToText(edition.volumeInfo.description) : current
+  } catch {
+    return current
+  }
+}
+
 async function bookDetails(id: string, region: string): Promise<WorkDetails> {
   const apiKey = process.env.GOOGLE_BOOKS_API_KEY
   const data = (await fetchJson(
@@ -271,9 +290,13 @@ async function bookDetails(id: string, region: string): Promise<WorkDetails> {
   }
   const info = data.volumeInfo ?? {}
 
+  const ownOverview = info.description ? htmlToText(info.description) : ''
+  const overview = await readableOverview(ownOverview, info.title, info.authors?.[0] ?? '')
+
   const facts: string[] = []
   if (info.pageCount) facts.push(plural(info.pageCount, 'página', 'páginas'))
-  if (info.language) {
+  // Si la sinopsis es de otra edición, "En inglés" junto a un texto en español confundiría.
+  if (info.language && overview === ownOverview) {
     try {
       const lang = new Intl.DisplayNames(['es'], { type: 'language' }).of(info.language)
       if (lang) facts.push(`En ${lang.toLowerCase()}`)
@@ -289,7 +312,7 @@ async function bookDetails(id: string, region: string): Promise<WorkDetails> {
   const amazon = AMAZON_DOMAIN[region] ?? 'amazon.com'
 
   return {
-    overview: info.description ? htmlToText(info.description) : '',
+    overview,
     facts,
     people: info.publisher ? [{ label: 'Editorial', names: [info.publisher] }] : [],
     cast: [],
@@ -327,6 +350,7 @@ async function openLibraryDetails(id: string, region: string): Promise<WorkDetai
       title?: string
       description?: string | { value?: string }
       subjects?: string[]
+      authors?: { author?: { key?: string } }[]
     }>,
     // Las páginas y el ISBN viven en las ediciones, no en la obra.
     (fetchJson(`${base}/editions.json?limit=20`) as Promise<{
@@ -339,10 +363,19 @@ async function openLibraryDetails(id: string, region: string): Promise<WorkDetai
   const isbn = editions.entries?.flatMap((e) => [...(e.isbn_13 ?? []), ...(e.isbn_10 ?? [])])[0]
   const searchTerm = isbn ?? work.title ?? ''
   const amazon = AMAZON_DOMAIN[region] ?? 'amazon.com'
+  // Las descripciones de Open Library traen a veces enlaces en Markdown y notas "([source]…)".
+  const ownOverview = description.replace(/\[([^\]]+)\]\([^)]*\)/g, '$1').replace(/\r/g, '').trim()
+  const authorKey = work.authors?.[0]?.author?.key
+  const author =
+    authorKey && detectLanguage(ownOverview) !== 'es'
+      ? await (fetchJson(`https://openlibrary.org${authorKey}.json`) as Promise<{ name?: string }>).then(
+          (a) => a.name ?? '',
+          () => '',
+        )
+      : ''
 
   return {
-    // Las descripciones de Open Library traen a veces enlaces en Markdown y notas "([source]…)".
-    overview: description.replace(/\[([^\]]+)\]\([^)]*\)/g, '$1').replace(/\r/g, '').trim(),
+    overview: await readableOverview(ownOverview, work.title, author),
     facts: pages ? [plural(pages, 'página', 'páginas')] : [],
     people: [],
     cast: [],
