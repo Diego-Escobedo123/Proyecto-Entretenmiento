@@ -2,6 +2,8 @@ import { afterEach, beforeEach, describe, expect, test } from 'bun:test'
 import '../helpers/prisma'
 
 const { cached, clearExploreCache, getSection } = await import('../../src/lib/explore')
+const { resetRawgStatus } = await import('../../src/lib/externalSearch')
+const { clearSteamCache } = await import('../../src/lib/steam')
 
 const realFetch = globalThis.fetch
 let fetchCalls = 0
@@ -16,6 +18,8 @@ function catalogDown() {
 
 beforeEach(() => {
   clearExploreCache()
+  clearSteamCache()
+  resetRawgStatus()
   fetchCalls = 0
   process.env.RAWG_API_KEY = 'clave-de-prueba'
 })

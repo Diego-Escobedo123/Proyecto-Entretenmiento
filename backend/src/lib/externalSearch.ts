@@ -8,13 +8,14 @@
  * - movie:  TMDB         (requiere TMDB_API_KEY)
  * - series: TMDB         (misma key)
  * - book:  Google Books  (sin key)
- * - game:  RAWG          (requiere RAWG_API_KEY)
+ * - game:  RAWG          (requiere RAWG_API_KEY); si no responde, Steam (steam.ts)
  * - music: iTunes Search (sin key)
  *
  * Si falta la key de un proveedor, esa búsqueda vuelve `available: false` en
  * vez de romper: el resto de la app sigue funcionando sin esa fuente.
  */
 import { fetchJson } from './http'
+import { searchSteam } from './steam'
 
 export type MediaKind = 'movie' | 'series' | 'book' | 'game' | 'music'
 
@@ -114,43 +115,149 @@ export function upgradeBookCover(url: string | null): string | null {
   )
 }
 
-async function searchBooks(query: string): Promise<ExternalSearchResponse> {
+export interface GoogleBook {
+  id: string
+  volumeInfo?: {
+    title?: string
+    subtitle?: string
+    authors?: string[]
+    publishedDate?: string
+    imageLinks?: { thumbnail?: string }
+    categories?: string[]
+    language?: string
+    description?: string
+  }
+}
+
+/** Una consulta a Google Books. No filtra por idioma: su `langRestrict` no cambia los resultados. */
+async function fetchGoogleBooks(query: string, timeoutMs?: number): Promise<GoogleBook[]> {
   // Sin key, la cuota compartida de Google Books rate-limita rápido (429).
   // Con GOOGLE_BOOKS_API_KEY (opcional, gratis) la cuota es individual.
   const apiKey = process.env.GOOGLE_BOOKS_API_KEY
   const keyParam = apiKey ? `&key=${apiKey}` : ''
+  const data = (await fetchJson(
+    `https://www.googleapis.com/books/v1/volumes?maxResults=20&q=${encodeURIComponent(query)}${keyParam}`,
+    timeoutMs,
+  )) as { items?: GoogleBook[] }
+  return (data.items ?? []).filter((item) => item.volumeInfo?.title)
+}
 
+export function fromGoogleBook(item: GoogleBook): ExternalResult {
+  const info = item.volumeInfo!
+  return {
+    externalId: `googlebooks:${item.id}`,
+    title: info.title!,
+    creator: info.authors?.join(', ') ?? '',
+    year: yearOf(info.publishedDate),
+    cover: upgradeBookCover(info.imageLinks?.thumbnail ?? null),
+    genres: info.categories ?? [],
+  }
+}
+
+/** "es-419" -> "es". */
+const bookLanguage = (item: GoogleBook) => (item.volumeInfo?.language ?? '').split('-')[0].toLowerCase()
+
+/**
+ * Español primero, después inglés y al final los demás idiomas; nada se
+ * esconde. Dentro de eso, los que tienen portada: sin ella suelen ser resúmenes
+ * de terceros ("Resumen de Hábitos Atómicos"), que no deben tapar al libro real.
+ */
+function bookRank(item: GoogleBook): number {
+  const language = bookLanguage(item)
+  const hasCover = !!item.volumeInfo?.imageLinks
+  if (language === 'es' || language === 'en') return (hasCover ? 0 : 2) + (language === 'es' ? 0 : 1)
+  return hasCover ? 4 : 5
+}
+
+export const rankBooksByLanguage = (items: GoogleBook[]) => [...items].sort((a, b) => bookRank(a) - bookRank(b))
+
+const SPANISH_WORDS = new Set(
+  'el la los las de del que y en un una por con para es su sus al lo como más pero este esta se le'.split(' '),
+)
+const ENGLISH_WORDS = new Set(
+  'the of and to in is that with for his her it as was on by an are from this he she they'.split(' '),
+)
+/** Con menos palabras no se puede saber; con menos proporción, es otro idioma. */
+const MIN_WORDS = 8
+const MIN_RATIO = 0.15
+
+/**
+ * Idioma de un texto, contando palabras comunes: el `language` de Google Books
+ * no alcanza (un libro marcado "en" puede traer la sinopsis en eslovaco).
+ */
+export function detectLanguage(text: string): 'es' | 'en' | null {
+  const words = text.toLowerCase().split(/[^\p{L}]+/u).filter(Boolean)
+  if (words.length < MIN_WORDS) return null
+  const es = words.filter((w) => SPANISH_WORDS.has(w)).length / words.length
+  const en = words.filter((w) => ENGLISH_WORDS.has(w)).length / words.length
+  if (es >= MIN_RATIO && es > en) return 'es'
+  if (en >= MIN_RATIO && en > es) return 'en'
+  return null
+}
+
+/** Artículos y similares: no sirven para decir que dos títulos son el mismo libro. */
+const TITLE_NOISE = new Set(
+  'the a an of and to in is for on with how your you my i el la los las de del y un una en tu su por para con que como'.split(' '),
+)
+const titleWords = (s: string) => normalizeName(s).split(' ').filter((w) => w && !TITLE_NOISE.has(w))
+
+/** Largo mínimo para tratar dos palabras como la misma entre idiomas ("seduction"/"seduccion", "habits"/"habitos"). */
+const COGNATE_PREFIX = 4
+
+function sameOrCognate(a: string, b: string): boolean {
+  if (a === b) return true
+  if (a.length < COGNATE_PREFIX || b.length < COGNATE_PREFIX) return false
+  return a.slice(0, COGNATE_PREFIX) === b.slice(0, COGNATE_PREFIX)
+}
+
+interface EditionOptions {
+  language: 'es' | 'en'
+  /**
+   * Sólo si tiene todas las palabras del título original y una sinopsis en ese
+   * idioma. Para mostrar su sinopsis bajo el título original, donde otro libro
+   * del mismo autor sería un error. Sin esto basta el mismo autor, portada y una
+   * palabra en común con el título o el subtítulo: sirve para cambiar el libro
+   * completo (título, portada y ficha). Sin esa palabra podría salir otro libro
+   * del autor: "The Mountain Is You" no es "Eres la protagonista de tu vida".
+   */
+  strict?: boolean
+  timeoutMs?: number
+}
+
+/** Otra edición del mismo libro en `language`, o null. Lanza si Google Books falla. */
+export async function findBookEdition(title: string, author: string, options: EditionOptions): Promise<GoogleBook | null> {
+  const { language, strict, timeoutMs } = options
+  const authorWords = normalizeName(author).split(' ').filter(Boolean)
+  const lastName = authorWords[authorWords.length - 1]
+  const original = titleWords(title)
+  const fullTitle = (b: GoogleBook) => titleWords(`${b.volumeInfo?.title ?? ''} ${b.volumeInfo?.subtitle ?? ''}`)
+
+  const candidates = (await fetchGoogleBooks(`${title} ${author}`.trim(), timeoutMs)).filter((b) => {
+    if (bookLanguage(b) !== language) return false
+    if (lastName && !normalizeName((b.volumeInfo?.authors ?? []).join(' ')).split(' ').includes(lastName)) return false
+    return true
+  })
+  if (!strict) {
+    return (
+      candidates.find(
+        (b) => b.volumeInfo?.imageLinks && original.some((w) => fullTitle(b).some((other) => sameOrCognate(w, other))),
+      ) ?? null
+    )
+  }
+
+  // El de título más parecido: "Sapiens. De animales a dioses" antes que "Sapiens. Una historia gráfica 1".
+  return (
+    candidates
+      .filter((b) => original.every((w) => fullTitle(b).includes(w)))
+      .filter((b) => detectLanguage(b.volumeInfo?.description ?? '') === language)
+      .sort((a, b) => fullTitle(a).length - fullTitle(b).length)[0] ?? null
+  )
+}
+
+async function searchBooks(query: string): Promise<ExternalSearchResponse> {
   try {
-    const data = (await fetchJson(
-      `https://www.googleapis.com/books/v1/volumes?maxResults=10&q=${encodeURIComponent(query)}${keyParam}`,
-    )) as {
-      items?: {
-        id: string
-        volumeInfo?: {
-          title?: string
-          authors?: string[]
-          publishedDate?: string
-          imageLinks?: { thumbnail?: string }
-          categories?: string[]
-        }
-      }[]
-    }
-
-    const results = (data.items ?? [])
-      .filter((item) => item.volumeInfo?.title)
-      .map((item) => {
-        const info = item.volumeInfo!
-        return {
-          externalId: `googlebooks:${item.id}`,
-          title: info.title!,
-          creator: info.authors?.join(', ') ?? '',
-          year: yearOf(info.publishedDate),
-          cover: upgradeBookCover(info.imageLinks?.thumbnail ?? null),
-          genres: info.categories ?? [],
-        }
-      })
-
-    return { available: true, results }
+    const items = await fetchGoogleBooks(query)
+    return { available: true, results: rankBooksByLanguage(items).map(fromGoogleBook) }
   } catch (err) {
     // Cuota agotada u otro fallo transitorio: se trata como "no disponible",
     // igual que un proveedor sin key, en vez de tumbar la búsqueda.
@@ -183,7 +290,7 @@ export function fromRawg(g: RawgGame): ExternalResult {
 }
 
 /** Nombre comparable: sin mayúsculas, acentos ni signos ("Pokémon: Rojo" -> "pokemon rojo"). */
-const normalizeName = (s: string) =>
+export const normalizeName = (s: string) =>
   s
     .normalize('NFD')
     .replace(/[̀-ͯ]/g, '')
@@ -197,9 +304,46 @@ function hasAllWords(name: string, queryWords: string[]): boolean {
   return queryWords.every((q) => words.some((w) => w.startsWith(q)))
 }
 
-async function searchGames(query: string): Promise<ExternalSearchResponse> {
+/** Tras un fallo de RAWG, cuánto se va directo al respaldo sin volver a esperarlo. */
+const RAWG_RETRY_MS = 10 * 60 * 1000
+let rawgDownUntil = 0
+
+/**
+ * Usa RAWG y, si falla o no hay key, el respaldo (Steam). RAWG caído tarda
+ * hasta el timeout en fallar: después de un fallo no se le vuelve a preguntar
+ * durante unos minutos, así las siguientes búsquedas no esperan.
+ */
+export async function withRawgFallback<T>(rawg: () => Promise<T>, fallback: () => Promise<T>): Promise<T> {
+  if (!process.env.RAWG_API_KEY || Date.now() < rawgDownUntil) return fallback()
+  try {
+    return await rawg()
+  } catch (err) {
+    console.error('RAWG no responde, se usa el respaldo:', err)
+    rawgDownUntil = Date.now() + RAWG_RETRY_MS
+    return fallback()
+  }
+}
+
+/** Sólo para pruebas: olvida que RAWG estaba caído. */
+export function resetRawgStatus(): void {
+  rawgDownUntil = 0
+}
+
+function searchGames(query: string): Promise<ExternalSearchResponse> {
+  return withRawgFallback(
+    () => searchRawg(query),
+    async () => {
+      // Steam también trae juegos que sólo se parecen: mismo filtro de palabras que con RAWG.
+      const results = await searchSteam(query)
+      const queryWords = normalizeName(query).split(' ').filter(Boolean)
+      const matching = results.filter((r) => hasAllWords(r.title, queryWords))
+      return { available: true, results: matching.length ? matching : results }
+    },
+  )
+}
+
+async function searchRawg(query: string): Promise<ExternalSearchResponse> {
   const apiKey = process.env.RAWG_API_KEY
-  if (!apiKey) return { available: false, results: [] }
 
   // El orden por defecto de RAWG es por parecido del nombre: los juegos de
   // fans ("ZELDA (Raul Fernandes)") tapan a los oficiales. Ordenado por

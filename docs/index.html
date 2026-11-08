@@ -595,7 +595,7 @@
       <div class="type"><img src="assets/covers/music-ram.jpg" alt=""><span class="lbl"><i class="bi bi-music-note-beamed"></i> Música</span></div>
     </div>
     <div class="features">
-      <div class="card feature rv"><span class="ico"><i class="bi bi-search"></i></span><h3>Buscar en catálogos reales</h3><p>TMDB, Google Books, Open Library, RAWG e iTunes desde una sola barra.</p></div>
+      <div class="card feature rv"><span class="ico"><i class="bi bi-search"></i></span><h3>Buscar en catálogos reales</h3><p>TMDB, Google Books, Open Library, RAWG, Steam e iTunes desde una sola barra.</p></div>
       <div class="card feature rv"><span class="ico rasp"><i class="bi bi-bookmark-check"></i></span><h3>Registrar el estado</h3><p>«Quiero leerlo», «Viendo», «Terminado», «Completado al 100 %» y más, según el tipo de obra.</p></div>
       <div class="card feature rv"><span class="ico copper"><i class="bi bi-star-half"></i></span><h3>Calificar y reseñar</h3><p>De 0.5 a 5 estrellas. Las reseñas se ven en la ficha de cada obra.</p></div>
       <div class="card feature rv"><span class="ico stem"><i class="bi bi-journal-text"></i></span><h3>Diario</h3><p>Cada vez que ves o lees algo, con fechas, relecturas y abandonos.</p></div>
@@ -1007,16 +1007,16 @@ mediaRoutes.<span class="f">post</span>(<span class="s">'/'</span>, <span class=
       <div class="pyramid rv">
         <div class="tier e2e"><b>6</b><span>E2E · Playwright<small>login, búsqueda, registrar obra, reseña</small></span></div>
         <div class="tier int"><b>12</b><span>Integración · Bun Test<small>la API contra PostgreSQL real</small></span></div>
-        <div class="tier unit"><b>79</b><span>Unitarias · Bun Test<small>endpoints, validaciones, permisos</small></span></div>
+        <div class="tier unit"><b>120</b><span>Unitarias · Bun Test<small>endpoints, validaciones, permisos</small></span></div>
       </div>
       <div class="card rv">
         <h3><i class="bi bi-bar-chart-line gold"></i> Cobertura de los módulos críticos</h3>
         <p>Si alguno baja del <b class="gold">70 %</b> (la línea dorada), el pipeline falla.</p>
         <div class="cov" id="cov">
           <div class="r"><code>lib/auth.ts</code><div class="track"><i data-w="100"></i></div><span class="pct">100 %</span></div>
-          <div class="r"><code>lib/schemas.ts</code><div class="track"><i data-w="99.5"></i></div><span class="pct">99.5 %</span></div>
-          <div class="r"><code>routes/auth.ts</code><div class="track"><i data-w="78.8"></i></div><span class="pct">78.8 %</span></div>
-          <div class="r"><code>routes/media.ts</code><div class="track"><i data-w="97.1"></i></div><span class="pct">97.1 %</span></div>
+          <div class="r"><code>lib/schemas.ts</code><div class="track"><i data-w="100"></i></div><span class="pct">100 %</span></div>
+          <div class="r"><code>routes/auth.ts</code><div class="track"><i data-w="75.6"></i></div><span class="pct">75.6 %</span></div>
+          <div class="r"><code>routes/media.ts</code><div class="track"><i data-w="98.6"></i></div><span class="pct">98.6 %</span></div>
           <div class="r"><code>routes/reviews.ts</code><div class="track"><i data-w="99.1"></i></div><span class="pct">99.1 %</span></div>
         </div>
         <div class="gate">
