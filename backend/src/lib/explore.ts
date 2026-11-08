@@ -12,6 +12,11 @@
  * fuente falla o no tiene key, ese tipo simplemente no aporta obras. Las
  * respuestas de catálogos se cachean unas horas; las de la comunidad y "para
  * ti" poco tiempo, porque cambian con lo que registra la gente.
+ *
+ * Una fuente caída (RAWG y Apple Music lo están a ratos) no debe frenar la
+ * pantalla: los catálogos se piden con un timeout corto y, si fallan, ese
+ * vacío también se cachea unos minutos para no volver a esperarlo en cada
+ * visita. Cada sección espera a todos sus tipos, así que el más lento manda.
  */
 import { prisma } from './prisma'
 import { fetchJson } from './http'
@@ -80,15 +85,34 @@ function pageOfTheDay(pages: number, salt: number): number {
 
 const CATALOG_TTL = 3 * 60 * 60 * 1000
 const PERSONAL_TTL = 10 * 60 * 1000
+/** Cuánto se recuerda que un catálogo vino vacío (caído o sin cuota) antes de reintentar. */
+const FAILED_CATALOG_TTL = 10 * 60 * 1000
+/** Timeout de los catálogos lentos (RAWG, Apple Music, Open Library). */
+const SLOW_SOURCE_TIMEOUT_MS = 5000
 const cache = new Map<string, { at: number; items: ExploreItem[] }>()
 
-async function cached(key: string, ttl: number, load: () => Promise<ExploreItem[]>): Promise<ExploreItem[]> {
+/**
+ * Cachea `load` bajo `key`. Un resultado vacío casi siempre es una fuente
+ * caída o sin cuota: sin `emptyTtl` no se guarda (se reintenta en la próxima
+ * visita); con `emptyTtl` se guarda ese tiempo, para no volver a esperar el
+ * timeout en cada visita mientras la fuente sigue caída.
+ */
+export async function cached(
+  key: string,
+  ttl: number,
+  load: () => Promise<ExploreItem[]>,
+  emptyTtl?: number,
+): Promise<ExploreItem[]> {
   const hit = cache.get(key)
-  if (hit && Date.now() - hit.at < ttl) return hit.items
+  if (hit && Date.now() - hit.at < (hit.items.length ? ttl : (emptyTtl ?? 0))) return hit.items
   const items = await load()
-  // Vacío casi siempre es una fuente caída o sin cuota: no se guarda, para reintentar en la próxima visita.
-  if (items.length) cache.set(key, { at: Date.now(), items })
+  if (items.length || emptyTtl) cache.set(key, { at: Date.now(), items })
   return items
+}
+
+/** Sólo para pruebas: vacía la caché. */
+export function clearExploreCache(): void {
+  cache.clear()
 }
 
 // ---- TMDB -------------------------------------------------------------------
@@ -138,7 +162,10 @@ const releaseNote = (date?: string) => {
 async function rawgList(params: string, note?: (g: RawgGame) => string | undefined) {
   const apiKey = process.env.RAWG_API_KEY
   if (!apiKey) return []
-  const data = (await fetchJson(`https://api.rawg.io/api/games?key=${apiKey}&page_size=20&${params}`)) as {
+  const data = (await fetchJson(
+    `https://api.rawg.io/api/games?key=${apiKey}&page_size=20&${params}`,
+    SLOW_SOURCE_TIMEOUT_MS,
+  )) as {
     results?: RawgGame[]
   }
   return (data.results ?? [])
@@ -176,7 +203,7 @@ function appleTopFeed(region: string): Promise<AppleAlbum[]> {
   const albums = (
     fetchJson(
       `https://rss.marketingtools.apple.com/api/v2/${region.toLowerCase()}/music/most-played/50/albums.json`,
-      10_000,
+      SLOW_SOURCE_TIMEOUT_MS,
     ) as Promise<{ feed?: { results?: AppleAlbum[] } }>
   ).then((data) => data.feed?.results ?? [])
   albums.catch(() => appleTop.delete(region))
@@ -200,7 +227,7 @@ async function appleTopAlbums(region: string): Promise<ExploreItem[]> {
 // ---- Open Library (tendencias de libros) ------------------------------------
 
 async function openLibraryTrending(): Promise<ExploreItem[]> {
-  const data = (await fetchJson('https://openlibrary.org/trending/weekly.json?limit=30', 8000)) as {
+  const data = (await fetchJson('https://openlibrary.org/trending/weekly.json?limit=30', SLOW_SOURCE_TIMEOUT_MS)) as {
     works?: { key: string; title: string; author_name?: string[]; first_publish_year?: number; cover_i?: number }[]
   }
   return (data.works ?? [])
@@ -474,7 +501,12 @@ export async function getSection(
       }
       const provider = CATALOG[section][kind]
       if (!provider) return Promise.resolve([])
-      return cached(`${section}|${kind}|${region}`, CATALOG_TTL, () => safely(`${section}/${kind}`, () => provider(region)))
+      return cached(
+        `${section}|${kind}|${region}`,
+        CATALOG_TTL,
+        () => safely(`${section}/${kind}`, () => provider(region)),
+        FAILED_CATALOG_TTL,
+      )
     }),
   )
 
