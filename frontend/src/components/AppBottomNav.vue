@@ -83,7 +83,8 @@ const { style: pillStyle, ready: pillReady } = useSlidingIndicator(barEl, '.bott
     bottom: 0;
     z-index: 45; /* sobre el contenido; debajo del cajón (55/60), los modales y los avisos */
     display: grid;
-    grid-template-columns: repeat(5, 1fr);
+    /* minmax(0, 1fr): una etiqueta larga no ensancha su columna ni la barra. */
+    grid-template-columns: repeat(5, minmax(0, 1fr));
     align-items: center;
     height: calc(var(--bottom-nav-height) + env(safe-area-inset-bottom, 0px));
     padding: 0 var(--space-sm) env(safe-area-inset-bottom, 0px);

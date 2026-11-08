@@ -14,7 +14,7 @@ Seguimos la pirámide clásica: **muchas pruebas pequeñas y rápidas abajo, poc
           ╱       ╲     Integración (bun test + PostgreSQL)  12 pruebas · ~10 s
          ╱         ╲    La API completa contra una base real
         ╱───────────╲
-       ╱             ╲  Unitarias (bun test + base simulada)  70 pruebas · ~3 s
+       ╱             ╲  Unitarias (bun test + base simulada)  79 pruebas · ~3 s
       ╱_______________╲ Funciones y endpoints, uno por uno
 ```
 
@@ -33,6 +33,8 @@ Seguimos la pirámide clásica: **muchas pruebas pequeñas y rápidas abajo, poc
 - **Registro de obras (`/media`):** crear, listar, editar, borrar; validaciones (título, fechas, calificación); que nadie pueda ver ni editar obras ajenas; que el diario se actualice al cambiar el estado.
 - **Reseñas (`/reviews`):** promedio de estrellas, que no se muestren las reseñas propias ni las vacías, estadísticas de la obra.
 - **Validaciones (`schemas.ts`):** datos válidos e inválidos de registro, login y obras.
+- **Dónde comprar libros (`workDetails.ts`):** el enlace a Sophos (busca por título y autor, lleva `ref=mosaic`, solo para Guatemala), que vaya primero y que ya no aparezca Goodreads. Los catálogos se simulan, sin salir a internet.
+- **Explorar con catálogos caídos (`explore.ts`):** que un catálogo que falla (por ejemplo RAWG) se recuerde unos minutos y la siguiente visita no lo vuelva a esperar, y cuándo se guarda o no un resultado vacío.
 
 ### Integración (EXP-074)
 `/health`, `POST /auth/register`, `POST /auth/login`, `GET /auth/me`, `POST /auth/change-password`, `/media` (crear, listar, editar, borrar) y `GET /reviews`, contra una base PostgreSQL real.

@@ -11,6 +11,8 @@ export interface WorkLink {
   name: string
   logo: string | null
   url: string
+  /** Código ISO del único país donde aplica ("GT" para Sophos); se oculta fuera de él. */
+  onlyIn?: string
 }
 
 export interface Track {

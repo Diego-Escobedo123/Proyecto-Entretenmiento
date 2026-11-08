@@ -14,7 +14,7 @@ import { computed, ref, watch } from 'vue'
 import BaseIcon from './BaseIcon.vue'
 import BaseSpinner from './BaseSpinner.vue'
 import { detailsService, hasDetails } from '../services/detailsService'
-import { regionName } from '../lib/region'
+import { isInCountry, regionName } from '../lib/region'
 import type { WorkDetails } from '../types/details'
 import type { MediaType } from '../types/media'
 
@@ -55,6 +55,16 @@ const WHERE_TITLE: Record<MediaType, string> = {
 
 const LONG_OVERVIEW = 280
 const INITIAL_TRACKS = 8
+
+/**
+ * Grupos de "dónde verla…" sin los enlaces de un solo país (Sophos, sólo en
+ * Guatemala) cuando el usuario no está ahí. Un grupo que queda vacío se quita.
+ */
+const whereGroups = computed(() =>
+  (data.value?.where?.groups ?? [])
+    .map((g) => ({ ...g, items: g.items.filter((p) => !p.onlyIn || isInCountry(p.onlyIn)) }))
+    .filter((g) => g.items.length),
+)
 
 const visibleTracks = computed(() => {
   const all = data.value?.tracks ?? []
@@ -129,19 +139,23 @@ function formatDuration(seconds: number | null): string {
         <BaseIcon name="box-arrow-up-right" /> {{ WHERE_TITLE[type] }}
         <span v-if="data.where.region" class="work-info__region">en {{ regionName(data.where.region) }}</span>
       </h4>
-      <p v-if="!data.where.groups.length" class="work-info__hint">No está disponible en plataformas en tu país.</p>
-      <div v-for="g in data.where.groups" :key="g.label" class="work-info__providers">
+      <p v-if="!whereGroups.length" class="work-info__hint">No está disponible en plataformas en tu país.</p>
+      <div v-for="g in whereGroups" :key="g.label" class="work-info__providers">
         <span class="work-info__label">{{ g.label }}</span>
         <ul class="work-info__links">
           <li v-for="p in g.items" :key="p.name">
             <a :href="p.url" target="_blank" rel="noopener" class="work-info__link" :title="`Abrir en ${p.name}`">
               <img v-if="coverOk(p.logo)" v-cover="p.logo" :src="p.logo" alt="" class="work-info__logo" />
-              {{ p.name }}
+              <span v-if="p.onlyIn" class="work-info__link-text">
+                {{ p.name }}
+                <small class="work-info__link-note">Disponible en {{ regionName(p.onlyIn) }}</small>
+              </span>
+              <template v-else>{{ p.name }}</template>
             </a>
           </li>
         </ul>
       </div>
-      <p v-if="data.where.credit && data.where.groups.length" class="work-info__credit">{{ data.where.credit }}</p>
+      <p v-if="data.where.credit && whereGroups.length" class="work-info__credit">{{ data.where.credit }}</p>
     </section>
   </div>
 </template>
@@ -350,6 +364,18 @@ function formatDuration(seconds: number | null): string {
 
 .work-info__link:hover {
   border-color: var(--color-accent);
+}
+
+.work-info__link-text {
+  display: flex;
+  flex-direction: column;
+  line-height: 1.15;
+}
+
+.work-info__link-note {
+  font-size: 0.6875rem;
+  font-weight: 500;
+  color: var(--color-text-muted);
 }
 
 .work-info__logo {

@@ -324,6 +324,9 @@ onBeforeUnmount(() => {
 .global-search {
   position: relative;
   flex: 1;
+  /* Sin esto no se encoge por debajo del ancho del input y, en celulares
+     angostos, empuja la campana y el avatar fuera de la pantalla. */
+  min-width: 0;
   max-width: 480px;
 }
 
