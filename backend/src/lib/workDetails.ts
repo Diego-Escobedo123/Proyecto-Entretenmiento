@@ -10,9 +10,11 @@
  * - googlebooks     Google Books  (libros)
  * - openlibrary     Open Library  (libros que vienen de Explorar → Tendencias)
  * - rawg            RAWG          (juegos)
+ * - steam           Steam         (juegos, cuando RAWG no responde; en español)
  * - itunes          iTunes        (álbumes)
  */
 import { fetchJson } from './http'
+import { steamApp } from './steam'
 
 export interface CastMember {
   name: string
@@ -421,6 +423,51 @@ async function gameDetails(id: string): Promise<WorkDetails | null> {
   }
 }
 
+// ---- Steam (juegos, respaldo de RAWG) ------------------------------------
+
+async function steamDetails(id: string): Promise<WorkDetails | null> {
+  const appId = Number(id)
+  if (!Number.isInteger(appId)) return null
+  const app = await steamApp(appId)
+  if (!app) return null
+
+  const platforms = [
+    app.platforms?.windows && 'PC',
+    app.platforms?.mac && 'macOS',
+    app.platforms?.linux && 'Linux',
+  ].filter((p): p is string => !!p)
+
+  const facts: string[] = []
+  if (platforms.length) facts.push(platforms.join(', '))
+  if (app.metacritic) facts.push(`Metacritic ${app.metacritic.score}`)
+
+  const people: WorkDetails['people'] = []
+  if (app.developers?.length) people.push({ label: 'Desarrollo', names: app.developers })
+  if (app.publishers?.length) people.push({ label: 'Distribución', names: app.publishers })
+
+  return {
+    // La corta es un resumen limpio; la larga suele empezar con publicidad de sus expansiones.
+    overview: htmlToText(app.short_description ?? ''),
+    facts,
+    people,
+    cast: [],
+    tracks: [],
+    pages: null,
+    seasons: [],
+    platforms,
+    where: {
+      region: null,
+      groups: [
+        {
+          label: 'Tiendas',
+          items: [{ name: 'Steam', logo: favicon('store.steampowered.com'), url: `https://store.steampowered.com/app/${appId}` }],
+        },
+      ],
+      credit: null,
+    },
+  }
+}
+
 // ---- iTunes (música) --------------------------------------------------
 
 interface ItunesItem {
@@ -511,6 +558,7 @@ export async function getWorkDetails(externalId: string, region: string): Promis
     else if (source === 'googlebooks') value = await bookDetails(id, region)
     else if (source === 'openlibrary') value = await openLibraryDetails(id, region)
     else if (source === 'rawg') value = await gameDetails(id)
+    else if (source === 'steam') value = await steamDetails(id)
     else if (source === 'itunes') value = await albumDetails(id, region)
   }
 

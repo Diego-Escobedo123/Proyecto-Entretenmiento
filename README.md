@@ -18,7 +18,7 @@ Mosaic es para quien consume cultura en varios formatos y quiere:
 
 ## Qué se puede hacer
 
-- **Buscar** en catálogos reales (TMDB, Google Books, Open Library, RAWG e iTunes) desde una sola barra.
+- **Buscar** en catálogos reales (TMDB, Google Books, Open Library, RAWG, Steam e iTunes) desde una sola barra.
 - **Registrar** cada obra con su estado («Quiero leerlo», «Viendo», «Terminado»…), calificación de 0.5 a 5 estrellas y reseña.
 - Llevar un **diario** de cada vez que ves o lees algo, y **metas anuales** como «leer 20 libros este año».
 - Armar **listas** públicas o privadas, con ranking.
