@@ -8,13 +8,14 @@
  * - movie:  TMDB         (requiere TMDB_API_KEY)
  * - series: TMDB         (misma key)
  * - book:  Google Books  (sin key)
- * - game:  RAWG          (requiere RAWG_API_KEY)
+ * - game:  RAWG          (requiere RAWG_API_KEY); si no responde, Steam (steam.ts)
  * - music: iTunes Search (sin key)
  *
  * Si falta la key de un proveedor, esa búsqueda vuelve `available: false` en
  * vez de romper: el resto de la app sigue funcionando sin esa fuente.
  */
 import { fetchJson } from './http'
+import { searchSteam } from './steam'
 
 export type MediaKind = 'movie' | 'series' | 'book' | 'game' | 'music'
 
@@ -197,9 +198,46 @@ function hasAllWords(name: string, queryWords: string[]): boolean {
   return queryWords.every((q) => words.some((w) => w.startsWith(q)))
 }
 
-async function searchGames(query: string): Promise<ExternalSearchResponse> {
+/** Tras un fallo de RAWG, cuánto se va directo al respaldo sin volver a esperarlo. */
+const RAWG_RETRY_MS = 10 * 60 * 1000
+let rawgDownUntil = 0
+
+/**
+ * Usa RAWG y, si falla o no hay key, el respaldo (Steam). RAWG caído tarda
+ * hasta el timeout en fallar: después de un fallo no se le vuelve a preguntar
+ * durante unos minutos, así las siguientes búsquedas no esperan.
+ */
+export async function withRawgFallback<T>(rawg: () => Promise<T>, fallback: () => Promise<T>): Promise<T> {
+  if (!process.env.RAWG_API_KEY || Date.now() < rawgDownUntil) return fallback()
+  try {
+    return await rawg()
+  } catch (err) {
+    console.error('RAWG no responde, se usa el respaldo:', err)
+    rawgDownUntil = Date.now() + RAWG_RETRY_MS
+    return fallback()
+  }
+}
+
+/** Sólo para pruebas: olvida que RAWG estaba caído. */
+export function resetRawgStatus(): void {
+  rawgDownUntil = 0
+}
+
+function searchGames(query: string): Promise<ExternalSearchResponse> {
+  return withRawgFallback(
+    () => searchRawg(query),
+    async () => {
+      // Steam también trae juegos que sólo se parecen: mismo filtro de palabras que con RAWG.
+      const results = await searchSteam(query)
+      const queryWords = normalizeName(query).split(' ').filter(Boolean)
+      const matching = results.filter((r) => hasAllWords(r.title, queryWords))
+      return { available: true, results: matching.length ? matching : results }
+    },
+  )
+}
+
+async function searchRawg(query: string): Promise<ExternalSearchResponse> {
   const apiKey = process.env.RAWG_API_KEY
-  if (!apiKey) return { available: false, results: [] }
 
   // El orden por defecto de RAWG es por parecido del nombre: los juegos de
   // fans ("ZELDA (Raul Fernandes)") tapan a los oficiales. Ordenado por

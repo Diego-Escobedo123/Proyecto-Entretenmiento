@@ -22,6 +22,7 @@ import { useUiStore } from '../stores/ui'
 import { useDebouncedSearch } from '../composables/useDebouncedSearch'
 import { useSlidingIndicator } from '../composables/useSlidingIndicator'
 import { searchCatalogs, type CatalogGroup } from '../services/searchService'
+import type { ExploreSection } from '../types/explore'
 import type { MediaType } from '../types/media'
 import type { ExternalSearchResult } from '../types/search'
 
@@ -65,6 +66,21 @@ const CONSUME: Record<MediaType | 'all', string> = {
   music: 'se está escuchando en tu país',
 }
 const consume = computed(() => CONSUME[activeType.value ?? 'all'])
+
+/**
+ * Cada fila se oculta si viene vacía. Si TODAS vienen vacías (p. ej. el catálogo
+ * de ese tipo está caído) la pantalla quedaría en blanco: entonces se explica.
+ */
+const SECTIONS: ExploreSection[] = ['foryou', 'trending', 'upcoming', 'gems', 'community']
+const emptySections = ref<Partial<Record<ExploreSection, MediaType | null | undefined>>>({})
+
+function onSectionLoaded(section: ExploreSection, type: MediaType | null, empty: boolean) {
+  emptySections.value = { ...emptySections.value, [section]: empty ? type : undefined }
+}
+
+const nothingToShow = computed(() =>
+  SECTIONS.every((s) => s in emptySections.value && emptySections.value[s] === activeType.value),
+)
 
 // --- Catálogos externos (/search) ---
 
@@ -194,12 +210,19 @@ onMounted(() => {
 
     <!-- Modo descubrimiento: secciones con datos reales -->
     <div v-else class="explore__content">
+      <EmptyState
+        v-if="nothingToShow"
+        icon="cloud-slash"
+        title="No pudimos cargar este catálogo"
+        text="La fuente de estas obras no responde en este momento. Intenta de nuevo en unos minutos o explora otro tipo de obra."
+      />
       <ExploreRow
         section="foryou"
         :type="activeType"
         title="Para ti"
         icon="stars"
         subtitle="A partir de lo que más te gustó de tu colección."
+        @loaded="onSectionLoaded"
       />
       <ExploreRow
         section="trending"
@@ -207,6 +230,7 @@ onMounted(() => {
         title="Tendencias"
         icon="fire"
         :subtitle="`Lo que más ${consume} esta semana.`"
+        @loaded="onSectionLoaded"
       />
       <ExploreRow
         section="upcoming"
@@ -214,14 +238,16 @@ onMounted(() => {
         title="Estrenos y próximos"
         icon="calendar-event"
         subtitle="Lo que está por salir y lo que acaba de salir."
+        @loaded="onSectionLoaded"
       />
-      <ExploreGems :type="activeType" />
+      <ExploreGems :type="activeType" @loaded="onSectionLoaded" />
       <ExploreRow
         section="community"
         :type="activeType"
         title="Popular en Mosaic"
         icon="people"
         subtitle="Lo que más registra la gente de la app."
+        @loaded="onSectionLoaded"
       />
     </div>
   </div>

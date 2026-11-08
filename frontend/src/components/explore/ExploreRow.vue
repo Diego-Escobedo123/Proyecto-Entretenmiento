@@ -24,6 +24,8 @@ const props = defineProps<{
   subtitle?: string
 }>()
 
+const emit = defineEmits<{ loaded: [section: ExploreSection, type: MediaType | null, empty: boolean] }>()
+
 const media = useMediaStore()
 const ui = useUiStore()
 
@@ -40,7 +42,10 @@ async function load() {
   } catch {
     if (current === requestId) items.value = []
   } finally {
-    if (current === requestId) loading.value = false
+    if (current === requestId) {
+      loading.value = false
+      emit('loaded', props.section, props.type, items.value.length === 0)
+    }
   }
 }
 

@@ -18,6 +18,7 @@ import type { ExploreItem } from '../../types/explore'
 import type { MediaType } from '../../types/media'
 
 const props = defineProps<{ type: MediaType | null }>()
+const emit = defineEmits<{ loaded: [section: 'gems', type: MediaType | null, empty: boolean] }>()
 const ui = useUiStore()
 
 const gems = ref<ExploreItem[]>([])
@@ -38,7 +39,10 @@ watch(
     } catch {
       if (current === requestId) gems.value = []
     } finally {
-      if (current === requestId) loading.value = false
+      if (current === requestId) {
+        loading.value = false
+        emit('loaded', 'gems', props.type, gems.value.length === 0)
+      }
     }
   },
   { immediate: true },

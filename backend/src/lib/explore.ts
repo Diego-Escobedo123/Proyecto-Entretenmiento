@@ -5,6 +5,8 @@
  * - upcoming   Estrenos recientes y próximos (TMDB, RAWG, Apple Music).
  * - gems       Joyas escondidas: muy bien calificadas pero poco populares
  *              (TMDB y RAWG; para libros y música no hay fuente confiable).
+ *
+ * Si RAWG no responde, los juegos salen de Steam (ver steam.ts).
  * - community  Popular en Mosaic: lo que más registran los usuarios de la app.
  * - foryou     Para ti: recomendaciones a partir de la colección del usuario.
  *
@@ -32,7 +34,9 @@ import {
   type RawgGame,
   type TmdbKind,
   type TmdbResult,
+  withRawgFallback,
 } from './externalSearch'
+import { fromSteam, steamGems, steamReleaseDay, steamTopGames, type SteamApp } from './steam'
 
 export const SECTIONS = ['trending', 'upcoming', 'gems', 'community', 'foryou'] as const
 export type SectionId = (typeof SECTIONS)[number]
@@ -179,6 +183,37 @@ async function rawgList(params: string, note?: (g: RawgGame) => string | undefin
     }))
 }
 
+// ---- Steam (respaldo de RAWG) -------------------------------------------------
+
+/** Días hacia atrás que cuentan como "acaba de salir" en Estrenos. */
+const RECENT_DAYS = 60
+
+function steamItem(app: SteamApp, note?: string): ExploreItem {
+  return { ...fromSteam(app), type: 'game', note, releaseDate: steamReleaseDay(app.release_date?.date) }
+}
+
+async function steamTrending(): Promise<ExploreItem[]> {
+  return (await steamTopGames()).map((app) => steamItem(app))
+}
+
+/** Lo que está por salir o salió hace poco, entre lo que más se vende (las listas de novedades de Steam son ruido). */
+async function steamUpcoming(): Promise<ExploreItem[]> {
+  const items = (await steamTopGames()).map((app) =>
+    steamItem(app, releaseNote(steamReleaseDay(app.release_date?.date))),
+  )
+  return byRelease(items.filter((i) => i.releaseDate && i.releaseDate >= daysFrom(-RECENT_DAYS)))
+}
+
+/** Lista curada: cambia cada día cuáles salen primero, como las demás Joyas. */
+async function steamGemsOfTheDay(): Promise<ExploreItem[]> {
+  const gems = (await steamGems()).map((app) => ({
+    ...steamItem(app, app.metacritic ? `Metacritic ${app.metacritic.score}` : undefined),
+    description: app.short_description,
+  }))
+  const start = gems.length ? pageOfTheDay(gems.length, 2) - 1 : 0
+  return [...gems.slice(start), ...gems.slice(0, start)]
+}
+
 // ---- Apple Music (top de álbumes por país) ----------------------------------
 
 interface AppleAlbum {
@@ -253,8 +288,12 @@ const CATALOG: Record<'trending' | 'upcoming' | 'gems', Partial<Record<MediaKind
     series: () => tmdbList('tv', '/trending/tv/week'),
     book: () => openLibraryTrending(),
     game: () =>
-      rawgList(`dates=${daysFrom(-60)},${today()}&ordering=-added`, (g) =>
-        g.released ? `Salió el ${shortDate(g.released)}` : undefined,
+      withRawgFallback<ExploreItem[]>(
+        () =>
+          rawgList(`dates=${daysFrom(-60)},${today()}&ordering=-added`, (g) =>
+            g.released ? `Salió el ${shortDate(g.released)}` : undefined,
+          ),
+        steamTrending,
       ),
     music: (region) => appleTopAlbums(region),
   },
@@ -275,13 +314,14 @@ const CATALOG: Record<'trending' | 'upcoming' | 'gems', Partial<Record<MediaKind
           (m) => releaseNote(m.first_air_date),
         ),
       ),
-    game: async () => {
-      const [soon, recent] = await Promise.all([
-        rawgList(`dates=${today()},${daysFrom(120)}&ordering=-added`, (g) => releaseNote(g.released ?? undefined)),
-        rawgList(`dates=${daysFrom(-30)},${today()}&ordering=-added`, (g) => releaseNote(g.released ?? undefined)),
-      ])
-      return byRelease([...soon, ...recent])
-    },
+    game: () =>
+      withRawgFallback<ExploreItem[]>(async () => {
+        const [soon, recent] = await Promise.all([
+          rawgList(`dates=${today()},${daysFrom(120)}&ordering=-added`, (g) => releaseNote(g.released ?? undefined)),
+          rawgList(`dates=${daysFrom(-30)},${today()}&ordering=-added`, (g) => releaseNote(g.released ?? undefined)),
+        ])
+        return byRelease([...soon, ...recent])
+      }, steamUpcoming),
     // Apple no tiene feed de estrenos: los álbumes del top salidos en el último mes.
     music: async (region) =>
       byRelease(
@@ -306,10 +346,14 @@ const CATALOG: Record<'trending' | 'upcoming' | 'gems', Partial<Record<MediaKind
         true,
       ),
     // Metacritic alto pero pocos jugadores en RAWG: ni clásicos archiconocidos ni ediciones duplicadas.
-    game: async () =>
-      (await rawgList(`metacritic=85,100&ordering=-metacritic&page=${pageOfTheDay(5, 2)}`, (g) =>
-        g.metacritic ? `Metacritic ${g.metacritic}` : undefined,
-      )).filter((g) => g._added >= 30 && g._added <= 2500),
+    game: () =>
+      withRawgFallback<ExploreItem[]>(
+        async () =>
+          (await rawgList(`metacritic=85,100&ordering=-metacritic&page=${pageOfTheDay(5, 2)}`, (g) =>
+            g.metacritic ? `Metacritic ${g.metacritic}` : undefined,
+          )).filter((g) => g._added >= 30 && g._added <= 2500),
+        steamGemsOfTheDay,
+      ),
   },
 }
 
@@ -408,8 +452,11 @@ async function forYou(userId: string, type: MediaKind): Promise<ExploreItem[]> {
     items = interleave(lists)
   } else if (type === 'game') {
     const genre = topGenre(entries)
-    const slug = genre ? await rawgSlugFor(genre) : null
-    if (slug) items = await rawgList(`genres=${slug}&ordering=-rating&metacritic=75,100`, () => `Por tu gusto por ${genre}`)
+    // Sin RAWG no hay recomendación por género: la fila no aparece (y no espera su timeout).
+    items = await withRawgFallback<ExploreItem[]>(async () => {
+      const slug = genre ? await rawgSlugFor(genre) : null
+      return slug ? rawgList(`genres=${slug}&ordering=-rating&metacritic=75,100`, () => `Por tu gusto por ${genre}`) : []
+    }, async () => [])
   } else if (type === 'book') {
     const genre = topGenre(entries)
     if (genre) {
