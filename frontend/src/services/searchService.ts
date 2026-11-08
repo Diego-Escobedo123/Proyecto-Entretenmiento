@@ -24,16 +24,34 @@ export interface CatalogGroup {
 /**
  * Busca en varios catálogos en paralelo. Un tipo que falla o no está
  * configurado (sin API key) simplemente no aparece: no rompe al resto.
+ *
+ * `onPartial` (opcional) recibe los grupos que ya llegaron, en el orden de
+ * `types`, cada vez que responde un catálogo. Así la pantalla puede mostrar
+ * las películas sin esperar al catálogo más lento (p. ej. libros).
  */
-export async function searchCatalogs(types: readonly MediaType[], query: string): Promise<CatalogGroup[]> {
-  const settled = await Promise.allSettled(types.map((t) => searchService.search(t, query)))
-  return types
-    .map((type, i) => {
-      const res = settled[i]
-      const results = res.status === 'fulfilled' && res.value.available ? res.value.results : []
-      return { type, results }
-    })
-    .filter((g) => g.results.length > 0)
+export async function searchCatalogs(
+  types: readonly MediaType[],
+  query: string,
+  onPartial?: (groups: CatalogGroup[]) => void,
+): Promise<CatalogGroup[]> {
+  const done: (ExternalSearchResult[] | undefined)[] = types.map(() => undefined)
+  const collect = () =>
+    types
+      .map((type, i) => ({ type, results: done[i] ?? [] }))
+      .filter((g) => g.results.length > 0)
+
+  await Promise.all(
+    types.map(async (type, i) => {
+      try {
+        const res = await searchService.search(type, query)
+        done[i] = res.available ? res.results : []
+      } catch {
+        done[i] = []
+      }
+      onPartial?.(collect())
+    }),
+  )
+  return collect()
 }
 
 export { HttpSearchService }

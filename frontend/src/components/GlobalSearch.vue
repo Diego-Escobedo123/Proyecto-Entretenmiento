@@ -76,20 +76,31 @@ const searchingExternal = ref(false)
 let debounceId: ReturnType<typeof setTimeout> | undefined
 let requestId = 0
 
-async function runExternalSearch(q: string) {
-  const current = ++requestId
-  searchingExternal.value = true
-  const groups = await searchCatalogs(MEDIA_TYPES.map((t) => t.value), q)
-  // Si el usuario siguió escribiendo, esta respuesta ya no sirve.
-  if (current !== requestId) return
-
-  // Lo que ya está en la colección sale en su propia sección, no se repite.
-  externalGroups.value = groups
+/** Lo que ya está en la colección sale en su propia sección, no se repite. */
+function withoutOwned(groups: CatalogGroup[]): CatalogGroup[] {
+  return groups
     .map((g) => ({
       type: g.type,
       results: g.results.filter((r) => !media.findByTitle(g.type, r.title, r.externalId)).slice(0, MAX_PER_TYPE),
     }))
     .filter((g) => g.results.length > 0)
+}
+
+async function runExternalSearch(q: string) {
+  const current = ++requestId
+  searchingExternal.value = true
+  externalGroups.value = []
+  // Cada catálogo se muestra en cuanto responde: no se espera al más lento.
+  // Si el usuario siguió escribiendo (otro requestId), estas respuestas ya no sirven.
+  const groups = await searchCatalogs(
+    MEDIA_TYPES.map((t) => t.value),
+    q,
+    (partial) => {
+      if (current === requestId) externalGroups.value = withoutOwned(partial)
+    },
+  )
+  if (current !== requestId) return
+  externalGroups.value = withoutOwned(groups)
   searchingExternal.value = false
 }
 
