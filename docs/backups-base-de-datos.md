@@ -2,7 +2,9 @@
 
 La base de producción es la instancia **`testd-db`** de Amazon RDS
 (PostgreSQL 18, `db.t4g.micro`, región **us-east-2 / Ohio**). La base de la
-app dentro de ella se llama `mosaic`.
+app desplegada dentro de ella se llama `postgres`. La instancia también tiene
+otra base, `mosaic`, que la app desplegada no usa. Los backups y las
+instantáneas de RDS copian la instancia completa, con las dos bases.
 
 ## Qué está configurado
 
@@ -53,17 +55,18 @@ nueva y se borra la vieja.
      seguridad **`mosaic-db-sg`**
 4. **Restaurar** y esperar a que quede *Disponible* (unos 10–20 min).
 5. Copiar el **punto de conexión** de la instancia nueva y cambiar sólo el
-   host en `DATABASE_URL` (usuario, contraseña y base `mosaic` son los mismos
+   host en el `DATABASE_URL` de `mosaic-api` en ECS (usuario, contraseña y base `postgres` son los mismos
    de la original):
 
    ```env
-   DATABASE_URL="postgresql://postgres:<contraseña>@<endpoint-nuevo>:5432/mosaic?schema=public&sslmode=require"
+   DATABASE_URL="postgresql://postgres:<contraseña>@<endpoint-nuevo>:5432/postgres?schema=public&sslmode=require"
    ```
 
 6. Comprobar desde `backend/`:
 
    ```bash
-   bunx prisma migrate status   # "Database schema is up to date!"
+   # Con la dirección nueva: el backend/.env puede apuntar a otra base
+   DATABASE_URL="<dirección-nueva>" bunx prisma migrate status   # "Database schema is up to date!"
    ```
 
    y entrar a la app para ver que los datos son los esperados.
@@ -79,7 +82,7 @@ que ser `postgres:18` o mayor (`pg_dump` no exporta servidores más nuevos que
 él):
 
 ```bash
-docker run --rm postgres:18 pg_dump "postgresql://postgres:<contraseña>@<endpoint>:5432/mosaic?sslmode=require" > mosaic.sql
+docker run --rm postgres:18 pg_dump "postgresql://postgres:<contraseña>@<endpoint>:5432/postgres?sslmode=require" > mosaic.sql
 ```
 
 El archivo contiene datos de usuarios: no subirlo al repo.
